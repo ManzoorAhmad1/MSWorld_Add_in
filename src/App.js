@@ -8,7 +8,7 @@ function App() {
       try {
         // Get the document body
         const body = context.document.body;
-        
+          
         // Insert "Hello World" text
         body.insertText('Hello World', Word.InsertLocation.end);
         
