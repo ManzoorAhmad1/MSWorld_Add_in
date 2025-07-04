@@ -13,7 +13,7 @@ export default function LoginPage({ onLogin }) {
   const handleLogin = () => {
     const token = generateToken();
     window.location.href = `http://localhost:3000/login?token=${token}`;
-    if (onLogin) onLogin();
+    // if (onLogin) onLogin();
   };
 
   return (

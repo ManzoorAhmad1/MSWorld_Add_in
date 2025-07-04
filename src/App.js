@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
+import LoginPage from './LoginPage';
 
 function App() { 
   const [isOfficeReady, setIsOfficeReady] = useState(false);
@@ -308,7 +309,7 @@ While still in early stages, quantum computing promises to revolutionize scienti
 
   return (
     <div className="App">
-      <header className="App-header">
+      {/* <header className="App-header">
         <h1>researchCollab</h1>
         <p>Research Document Collaboration Tool</p>
         <div className="status">
@@ -349,7 +350,8 @@ While still in early stages, quantum computing promises to revolutionize scienti
             <p>If you're seeing this in a browser, upload the manifest.xml file to Word.</p>
           </div>
         )}
-      </header>
+      </header> */}
+   <LoginPage/>
     </div>
   );
 }
