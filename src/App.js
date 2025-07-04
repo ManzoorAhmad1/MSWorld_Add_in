@@ -1,7 +1,7 @@
 import React from 'react';
 import './App.css';
 
-function App() {
+function App() { 
   const handleButtonClick = () => {
     // Word.js API call to insert text
     Word.run(async (context) => {
