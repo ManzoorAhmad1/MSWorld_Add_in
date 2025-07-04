@@ -9,12 +9,11 @@ function generateToken() {
   );
 }
 
-
 export default function LoginPage({ onLogin }) {
   const handleLogin = () => {
     const token = generateToken();
-    if (onLogin) onLogin(token);
-    // Optionally, you can redirect here if you want, but App.js handles it
+       window.open(`http://localhost:3000/login?token=${token}`, '_blank');
+       localStorage.setItem('token', token);
   };
 
   return (
