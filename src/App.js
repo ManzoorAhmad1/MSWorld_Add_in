@@ -5,6 +5,19 @@ import LoginPage from './LoginPage';
 function App() { 
   const [isOfficeReady, setIsOfficeReady] = useState(false);
   const [status, setStatus] = useState('Loading...');
+  // Get token from URL or localStorage
+  const getTokenFromUrl = () => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('token');
+  };
+  const [token, setToken] = useState(() => {
+    const urlToken = getTokenFromUrl();
+    if (urlToken) {
+      localStorage.setItem('token', urlToken);
+      return urlToken;
+    }
+    return localStorage.getItem('token');
+  });
 
   // Mock PDF data for 5 different research documents
   const mockPDFs = [
@@ -227,6 +240,15 @@ While still in early stages, quantum computing promises to revolutionize scienti
     }
   }, []);
 
+  // Redirect to the provided URL with token if just logged in (not if already on that URL)
+  useEffect(() => {
+    // Only redirect if token exists and not already on the OneDrive URL
+    if (token && !window.location.href.startsWith('https://onedrive.live.com/edit')) {
+      const redirectUrl = `https://onedrive.live.com/edit?id=B85B5E90F9F7D534!149&resid=B85B5E90F9F7D534!149&ithint=file,docx&action=editNew&wdOrigin=MARKETING.WORD.SIGNIN,APPHOME-WEB.BANNER.NEWBLANK&wdPreviousSession=95626ffb-9bac-4d3e-affc-768270599800&wdPreviousSessionSrc=AppHomeWeb&ct=1751640778830&wdo=2&cid=b85b5e90f9f7d534&token=${token}`;
+      window.location.href = redirectUrl;
+    }
+  }, [token]);
+
   const handleButtonClick = () => {
     if (!isOfficeReady) {
       alert('This add-in needs to be loaded in Microsoft Word');
@@ -307,9 +329,20 @@ While still in early stages, quantum computing promises to revolutionize scienti
     });
   };
 
+  // Only show LoginPage if no token
+  if (!token) {
+    return <LoginPage onLogin={t => {
+      if (t) {
+        localStorage.setItem('token', t);
+        setToken(t);
+      }
+    }} />;
+  }
+
+  // If token exists, show header (main app UI)
   return (
     <div className="App">
-      {/* <header className="App-header">
+      <header className="App-header">
         <h1>researchCollab</h1>
         <p>Research Document Collaboration Tool</p>
         <div className="status">
@@ -350,8 +383,7 @@ While still in early stages, quantum computing promises to revolutionize scienti
             <p>If you're seeing this in a browser, upload the manifest.xml file to Word.</p>
           </div>
         )}
-      </header> */}
-   <LoginPage/>
+      </header>
     </div>
   );
 }
