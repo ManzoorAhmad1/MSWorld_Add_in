@@ -15,6 +15,7 @@ function App() {
   useEffect(()=>{
     const urlToken = getTokenFromUrl();
     if(urlToken) {
+      localStorage.setItem('token', urlToken);
       setToken(urlToken);
     }
   },[token])
