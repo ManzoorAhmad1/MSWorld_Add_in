@@ -5,27 +5,20 @@ import LoginPage from './LoginPage';
 function App() { 
   const [isOfficeReady, setIsOfficeReady] = useState(false);
   const [status, setStatus] = useState('Loading...');
-  // Office.js Dialog API login flow
-  const [token, setToken] = useState(() => {
-    // On first load, check localStorage
-    return localStorage.getItem('token') || '';
-  });
+  // Get token from URL or localStorage
+  const getTokenFromUrl = () => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('token');
+  };
+  const [token, setToken] = useState('');
 
-  // Listen for token from dialog (login)
-  useEffect(() => {
-    // Only set up handler once
-    if (window.Office && window.Office.context && window.Office.context.ui) {
-      window.Office.context.ui.addHandlerAsync(
-        window.Office.EventType.DialogMessageReceived,
-        (arg) => {
-          if (arg && arg.message) {
-            localStorage.setItem('token', arg.message);
-            setToken(arg.message);
-          }
-        }
-      );
+  useEffect(()=>{
+    const urlToken = getTokenFromUrl();
+    if(urlToken) {
+      localStorage.setItem('token', urlToken);
+      setToken(urlToken);
     }
-  }, []);
+  },[token])
   // Mock PDF data for 5 different research documents
   const mockPDFs = [
     {
