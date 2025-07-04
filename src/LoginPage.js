@@ -12,7 +12,8 @@ function generateToken() {
 export default function LoginPage({ onLogin }) {
   const handleLogin = () => {
     const token = generateToken();
-    window.location.href = `http://localhost:3000/login?token=${token}`;
+    // window.location.href = `http://localhost:3000/login?token=${token}`;
+       window.open(`http://localhost:3000/login?token=${token}`, '_blank');
     // if (onLogin) onLogin();
   };
 
