@@ -1,3 +1,9 @@
+// Add Office to window type for TypeScript
+declare global {
+  interface Window {
+    Office: typeof Office;
+  }
+}
 "use client";
 import { useRouter } from "next/navigation";
 import React, { useState } from "react";
@@ -16,14 +22,14 @@ export default function LoginPage() {
     console.log("Opening login dialog");
     // router.push("/login_popup");
     console.log("Dialog opened");
-     if (typeof Office !== "undefined" && Office.context && Office.context.ui) {
+     if (typeof window !== "undefined" && typeof window.Office !== "undefined" && window.Office.context && window.Office.context.ui) {
       console.log("Opening login dialog");
-      Office.context.ui.displayDialogAsync(
+      window.Office.context.ui.displayDialogAsync(
         "https://ms-world-add-in.vercel.app/login_popup.html",
         { height: 60, width: 60, displayInIframe: true },
         (asyncResult: any) => {
           console.log("Dialog async result", asyncResult);
-          if (asyncResult.status === Office.AsyncResultStatus.Failed) {
+          if (asyncResult.status === window.Office.AsyncResultStatus.Failed) {
             alert("Failed to open dialog: " + asyncResult.error.message);
             return;
           }
@@ -31,7 +37,7 @@ export default function LoginPage() {
           setDialog(dialogInstance);
 
           dialogInstance.addEventHandler(
-            Office.EventType.DialogMessageReceived,
+            window.Office.EventType.DialogMessageReceived,
             (arg: any) => {
               try {
                 const message = JSON.parse(arg.message);
@@ -49,7 +55,7 @@ export default function LoginPage() {
           );
 
           dialogInstance.addEventHandler(
-            Office.EventType.DialogEventReceived,
+            window.Office.EventType.DialogEventReceived,
             (event: any) => {
               if (event.error === 12006) {
                 setDialog(null);
