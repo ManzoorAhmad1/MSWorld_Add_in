@@ -14,7 +14,7 @@
   <HighResolutionIconUrl DefaultValue="https://ms-world-add-in.vercel.app/assets/icon-64.png"/>
   <SupportUrl DefaultValue="https://www.contoso.com/help"/>
   <AppDomains>
-    <AppDomain>https://ms-world-add-in.vercel.app/</AppDomain>
+    <AppDomain>https://ms-world-add-in.vercel.app</AppDomain>
   </AppDomains>
   <Hosts>
     <Host Name="Document"/>

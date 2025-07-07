@@ -9,7 +9,7 @@ type User = {
 export default function LoginPage() {
   const [user, setUser] = useState<User | null>(null);
   const [dialog, setDialog] = useState<any>(null);
-
+  console.log(dialog,'dialog')
   const handleLogin = () => {
     Office.context.ui.displayDialogAsync(
       "https://ms-world-add-in.vercel.app/login_popup",
