@@ -15,10 +15,30 @@ export default function LoginPopup() {
     e.preventDefault();
     setError("");
     if (email && password) {
-      window.parent.postMessage(
-        JSON.stringify({ email, token: "dummy-token" }),
-        "*"
-      );
+      fetch("https://research-collab-backend-agep.onrender.com/api/v1/users/signin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      })
+        .then(async (res) => {
+          if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.message || "Login failed");
+          }
+          return res.json();
+        })
+        .then((data) => {
+          // Assuming the backend returns a token
+          window.parent.postMessage(
+            JSON.stringify({ email, token: data.token }),
+            "*"
+          );
+        })
+        .catch((err) => {
+          setError(err.message || "Login failed");
+        });
     } else {
       setError("Please enter both email and password.");
     }
