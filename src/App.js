@@ -373,7 +373,11 @@ function App() {
         <Route path="/login" element={<LoginPopup />} />
         <Route
           path="*"
-          element={token ? renderMainApp() : <LoginPage />}
+          element={
+            (typeof Office !== "undefined" && isOfficeReady) || token
+              ? renderMainApp()
+              : <LoginPage />
+          }
         />
       </Routes>
   );
