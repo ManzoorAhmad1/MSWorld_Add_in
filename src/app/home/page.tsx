@@ -119,6 +119,7 @@ const Home: React.FC = () => {
       setStatus("Office.js not loaded - Demo mode active");
       loadSavedCitations();
     }
+    // intentionally not adding dependencies to avoid re-running on every render
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -338,20 +339,22 @@ const Home: React.FC = () => {
     });
   };
 
-  return (
-    <div className="App">
-      <header className="App-header">
-        <h1>📚 ResearchCollab</h1>
-        <p>Professional Citation Management for Microsoft Word</p>
-        <div className="status-indicator">
-          <span
-            className={`status-dot ${
-              isOfficeReady ? "connected" : "disconnected"
-            }`}
-          />
-          <span className="status-text">{status}</span>
-        </div>
+return (
+  <div className="min-h-screen bg-gradient-to-br from-gray-100 via-emerald-50 to-amber-50 flex flex-col items-center py-8 px-2">
+    <header className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl p-8 flex flex-col items-center border border-emerald-100">
+      <h1 className="text-4xl font-extrabold text-emerald-700 flex items-center gap-2 mb-1 tracking-tight drop-shadow">📚 ResearchCollab</h1>
+      <p className="text-amber-700 mb-4 text-center text-lg font-medium">Professional Citation Management for Microsoft Word</p>
+      <div className="flex items-center gap-2 mb-6">
+        <span
+          className={`inline-block w-3 h-3 rounded-full border-2 ${
+            isOfficeReady ? "bg-emerald-400 border-emerald-600" : "bg-rose-400 border-rose-600"
+          }`}
+          aria-label={isOfficeReady ? "Connected to Word" : "Not connected"}
+        />
+        <span className="text-sm text-emerald-900 font-semibold tracking-wide">{status}</span>
+      </div>
 
+      <div className="w-full space-y-6">
         <CitationSearch
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -397,10 +400,15 @@ const Home: React.FC = () => {
           handlePDFClick={handlePDFClick}
           isOfficeReady={isOfficeReady}
         />
+      </div>
 
-        {!isOfficeReady && <OfficeWarning />}
-      </header>
-    </div>
+      {!isOfficeReady && (
+        <div className="mt-6 w-full">
+          <OfficeWarning />
+        </div>
+      )}
+    </header>
+  </div>
   );
 };
 export default Home;
