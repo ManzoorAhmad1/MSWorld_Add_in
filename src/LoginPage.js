@@ -7,7 +7,7 @@ export default function LoginPage() {
 
   const handleLogin = () => {
    Office.context.ui.displayDialogAsync(
-  'https://ms-world-add-in.vercel.app/login-dialog.html',  // URL must be a string with protocol
+  'https://research-collab-xfbh.onrender.com/login',  // URL must be a string with protocol
   { height: 60, width: 40, displayInIframe: true },
   (asyncResult) => {
     if (asyncResult.status === Office.AsyncResultStatus.Failed) {
