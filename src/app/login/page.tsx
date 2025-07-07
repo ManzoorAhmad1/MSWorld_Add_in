@@ -20,6 +20,7 @@ export default function LoginPage() {
       "https://ms-world-add-in.vercel.app/login_popup.html",
       { height: 60, width: 60, displayInIframe: true },
       (asyncResult: any) => {
+        console.log("Dialog async result", asyncResult);
         if (asyncResult.status === Office.AsyncResultStatus.Failed) {
           alert("Failed to open dialog: " + asyncResult.error.message);
           return;
@@ -54,7 +55,10 @@ export default function LoginPage() {
           }
         );
       }
+      
     );
+      console.log("Dialog opened successfully")
+
   };
 
   return (

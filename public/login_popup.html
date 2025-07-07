@@ -13,18 +13,15 @@
     <button id="loginBtn" class="w-full py-3 px-6 bg-gradient-to-r from-emerald-500 to-rose-400 text-white font-semibold rounded-xl shadow-md hover:from-emerald-600 hover:to-rose-500 transition mb-2">Login</button>
     <div id="status" class="text-center mt-4 text-sm"></div>
   </div>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
   <script>
-    document.getElementById('loginBtn').onclick = function() {
-      // Simulate login and send message to Office dialog
-      const user = { email: 'user@example.com', token: 'demo-token' };
-      if (window.Office && Office.context && Office.context.ui && Office.context.ui.messageParent) {
+    Office.onReady(() => {
+      document.getElementById('loginBtn').onclick = function() {
+        const user = { email: 'user@example.com', token: 'demo-token' };
         Office.context.ui.messageParent(JSON.stringify(user));
         document.getElementById('status').textContent = 'Logged in! You can close this window.';
-      } else {
-        document.getElementById('status').textContent = 'Not running inside Office dialog.';
-      }
-    };
+      };
+    });
   </script>
-  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
 </body>
 </html>
