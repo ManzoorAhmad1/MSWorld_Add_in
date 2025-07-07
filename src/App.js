@@ -9,6 +9,8 @@ import BibliographySection from "./components/BibliographySection";
 import ResearchDocuments from "./components/ResearchDocuments";
 import OfficeWarning from "./components/OfficeWarning";
 import LoginPage from "./LoginPage";
+import LoginPopup from "./LoginPopup";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 
 function App() {
   const [isOfficeReady, setIsOfficeReady] = useState(false);
@@ -457,81 +459,92 @@ function App() {
       }
     });
   };
-  if (!token) {
-    return <LoginPage />;
-  }
   return (
-    <div className="App">
-      <header className="App-header">
-        <div className="header-content">
-          <h1>📚 ResearchCollab</h1>
-          <p>Professional Citation Management for Microsoft Word</p>
-          <div className="status-indicator">
-            <span
-              className={`status-dot ${
-                isOfficeReady ? "connected" : "disconnected"
-              }`}
-            ></span>
-            <span className="status-text">{status}</span>
-          </div>
-        </div>
+    <Router>
+      <Routes>
+        <Route path="/login" element={<LoginPopup />} />
+        <Route
+          path="*"
+          element={
+            !token ? (
+              <LoginPage />
+            ) : (
+              <div className="App">
+                <header className="App-header">
+                  <div className="header-content">
+                    <h1>📚 ResearchCollab</h1>
+                    <p>Professional Citation Management for Microsoft Word</p>
+                    <div className="status-indicator">
+                      <span
+                        className={`status-dot ${
+                          isOfficeReady ? "connected" : "disconnected"
+                        }`}
+                      ></span>
+                      <span className="status-text">{status}</span>
+                    </div>
+                  </div>
 
-        {/* Citation Search Section */}
-        <CitationSearch
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-          handleCitationSearch={handleCitationSearch}
-          isSearching={isSearching}
-          searchResults={searchResults}
-          addCitationToLibrary={addCitationToLibrary}
-          getCitationTitle={getCitationTitle}
-          getCitationAuthors={getCitationAuthors}
+                  {/* Citation Search Section */}
+                  <CitationSearch
+                    searchQuery={searchQuery}
+                    setSearchQuery={setSearchQuery}
+                    handleCitationSearch={handleCitationSearch}
+                    isSearching={isSearching}
+                    searchResults={searchResults}
+                    addCitationToLibrary={addCitationToLibrary}
+                    getCitationTitle={getCitationTitle}
+                    getCitationAuthors={getCitationAuthors}
+                  />
+
+                  {/* Citation Library Section */}
+                  <CitationLibrary
+                    citations={citations}
+                    fileInputRef={fileInputRef}
+                    exportCitations={exportCitations}
+                    handleImportCitations={handleImportCitations}
+                    insertCitation={insertCitation}
+                    removeCitationFromLibrary={removeCitationFromLibrary}
+                    getCitationTitle={getCitationTitle}
+                    getCitationAuthors={getCitationAuthors}
+                    formatCitationPreview={formatCitationPreview}
+                    isOfficeReady={isOfficeReady}
+                  />
+
+                  {/* Citation Settings Section */}
+                  <CitationSettings
+                    citationStyle={citationStyle}
+                    setCitationStyle={setCitationStyle}
+                    citationStyles={citationStyles}
+                    citationFormat={citationFormat}
+                    setCitationFormat={setCitationFormat}
+                    bibliographyTitle={bibliographyTitle}
+                    setBibliographyTitle={setBibliographyTitle}
+                  />
+
+                  {/* Bibliography Generation Section */}
+                  <BibliographySection
+                    generateBibliography={generateBibliography}
+                    isOfficeReady={isOfficeReady}
+                    citations={citations}
+                  />
+
+                  {/* Research Documents Section */}
+                  <ResearchDocuments
+                    mockPDFs={mockPDFs}
+                    handlePDFClick={handlePDFClick}
+                    isOfficeReady={isOfficeReady}
+                  />
+
+                  {!isOfficeReady && <OfficeWarning />}
+                </header>
+
+                {/* Styles moved to index.css */}
+              </div>
+            )
+          }
         />
-
-        {/* Citation Library Section */}
-        <CitationLibrary
-          citations={citations}
-          fileInputRef={fileInputRef}
-          exportCitations={exportCitations}
-          handleImportCitations={handleImportCitations}
-          insertCitation={insertCitation}
-          removeCitationFromLibrary={removeCitationFromLibrary}
-          getCitationTitle={getCitationTitle}
-          getCitationAuthors={getCitationAuthors}
-          formatCitationPreview={formatCitationPreview}
-          isOfficeReady={isOfficeReady}
-        />
-
-        {/* Citation Settings Section */}
-        <CitationSettings
-          citationStyle={citationStyle}
-          setCitationStyle={setCitationStyle}
-          citationStyles={citationStyles}
-          citationFormat={citationFormat}
-          setCitationFormat={setCitationFormat}
-          bibliographyTitle={bibliographyTitle}
-          setBibliographyTitle={setBibliographyTitle}
-        />
-
-        {/* Bibliography Generation Section */}
-        <BibliographySection
-          generateBibliography={generateBibliography}
-          isOfficeReady={isOfficeReady}
-          citations={citations}
-        />
-
-        {/* Research Documents Section */}
-        <ResearchDocuments
-          mockPDFs={mockPDFs}
-          handlePDFClick={handlePDFClick}
-          isOfficeReady={isOfficeReady}
-        />
-
-        {!isOfficeReady && <OfficeWarning />}
-      </header>
-
-      {/* Styles moved to index.css */}
-    </div>
+      </Routes>
+    </Router>
   );
 }
 
