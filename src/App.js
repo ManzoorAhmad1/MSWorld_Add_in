@@ -320,9 +320,9 @@ While still in early stages, quantum computing promises to revolutionize scienti
     });
   };
 
-  if (!token) {
-    return <LoginPage  />;
-  }
+  // if (!token) {
+  //   return <LoginPage  />;
+  // }
 
   return (
     <div className="App">
