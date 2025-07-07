@@ -1,12 +1,13 @@
-// Add Office to window type for TypeScript
+"use client";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+
+// Extend Window for Office typings
 declare global {
   interface Window {
     Office: typeof Office;
   }
 }
-"use client";
-import { useRouter } from "next/navigation";
-import React, { useState } from "react";
 
 type User = {
   email: string;
@@ -16,61 +17,69 @@ type User = {
 export default function LoginPage() {
   const [user, setUser] = useState<User | null>(null);
   const [dialog, setDialog] = useState<any>(null);
+  const [officeReady, setOfficeReady] = useState(false);
   const router = useRouter();
-  console.log(dialog, "dialog");
-  const handleLogin = () => {
-    console.log("Opening login dialog");
-    // router.push("/login_popup");
-    console.log("Dialog opened");
-     if (typeof window !== "undefined" && typeof window.Office !== "undefined" && window.Office.context && window.Office.context.ui) {
-      console.log("Opening login dialog");
-      window.Office.context.ui.displayDialogAsync(
-        "https://ms-world-add-in.vercel.app/login_popup.html",
-        { height: 60, width: 60, displayInIframe: true },
-        (asyncResult: any) => {
-          console.log("Dialog async result", asyncResult);
-          if (asyncResult.status === window.Office.AsyncResultStatus.Failed) {
-            alert("Failed to open dialog: " + asyncResult.error.message);
-            return;
-          }
-          const dialogInstance = asyncResult.value;
-          setDialog(dialogInstance);
 
-          dialogInstance.addEventHandler(
-            window.Office.EventType.DialogMessageReceived,
-            (arg: any) => {
-              try {
-                const message = JSON.parse(arg.message);
-                if (message.token) {
-                  setUser({ email: message.email, token: message.token });
-                  dialogInstance.close();
-                  setDialog(null);
-                } else if (message.error) {
-                  alert("Login error: " + message.error);
-                }
-              } catch (e) {
-                alert("Invalid message received from dialog");
-              }
-            }
-          );
-
-          dialogInstance.addEventHandler(
-            window.Office.EventType.DialogEventReceived,
-            (event: any) => {
-              if (event.error === 12006) {
-                setDialog(null);
-              }
-            }
-          );
-        }
-      );
-      console.log("Dialog opened successfully");
+  // Ensure Office is initialized
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.Office) {
+      window.Office.onReady().then(() => {
+        console.log("✅ Office is ready");
+        setOfficeReady(true);
+      });
     } else {
-        console.log("Office.js not available");
-      alert("This feature is only available inside Microsoft Word/Office.");
+      console.warn("❌ Office.js not found");
     }
-      console.log("Dialog opened successfully")
+  }, []);
 
+  const handleLogin = () => {
+    if (!officeReady || !window.Office.context?.ui) {
+      alert("This feature is only available inside Microsoft Word/Office.");
+      return;
+    }
+
+    console.log("Opening login dialog");
+
+    window.Office.context.ui.displayDialogAsync(
+      "https://ms-world-add-in.vercel.app/login_popup.html",
+      { height: 60, width: 60, displayInIframe: true },
+      (asyncResult: any) => {
+        if (asyncResult.status === window.Office.AsyncResultStatus.Failed) {
+          alert("Failed to open dialog: " + asyncResult.error.message);
+          return;
+        }
+
+        const dialogInstance = asyncResult.value;
+        setDialog(dialogInstance);
+
+        dialogInstance.addEventHandler(
+          window.Office.EventType.DialogMessageReceived,
+          (arg: any) => {
+            try {
+              const message = JSON.parse(arg.message);
+              if (message.token) {
+                setUser({ email: message.email, token: message.token });
+                dialogInstance.close();
+                setDialog(null);
+              } else if (message.error) {
+                alert("Login error: " + message.error);
+              }
+            } catch (e) {
+              alert("Invalid message received from dialog");
+            }
+          }
+        );
+
+        dialogInstance.addEventHandler(
+          window.Office.EventType.DialogEventReceived,
+          (event: any) => {
+            if (event.error === 12006) {
+              setDialog(null); // Dialog closed by user
+            }
+          }
+        );
+      }
+    );
   };
 
   return (
@@ -87,8 +96,9 @@ export default function LoginPage() {
             <button
               className="w-full py-3 px-6 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold rounded-xl shadow-md hover:from-blue-600 hover:to-indigo-700 transition mb-2"
               onClick={handleLogin}
+              disabled={!officeReady}
             >
-              Login
+              {officeReady ? "Login" : "Loading Office..."}
             </button>
           </>
         ) : (
@@ -96,7 +106,6 @@ export default function LoginPage() {
             <p className="text-green-600 font-medium mb-2">
               Signed in as <span className="font-semibold">{user.email}</span>
             </p>
-            {/* Add sign out button or other UI here */}
           </>
         )}
       </div>
