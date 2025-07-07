@@ -14,7 +14,7 @@ export default function LoginPage() {
   console.log(dialog, "dialog");
   const handleLogin = () => {
     console.log("Opening login dialog");
-    router.push("/login_popup");
+    // router.push("/login_popup");
     console.log("Dialog opened");
      if (typeof Office !== "undefined" && Office.context && Office.context.ui) {
       console.log("Opening login dialog");
