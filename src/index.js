@@ -1,12 +1,15 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import App from './App';
-import './index.css';
-import { MemoryRouter } from 'react-router-dom';
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App";
+import "./index.css";
+import { Router } from "react-router-dom";
+import { createBrowserHistory } from "history";
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
+const history = createBrowserHistory();
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
-  <MemoryRouter initialEntries={["/login"]}>
-    <App/>
-  </MemoryRouter>
+  <Router history={history}>
+    <App />
+  </Router>
 );

@@ -1,0 +1,10 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "shell",
+			"command": "npm install -D tailwindcss postcss autoprefixer && npx tailwindcss init -p",
+			"label": "Install and initialize Tailwind CSS"
+		}
+	]
+}
