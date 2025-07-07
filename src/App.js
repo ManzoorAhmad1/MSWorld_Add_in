@@ -1,24 +1,90 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
-import LoginPage from './LoginPage';
+import Cite from 'citation-js';
 
-function App() { 
+function App() {
   const [isOfficeReady, setIsOfficeReady] = useState(false);
   const [status, setStatus] = useState('Loading...');
-  // Get token from URL or localStorage
+  // Auth
   const getTokenFromUrl = () => {
     const params = new URLSearchParams(window.location.search);
     return params.get('token');
   };
   const [token, setToken] = useState('');
-
-  useEffect(()=>{
+  useEffect(() => {
     const urlToken = getTokenFromUrl();
-    if(urlToken) {
+    if (urlToken) {
       localStorage.setItem('token', urlToken);
       setToken(urlToken);
     }
-  },[token])
+  }, [token]);
+
+  // Citation management state
+  const [citationStyle, setCitationStyle] = useState('apa');
+  const [citationInput, setCitationInput] = useState('');
+  const [citations, setCitations] = useState([]); // Array of CSL-JSON or BibTeX
+  const [bibliography, setBibliography] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  // Citation search using Crossref API (public, for demo)
+  const handleCitationSearch = async () => {
+    if (!searchQuery) return;
+    setSearchResults([]);
+    setStatus('Searching...');
+    try {
+      const res = await fetch(`https://api.crossref.org/works?query=${encodeURIComponent(searchQuery)}&rows=5`);
+      const data = await res.json();
+      if (data && data.message && data.message.items) {
+        setSearchResults(data.message.items);
+        setStatus('Search complete.');
+      } else {
+        setStatus('No results found.');
+      }
+    } catch (e) {
+      setStatus('Error searching citations.');
+    }
+  };
+
+  // Import citations from BibTeX file
+  const handleImportCitations = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const bibtex = event.target.result;
+        setCitations([...citations, bibtex]);
+        setStatus('Citations imported!');
+      } catch (err) {
+        setStatus('Import failed.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  // Export citations as BibTeX
+  const handleExportCitations = () => {
+    if (citations.length === 0) {
+      alert('No citations to export.');
+      return;
+    }
+    try {
+      const cite = new Cite(citations);
+      const bibtex = cite.format('bibtex');
+      const blob = new Blob([bibtex], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'citations.bib';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setStatus('Citations exported!');
+    } catch (e) {
+      setStatus('Export failed.');
+    }
+  };
   // Mock PDF data for 5 different research documents
   const mockPDFs = [
     {
@@ -240,31 +306,74 @@ While still in early stages, quantum computing promises to revolutionize scienti
     }
   }, []);
 
+  // Insert Hello World (demo)
   const handleButtonClick = () => {
     if (!isOfficeReady) {
       alert('This add-in needs to be loaded in Microsoft Word');
       return;
     }
-
-    // Word.js API call to insert text
     Word.run(async (context) => {
       try {
-        // Get the document body
         const body = context.document.body;
-          
-        // Insert "Hello World" text
         body.insertText('Hello World', Word.InsertLocation.end);
-        
-        // Sync the context to execute the queued commands
         await context.sync();
-        
-        console.log('Hello World inserted successfully!');
         setStatus('Text inserted successfully!');
       } catch (error) {
-        console.error('Error inserting text:', error);
         setStatus('Error inserting text');
       }
     });
+  };
+
+  // Insert citation at cursor
+  const handleInsertCitation = async () => {
+    if (!isOfficeReady) {
+      alert('This add-in needs to be loaded in Microsoft Word');
+      return;
+    }
+    if (!citationInput) {
+      alert('Enter a BibTeX, DOI, or citation string.');
+      return;
+    }
+    try {
+      // Use citation-js to parse and format
+      const cite = new Cite(citationInput);
+      const formatted = cite.format('citation', { format: 'text', template: citationStyle });
+      setCitations([...citations, citationInput]);
+      setStatus('Citation inserted!');
+      // Insert into Word
+      await Word.run(async (context) => {
+        context.document.getSelection().insertText(formatted, Word.InsertLocation.replace);
+        await context.sync();
+      });
+    } catch (e) {
+      alert('Invalid citation input.');
+    }
+  };
+
+  // Generate bibliography
+  const handleGenerateBibliography = async () => {
+    if (!isOfficeReady) {
+      alert('This add-in needs to be loaded in Microsoft Word');
+      return;
+    }
+    if (citations.length === 0) {
+      alert('No citations to generate bibliography.');
+      return;
+    }
+    try {
+      const cite = new Cite(citations);
+      const bib = cite.format('bibliography', { format: 'text', template: citationStyle });
+      setBibliography(bib);
+      // Insert at end of document
+      await Word.run(async (context) => {
+        context.document.body.insertParagraph('References', Word.InsertLocation.end).style = 'Heading 1';
+        context.document.body.insertParagraph(bib, Word.InsertLocation.end);
+        await context.sync();
+      });
+      setStatus('Bibliography generated!');
+    } catch (e) {
+      alert('Error generating bibliography.');
+    }
   };
 
   const handlePDFClick = (pdfData) => {
@@ -332,7 +441,63 @@ While still in early stages, quantum computing promises to revolutionize scienti
         <div className="status">
           <strong>Status:</strong> {status}
         </div>
-        
+
+        {/* Citation Management UI */}
+        <div className="citation-section">
+          <h3>Citation Management</h3>
+          <div style={{ marginBottom: 8 }}>
+            <label htmlFor="citation-style">Citation Style: </label>
+            <select id="citation-style" value={citationStyle} onChange={e => setCitationStyle(e.target.value)}>
+              <option value="apa">APA</option>
+              <option value="mla">MLA</option>
+              <option value="chicago">Chicago</option>
+            </select>
+            <button style={{ marginLeft: 16 }} onClick={handleExportCitations} disabled={citations.length === 0}>Export BibTeX</button>
+            <label style={{ marginLeft: 16 }}>
+              <input type="file" accept=".bib,.bibtex" style={{ display: 'none' }} onChange={handleImportCitations} />
+              <span className="import-btn" style={{ cursor: 'pointer', color: '#2E75B6', textDecoration: 'underline' }}>Import BibTeX</span>
+            </label>
+          </div>
+          <div style={{ marginBottom: 8 }}>
+            <input
+              type="text"
+              placeholder="Search for a paper (title, author, DOI, etc.)"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={{ width: 350, marginRight: 8 }}
+            />
+            <button onClick={handleCitationSearch} disabled={!searchQuery}>Search</button>
+          </div>
+          {searchResults.length > 0 && (
+            <div style={{ background: '#f6f6f6', border: '1px solid #ccc', padding: 8, marginBottom: 8 }}>
+              <strong>Search Results:</strong>
+              <ul style={{ listStyle: 'none', padding: 0 }}>
+                {searchResults.map((item, idx) => (
+                  <li key={item.DOI || idx} style={{ marginBottom: 4 }}>
+                    <span>{item.title ? item.title[0] : 'No title'} ({item.author && item.author[0] ? item.author[0].family : ''}, {item.issued && item.issued['date-parts'] ? item.issued['date-parts'][0][0] : ''})</span>
+                    <button style={{ marginLeft: 8 }} onClick={() => {
+                      // Add as citation (as CSL-JSON)
+                      setCitations([...citations, item]);
+                      setStatus('Citation added from search!');
+                    }}>Add Citation</button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <input
+            type="text"
+            placeholder="Paste BibTeX, DOI, or citation string"
+            value={citationInput}
+            onChange={e => setCitationInput(e.target.value)}
+            style={{ width: 350, marginRight: 8 }}
+          />
+          <button onClick={handleInsertCitation} disabled={!isOfficeReady}>Insert Citation</button>
+          <button onClick={handleGenerateBibliography} disabled={!isOfficeReady || citations.length === 0} style={{ marginLeft: 8 }}>
+            Generate Bibliography
+          </button>
+        </div>
+
         <div className="button-section">
           <h3>Quick Actions</h3>
           <button 
