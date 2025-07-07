@@ -135,9 +135,7 @@ function App() {
 
   // Search Crossref API
   const searchCrossref = async (query) => {
-    // Use Semantic Scholar API for paper search
-    const semanticQuery = query;
-    const response = await fetch(`https://api.semanticscholar.org/graph/v1/paper/search?query=${encodeURIComponent(semanticQuery)}&fields=title,year,openAccessPdf,referenceCount,citationCount,abstract,authors,publicationTypes,publicationDate&offset=0&limit=100`);
+    const response = await fetch(`https://api.crossref.org/works?query=${encodeURIComponent(query)}&rows=10&sort=relevance&order=desc`);
     const data = await response.json();
     
     if (data?.message?.items) {
