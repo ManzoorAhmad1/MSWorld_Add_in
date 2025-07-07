@@ -12,7 +12,7 @@ export default function LoginPage() {
 
   const handleLogin = () => {
     Office.context.ui.displayDialogAsync(
-      "https://ms-world-add-in.vercel.app/login",
+      "https://ms-world-add-in.vercel.app/login_popup",
       { height: 60, width: 60, displayInIframe: true },
       (asyncResult: any) => {
         if (asyncResult.status === Office.AsyncResultStatus.Failed) {
