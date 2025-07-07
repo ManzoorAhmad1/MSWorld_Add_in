@@ -16,47 +16,53 @@ export default function LoginPage() {
     console.log("Opening login dialog");
     router.push("/login_popup");
     console.log("Dialog opened");
-    Office.context.ui.displayDialogAsync(
-      "https://ms-world-add-in.vercel.app/login_popup.html",
-      { height: 60, width: 60, displayInIframe: true },
-      (asyncResult: any) => {
-        console.log("Dialog async result", asyncResult);
-        if (asyncResult.status === Office.AsyncResultStatus.Failed) {
-          alert("Failed to open dialog: " + asyncResult.error.message);
-          return;
-        }
-        const dialogInstance = asyncResult.value;
-        setDialog(dialogInstance);
+     if (typeof Office !== "undefined" && Office.context && Office.context.ui) {
+      console.log("Opening login dialog");
+      Office.context.ui.displayDialogAsync(
+        "https://ms-world-add-in.vercel.app/login_popup.html",
+        { height: 60, width: 60, displayInIframe: true },
+        (asyncResult: any) => {
+          console.log("Dialog async result", asyncResult);
+          if (asyncResult.status === Office.AsyncResultStatus.Failed) {
+            alert("Failed to open dialog: " + asyncResult.error.message);
+            return;
+          }
+          const dialogInstance = asyncResult.value;
+          setDialog(dialogInstance);
 
-        dialogInstance.addEventHandler(
-          Office.EventType.DialogMessageReceived,
-          (arg: any) => {
-            try {
-              const message = JSON.parse(arg.message);
-              if (message.token) {
-                setUser({ email: message.email, token: message.token });
-                dialogInstance.close();
-                setDialog(null);
-              } else if (message.error) {
-                alert("Login error: " + message.error);
+          dialogInstance.addEventHandler(
+            Office.EventType.DialogMessageReceived,
+            (arg: any) => {
+              try {
+                const message = JSON.parse(arg.message);
+                if (message.token) {
+                  setUser({ email: message.email, token: message.token });
+                  dialogInstance.close();
+                  setDialog(null);
+                } else if (message.error) {
+                  alert("Login error: " + message.error);
+                }
+              } catch (e) {
+                alert("Invalid message received from dialog");
               }
-            } catch (e) {
-              alert("Invalid message received from dialog");
             }
-          }
-        );
+          );
 
-        dialogInstance.addEventHandler(
-          Office.EventType.DialogEventReceived,
-          (event: any) => {
-            if (event.error === 12006) {
-              setDialog(null);
+          dialogInstance.addEventHandler(
+            Office.EventType.DialogEventReceived,
+            (event: any) => {
+              if (event.error === 12006) {
+                setDialog(null);
+              }
             }
-          }
-        );
-      }
-      
-    );
+          );
+        }
+      );
+      console.log("Dialog opened successfully");
+    } else {
+        console.log("Office.js not available");
+      alert("This feature is only available inside Microsoft Word/Office.");
+    }
       console.log("Dialog opened successfully")
 
   };
