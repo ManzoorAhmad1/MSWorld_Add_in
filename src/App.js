@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import "./App.css";
 import "./index.css";
 import Cite from "citation-js";
@@ -368,17 +368,14 @@ function App() {
       </header>
     </div>
   );
-
   return (
-    <Router>
       <Routes>
         <Route path="/login" element={<LoginPopup />} />
         <Route
           path="*"
-          element={token ? renderMainApp() : <Navigate to="/login" replace />}
+          element={token ? renderMainApp() : <LoginPage />}
         />
       </Routes>
-    </Router>
   );
 }
 

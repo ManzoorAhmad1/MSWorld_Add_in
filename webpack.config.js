@@ -43,7 +43,13 @@ module.exports = {
       process: 'process/browser.js',
     })
   ],
+  ignoreWarnings: [
+    {
+      message: /Should not import the named export/,
+    },
+  ],
   devServer: {
+    historyApiFallback: true,
     port: 3001,
     hot: true,
     open: true
