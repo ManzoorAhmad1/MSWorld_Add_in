@@ -6,7 +6,7 @@ import { MemoryRouter } from 'react-router-dom';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
-  <MemoryRouter initialEntries={["/home"]}>
+  <MemoryRouter initialEntries={["/login"]}>
     <App/>
   </MemoryRouter>
 );

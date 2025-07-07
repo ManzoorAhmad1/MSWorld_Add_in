@@ -8,7 +8,7 @@ export default function LoginPage() {
   const handleLogin = () => {
     Office.context.ui.displayDialogAsync(
       "https://ms-world-add-in.vercel.app/login", // Updated to /login route
-      { height: 60, width: 100, displayInIframe: true },
+      { height: 60, width: 60, displayInIframe: true },
       (asyncResult) => {
         if (asyncResult.status === Office.AsyncResultStatus.Failed) {
           alert("Failed to open dialog: " + asyncResult.error.message);
