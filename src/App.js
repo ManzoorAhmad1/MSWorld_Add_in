@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import LoginPage from './LoginPage';
 import './App.css';
 import './index.css';
 import Cite from 'citation-js'; // v0.5.0
@@ -18,7 +19,7 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     return params.get('token');
   };
-  const [token, setToken] = useState('');
+  const [token, setToken] = useState(localStorage.getItem('token') || '');
   
   // Citation management state
   const [citationStyle, setCitationStyle] = useState('apa');
@@ -51,6 +52,12 @@ function App() {
       setToken(urlToken);
     }
   }, []);
+
+  // Handle login from LoginPage
+  const handleLogin = (googleToken) => {
+    setToken(googleToken);
+    localStorage.setItem('token', googleToken);
+  };
 
   useEffect(() => {
     // Check if Office.js is available
@@ -423,6 +430,11 @@ function App() {
     });
   };
 
+  // If not logged in, show LoginPage
+  if (!token) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
   return (
     <div className="App">
       <header className="App-header">
@@ -488,7 +500,6 @@ function App() {
 
         {!isOfficeReady && <OfficeWarning />}
       </header>
-      
       {/* Styles moved to index.css */}
     </div>
   );
