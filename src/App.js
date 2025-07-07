@@ -457,7 +457,9 @@ function App() {
       }
     });
   };
+  if (!token) {
     return <LoginPage />;
+  }
   return (
     <div className="App">
       <header className="App-header">
