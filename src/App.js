@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import "./App.css";
 import "./index.css";
-import Cite from "citation-js"; // v0.5.0
+import Cite from "citation-js";
+
 import CitationSearch from "./components/CitationSearch";
 import CitationLibrary from "./components/CitationLibrary";
 import CitationSettings from "./components/CitationSettings";
@@ -10,7 +12,6 @@ import ResearchDocuments from "./components/ResearchDocuments";
 import OfficeWarning from "./components/OfficeWarning";
 import LoginPage from "./LoginPage";
 import LoginPopup from "./LoginPopup";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 
 function App() {
   const [isOfficeReady, setIsOfficeReady] = useState(false);
@@ -23,31 +24,27 @@ function App() {
   };
   const [token, setToken] = useState("");
 
-  // Citation management state
+  // Citation state
   const [citationStyle, setCitationStyle] = useState("apa");
-  const [citations, setCitations] = useState([]); // Array of citations with metadata
+  const [citations, setCitations] = useState([]);
   const [bibliography, setBibliography] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [citationFormat, setCitationFormat] = useState("in-text"); // 'in-text' or 'footnote'
+  const [citationFormat, setCitationFormat] = useState("in-text");
   const [bibliographyTitle, setBibliographyTitle] = useState("References");
   const [recentCitations, setRecentCitations] = useState([]);
   const fileInputRef = useRef(null);
 
-  // Citation styles with proper labels
   const citationStyles = [
     { value: "apa", label: "APA (American Psychological Association)" },
     { value: "mla", label: "MLA (Modern Language Association)" },
     { value: "chicago", label: "Chicago Manual of Style" },
-    {
-      value: "ieee",
-      label: "IEEE (Institute of Electrical and Electronics Engineers)",
-    },
-    { value: "harvard", label: "Harvard Style" },
-    { value: "vancouver", label: "Vancouver Style" },
-    { value: "nature", label: "Nature Style" },
-    { value: "science", label: "Science Style" },
+    { value: "ieee", label: "IEEE" },
+    { value: "harvard", label: "Harvard" },
+    { value: "vancouver", label: "Vancouver" },
+    { value: "nature", label: "Nature" },
+    { value: "science", label: "Science" },
   ];
 
   useEffect(() => {
@@ -55,11 +52,13 @@ function App() {
     if (urlToken) {
       localStorage.setItem("token", urlToken);
       setToken(urlToken);
+    } else {
+      const stored = localStorage.getItem("token");
+      if (stored) setToken(stored);
     }
   }, []);
 
   useEffect(() => {
-    // Check if Office.js is available
     if (typeof Office !== "undefined") {
       Office.onReady((info) => {
         if (info.host === Office.HostType.Word) {
@@ -76,34 +75,24 @@ function App() {
     }
   }, []);
 
-  // Load saved citations from localStorage
   const loadSavedCitations = () => {
     try {
       const saved = localStorage.getItem("researchCollab_citations");
       if (saved) {
-        const parsedCitations = JSON.parse(saved);
-        setCitations(parsedCitations);
-        setRecentCitations(parsedCitations.slice(-5));
+        const parsed = JSON.parse(saved);
+        setCitations(parsed);
+        setRecentCitations(parsed.slice(-5));
       }
-    } catch (error) {
-      console.error("Error loading citations:", error);
+    } catch (e) {
+      console.error("Load citations failed:", e);
     }
   };
 
-  // Save citations to localStorage
-  const saveCitations = (updatedCitations) => {
-    try {
-      localStorage.setItem(
-        "researchCollab_citations",
-        JSON.stringify(updatedCitations)
-      );
-      setRecentCitations(updatedCitations.slice(-5));
-    } catch (error) {
-      console.error("Error saving citations:", error);
-    }
+  const saveCitations = (updated) => {
+    localStorage.setItem("researchCollab_citations", JSON.stringify(updated));
+    setRecentCitations(updated.slice(-5));
   };
 
-  // Enhanced citation search using multiple APIs
   const handleCitationSearch = async () => {
     if (!searchQuery.trim()) return;
 
@@ -112,107 +101,73 @@ function App() {
     setStatus("Searching academic databases...");
 
     try {
-      // Search multiple sources
-      const [crossrefResults, doiResults] = await Promise.allSettled([
+      const [crossrefResults, doiResult] = await Promise.allSettled([
         searchCrossref(searchQuery),
         searchByDOI(searchQuery),
       ]);
 
-      let allResults = [];
-
+      let results = [];
       if (crossrefResults.status === "fulfilled") {
-        allResults = [...allResults, ...crossrefResults.value];
+        results = results.concat(crossrefResults.value);
+      }
+      if (doiResult.status === "fulfilled" && doiResult.value) {
+        results.unshift(doiResult.value);
       }
 
-      if (doiResults.status === "fulfilled" && doiResults.value) {
-        allResults = [doiResults.value, ...allResults];
-      }
-
-      setSearchResults(allResults);
-      setStatus(
-        allResults.length > 0
-          ? `Found ${allResults.length} results`
-          : "No results found"
-      );
-    } catch (error) {
-      console.error("Search error:", error);
-      setStatus("Error searching citations");
+      setSearchResults(results);
+      setStatus(results.length > 0 ? `Found ${results.length} results` : "No results found");
+    } catch (e) {
+      console.error(e);
+      setStatus("Search error");
     } finally {
       setIsSearching(false);
     }
   };
 
-  // Search Crossref API
   const searchCrossref = async (query) => {
-    const response = await fetch(
-      `https://api.crossref.org/works?query=${encodeURIComponent(
-        query
-      )}&rows=10&sort=relevance&order=desc`
+    const res = await fetch(
+      `https://api.crossref.org/works?query=${encodeURIComponent(query)}&rows=10`
     );
-    const data = await response.json();
-
-    if (data?.message?.items) {
-      return data.message.items.map((item) => ({
-        ...item,
-        source: "crossref",
-        id: item.DOI || `crossref_${Date.now()}_${Math.random()}`,
-      }));
-    }
-    return [];
+    const data = await res.json();
+    return (data.message?.items || []).map((item) => ({
+      ...item,
+      source: "crossref",
+      id: item.DOI || `crossref_${Date.now()}_${Math.random()}`,
+    }));
   };
 
-  // Search by DOI
   const searchByDOI = async (query) => {
-    const doiPattern = /10\.\d{4,}\/[^\s]+/;
-    if (!doiPattern.test(query)) return null;
-
+    const match = query.match(/10\.\d{4,}\/[^\s]+/);
+    if (!match) return null;
     try {
-      const response = await fetch(`https://api.crossref.org/works/${query}`);
-      const data = await response.json();
-
-      if (data?.message) {
-        return {
-          ...data.message,
-          source: "doi",
-          id: data.message.DOI,
-        };
-      }
-    } catch (error) {
-      console.error("DOI search error:", error);
+      const res = await fetch(`https://api.crossref.org/works/${match[0]}`);
+      const data = await res.json();
+      return {
+        ...data.message,
+        source: "doi",
+        id: data.message.DOI,
+      };
+    } catch {
+      return null;
     }
-    return null;
   };
 
-  // Add citation to library
   const addCitationToLibrary = (citation) => {
-    const citationWithMetadata = {
+    const citationWithMeta = {
       ...citation,
       id: citation.id || `citation_${Date.now()}_${Math.random()}`,
       addedDate: new Date().toISOString(),
       used: false,
       inTextCitations: [],
     };
-
-    const updatedCitations = [...citations, citationWithMetadata];
-    setCitations(updatedCitations);
-    saveCitations(updatedCitations);
+    const updated = [...citations, citationWithMeta];
+    setCitations(updated);
+    saveCitations(updated);
     setStatus("Citation added to library");
   };
 
-  // Remove citation from library
-  const removeCitationFromLibrary = (citationId) => {
-    const updatedCitations = citations.filter((c) => c.id !== citationId);
-    setCitations(updatedCitations);
-    saveCitations(updatedCitations);
-    setStatus("Citation removed from library");
-  };
-
-  // Insert citation into document
   const insertCitation = async (citation) => {
-    if (!isOfficeReady) {
-      alert("This add-in needs to be loaded in Microsoft Word");
-      return;
-    }
+    if (!isOfficeReady) return alert("Run this in Microsoft Word");
 
     try {
       const cite = new Cite(citation);
@@ -224,20 +179,15 @@ function App() {
 
       await Word.run(async (context) => {
         const selection = context.document.getSelection();
-
         if (citationFormat === "in-text") {
           selection.insertText(formatted, Word.InsertLocation.replace);
         } else {
-          // Insert as footnote
-          const footnote = selection.insertFootnote(formatted);
-          footnote.body.font.size = 10;
+          selection.insertFootnote(formatted);
         }
-
         await context.sync();
       });
 
-      // Mark citation as used
-      const updatedCitations = citations.map((c) =>
+      const updated = citations.map((c) =>
         c.id === citation.id
           ? {
               ...c,
@@ -246,32 +196,24 @@ function App() {
             }
           : c
       );
-      setCitations(updatedCitations);
-      saveCitations(updatedCitations);
-
-      setStatus("Citation inserted successfully");
-    } catch (error) {
-      console.error("Error inserting citation:", error);
-      setStatus("Error inserting citation");
+      setCitations(updated);
+      saveCitations(updated);
+      setStatus("Citation inserted");
+    } catch (e) {
+      console.error("Insert failed:", e);
+      setStatus("Insert failed");
     }
   };
 
-  // Generate and insert bibliography
   const generateBibliography = async () => {
-    if (!isOfficeReady) {
-      alert("This add-in needs to be loaded in Microsoft Word");
-      return;
-    }
+    if (!isOfficeReady) return alert("Run this in Word");
 
-    const usedCitations = citations.filter((c) => c.used);
-    if (usedCitations.length === 0) {
-      alert("No citations have been inserted into the document yet.");
-      return;
-    }
+    const used = citations.filter((c) => c.used);
+    if (used.length === 0) return alert("No citations used");
 
     try {
-      const cite = new Cite(usedCitations);
-      const bibliography = cite.format("bibliography", {
+      const cite = new Cite(used);
+      const bib = cite.format("bibliography", {
         format: "text",
         type: "string",
         style: citationStyle,
@@ -279,269 +221,161 @@ function App() {
 
       await Word.run(async (context) => {
         const body = context.document.body;
-
-        // Insert at the end of document
         body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
-
-        // Insert bibliography title
-        const titleParagraph = body.insertParagraph(
-          bibliographyTitle,
-          Word.InsertLocation.end
-        );
-        titleParagraph.style = "Heading 1";
-        titleParagraph.font.bold = true;
-        titleParagraph.font.size = 16;
-
-        // Insert bibliography content
-        const bibParagraph = body.insertParagraph(
-          bibliography,
-          Word.InsertLocation.end
-        );
-        bibParagraph.font.size = 12;
-        bibParagraph.font.name = "Times New Roman";
-        bibParagraph.leftIndent = 36; // Hanging indent
-        bibParagraph.firstLineIndent = -36;
-
+        const title = body.insertParagraph(bibliographyTitle, Word.InsertLocation.end);
+        title.style = "Heading 1";
+        title.font.bold = true;
+        title.font.size = 16;
+        const content = body.insertParagraph(bib, Word.InsertLocation.end);
+        content.font.name = "Times New Roman";
+        content.font.size = 12;
+        content.leftIndent = 36;
+        content.firstLineIndent = -36;
         await context.sync();
       });
 
-      setBibliography(bibliography);
-      setStatus("Bibliography generated successfully");
-    } catch (error) {
-      console.error("Error generating bibliography:", error);
+      setBibliography(bib);
+      setStatus("Bibliography inserted");
+    } catch (e) {
+      console.error("Bibliography error:", e);
       setStatus("Error generating bibliography");
     }
   };
 
-  // Import citations from BibTeX file
-  const handleImportCitations = (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+  const exportCitations = () => {
+    if (citations.length === 0) return alert("Nothing to export");
+    const cite = new Cite(citations);
+    const bibtex = cite.format("bibtex");
+    const blob = new Blob([bibtex], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `citations_${Date.now()}.bib`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setStatus("Exported");
+  };
 
+  const handleImportCitations = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = (ev) => {
       try {
-        const bibtex = e.target.result;
+        const bibtex = ev.target.result;
         const cite = new Cite(bibtex);
         const parsed = cite.data;
-
-        const importedCitations = parsed.map((citation, index) => ({
-          ...citation,
-          id: citation.id || `imported_${Date.now()}_${index}`,
-          addedDate: new Date().toISOString(),
+        const newCitations = parsed.map((entry, idx) => ({
+          ...entry,
+          id: entry.id || `import_${Date.now()}_${idx}`,
           used: false,
           source: "imported",
         }));
-
-        const updatedCitations = [...citations, ...importedCitations];
-        setCitations(updatedCitations);
-        saveCitations(updatedCitations);
-        setStatus(`Imported ${importedCitations.length} citations`);
-      } catch (error) {
-        console.error("Import error:", error);
-        setStatus("Error importing citations");
+        const updated = [...citations, ...newCitations];
+        setCitations(updated);
+        saveCitations(updated);
+        setStatus("Citations imported");
+      } catch (err) {
+        console.error("Import error:", err);
+        setStatus("Import failed");
       }
     };
     reader.readAsText(file);
   };
 
-  // Export citations as BibTeX
-  const exportCitations = () => {
-    if (citations.length === 0) {
-      alert("No citations to export");
-      return;
-    }
+  const getCitationTitle = (c) => c.title?.[0] || c.title || "Untitled";
+  const getCitationAuthors = (c) =>
+    c.author?.map((a) => `${a.given || ""} ${a.family || ""}`.trim()).join(", ") ||
+    "Unknown";
 
-    try {
-      const cite = new Cite(citations);
-      const bibtex = cite.format("bibtex");
-      const blob = new Blob([bibtex], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `researchcollab_citations_${
-        new Date().toISOString().split("T")[0]
-      }.bib`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      setStatus("Citations exported successfully");
-    } catch (error) {
-      console.error("Export error:", error);
-      setStatus("Error exporting citations");
-    }
-  };
-
-  // Format citation for display
-  const formatCitationPreview = (citation) => {
-    try {
-      const cite = new Cite(citation);
-      return cite.format("citation", {
-        format: "text",
-        type: "string",
-        style: citationStyle,
-      });
-    } catch (error) {
-      return citation.title?.[0] || "Unknown citation";
-    }
-  };
-
-  // Get citation title for display
-  const getCitationTitle = (citation) => {
-    return citation.title?.[0] || citation.title || "Untitled";
-  };
-
-  // Get citation authors for display
-  const getCitationAuthors = (citation) => {
-    if (citation.author && Array.isArray(citation.author)) {
-      return citation.author
-        .map((a) => `${a.given || ""} ${a.family || ""}`.trim())
-        .join(", ");
-    }
-    return "Unknown authors";
-  };
-
-  // Mock PDF data (keeping existing functionality)
   const mockPDFs = [
     {
       id: 1,
       title: "Climate Change Research 2024",
-      content: `Climate Change Research Report 2024\n\nExecutive Summary:\nThis comprehensive study examines the latest developments in climate science...`,
-    },
-    {
-      id: 2,
-      title: "Artificial Intelligence in Healthcare",
-      content: `AI in Healthcare: Transforming Medical Practice\n\nAbstract:\nThis research explores the integration of artificial intelligence technologies...`,
+      content: `This study examines the latest developments in climate science...`,
     },
   ];
 
-  const handlePDFClick = (pdfData) => {
-    if (!isOfficeReady) {
-      alert("This add-in needs to be loaded in Microsoft Word");
-      return;
-    }
-
+  const handlePDFClick = (pdf) => {
+    if (!isOfficeReady) return alert("Use this in Word");
     Word.run(async (context) => {
-      try {
-        const body = context.document.body;
-        const paragraphs = body.paragraphs;
-        paragraphs.load("items");
-        await context.sync();
-
-        if (paragraphs.items.length > 0) {
-          body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
-        }
-
-        const titleParagraph = body.insertParagraph(
-          pdfData.title,
-          Word.InsertLocation.end
-        );
-        titleParagraph.style = "Heading 1";
-        titleParagraph.font.color = "#2E75B6";
-        titleParagraph.font.size = 18;
-
-        body.insertParagraph("", Word.InsertLocation.end);
-
-        const contentParagraph = body.insertParagraph(
-          pdfData.content,
-          Word.InsertLocation.end
-        );
-        contentParagraph.font.size = 11;
-        contentParagraph.font.name = "Times New Roman";
-        contentParagraph.spaceAfter = 12;
-
-        await context.sync();
-        setStatus(`PDF "${pdfData.title}" inserted successfully!`);
-      } catch (error) {
-        console.error("Error inserting PDF content:", error);
-        setStatus("Error inserting PDF content");
-      }
+      const body = context.document.body;
+      body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
+      const title = body.insertParagraph(pdf.title, Word.InsertLocation.end);
+      title.style = "Heading 1";
+      const content = body.insertParagraph(pdf.content, Word.InsertLocation.end);
+      content.font.size = 11;
+      await context.sync();
+      setStatus(`Inserted: ${pdf.title}`);
     });
   };
+
+  const renderMainApp = () => (
+    <div className="App">
+      <header className="App-header">
+        <h1>📚 ResearchCollab</h1>
+        <p>Professional Citation Management for Microsoft Word</p>
+        <div className="status-indicator">
+          <span className={`status-dot ${isOfficeReady ? "connected" : "disconnected"}`} />
+          <span className="status-text">{status}</span>
+        </div>
+
+        <CitationSearch
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          handleCitationSearch={handleCitationSearch}
+          isSearching={isSearching}
+          searchResults={searchResults}
+          addCitationToLibrary={addCitationToLibrary}
+          getCitationTitle={getCitationTitle}
+          getCitationAuthors={getCitationAuthors}
+        />
+
+        <CitationLibrary
+          citations={citations}
+          fileInputRef={fileInputRef}
+          exportCitations={exportCitations}
+          handleImportCitations={handleImportCitations}
+          insertCitation={insertCitation}
+          getCitationTitle={getCitationTitle}
+          getCitationAuthors={getCitationAuthors}
+          isOfficeReady={isOfficeReady}
+        />
+
+        <CitationSettings
+          citationStyle={citationStyle}
+          setCitationStyle={setCitationStyle}
+          citationStyles={citationStyles}
+          citationFormat={citationFormat}
+          setCitationFormat={setCitationFormat}
+          bibliographyTitle={bibliographyTitle}
+          setBibliographyTitle={setBibliographyTitle}
+        />
+
+        <BibliographySection
+          generateBibliography={generateBibliography}
+          isOfficeReady={isOfficeReady}
+          citations={citations}
+        />
+
+        <ResearchDocuments
+          mockPDFs={mockPDFs}
+          handlePDFClick={handlePDFClick}
+          isOfficeReady={isOfficeReady}
+        />
+
+        {!isOfficeReady && <OfficeWarning />}
+      </header>
+    </div>
+  );
+
   return (
     <Router>
       <Routes>
         <Route path="/login" element={<LoginPopup />} />
         <Route
           path="*"
-          element={
-            !token ? (
-              <LoginPage />
-            ) : (
-              <div className="App">
-                <header className="App-header">
-                  <div className="header-content">
-                    <h1>📚 ResearchCollab</h1>
-                    <p>Professional Citation Management for Microsoft Word</p>
-                    <div className="status-indicator">
-                      <span
-                        className={`status-dot ${
-                          isOfficeReady ? "connected" : "disconnected"
-                        }`}
-                      ></span>
-                      <span className="status-text">{status}</span>
-                    </div>
-                  </div>
-
-                  {/* Citation Search Section */}
-                  <CitationSearch
-                    searchQuery={searchQuery}
-                    setSearchQuery={setSearchQuery}
-                    handleCitationSearch={handleCitationSearch}
-                    isSearching={isSearching}
-                    searchResults={searchResults}
-                    addCitationToLibrary={addCitationToLibrary}
-                    getCitationTitle={getCitationTitle}
-                    getCitationAuthors={getCitationAuthors}
-                  />
-
-                  {/* Citation Library Section */}
-                  <CitationLibrary
-                    citations={citations}
-                    fileInputRef={fileInputRef}
-                    exportCitations={exportCitations}
-                    handleImportCitations={handleImportCitations}
-                    insertCitation={insertCitation}
-                    removeCitationFromLibrary={removeCitationFromLibrary}
-                    getCitationTitle={getCitationTitle}
-                    getCitationAuthors={getCitationAuthors}
-                    formatCitationPreview={formatCitationPreview}
-                    isOfficeReady={isOfficeReady}
-                  />
-
-                  {/* Citation Settings Section */}
-                  <CitationSettings
-                    citationStyle={citationStyle}
-                    setCitationStyle={setCitationStyle}
-                    citationStyles={citationStyles}
-                    citationFormat={citationFormat}
-                    setCitationFormat={setCitationFormat}
-                    bibliographyTitle={bibliographyTitle}
-                    setBibliographyTitle={setBibliographyTitle}
-                  />
-
-                  {/* Bibliography Generation Section */}
-                  <BibliographySection
-                    generateBibliography={generateBibliography}
-                    isOfficeReady={isOfficeReady}
-                    citations={citations}
-                  />
-
-                  {/* Research Documents Section */}
-                  <ResearchDocuments
-                    mockPDFs={mockPDFs}
-                    handlePDFClick={handlePDFClick}
-                    isOfficeReady={isOfficeReady}
-                  />
-
-                  {!isOfficeReady && <OfficeWarning />}
-                </header>
-
-                {/* Styles moved to index.css */}
-              </div>
-            )
-          }
+          element={token ? renderMainApp() : <Navigate to="/login" replace />}
         />
       </Routes>
     </Router>
