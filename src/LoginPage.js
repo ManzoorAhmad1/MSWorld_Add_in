@@ -1,19 +1,20 @@
-import React from 'react';
+
 import './App.css';
 
-function generateToken() {
-  // Simple random token generator
-  return (
-    Math.random().toString(36).substr(2, 9) +
-    Math.random().toString(36).substr(2, 9)
-  );
-}
-
-export default function LoginPage({ onLogin }) {
+export default function LoginPage() {
+  // Open Office dialog for login
   const handleLogin = () => {
-    const token = generateToken();
-       window.open(`http://localhost:3000/login?token=${token}`, '_blank');
-       localStorage.setItem('token', token);
+    if (window.Office && Office.context && Office.context.ui && Office.context.ui.displayDialogAsync) {
+      Office.context.ui.displayDialogAsync(
+        window.location.origin + '/login-dialog.html',
+        { height: 50, width: 30, displayInIframe: true },
+        function () {
+          // Optionally handle dialog events here
+        }
+      );
+    } else {
+      alert('Office.js not available. Please run this add-in in Microsoft Word.');
+    }
   };
 
   return (
