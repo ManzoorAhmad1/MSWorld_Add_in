@@ -29,18 +29,18 @@ module.exports = {
     ]
   },
   resolve: {
-  fallback: {
-    "querystring": require.resolve("querystring-es3"),
-    "process": require.resolve("process/browser")
-  }
-},
+    fallback: {
+      "querystring": require.resolve("querystring-es3"),
+      "process": require.resolve("process/browser.js")
+    }
+  },
   plugins: [
     new HtmlWebpackPlugin({
       template: './public/index.html'
     }),
     // Polyfill for querystring (citation-js v0.5.0)
     new webpack.ProvidePlugin({
-      process: 'process/browser',
+      process: 'process/browser.js',
     })
   ],
   devServer: {
