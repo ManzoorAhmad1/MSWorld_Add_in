@@ -1,16 +1,32 @@
-import CitationSearch from "../components/CitationSearch";
-import CitationLibrary from "../components/CitationLibrary";
-import CitationSettings from "../components/CitationSettings";
-import BibliographySection from "../components/BibliographySection";
-import ResearchDocuments from "../components/ResearchDocuments";
-import OfficeWarning from "../components/OfficeWarning";
+
+'use client';
+import CitationSearch from "../../components/CitationSearch";
+import CitationLibrary from "../../components/CitationLibrary";
+import CitationSettings from "../../components/CitationSettings";
+import BibliographySection from "../../components/BibliographySection";
+import ResearchDocuments from "../../components/ResearchDocuments";
+import OfficeWarning from "../../components/OfficeWarning";
 import Cite from "citation-js";
 import React, { useState, useEffect, useRef } from "react";
-import {  useNavigate } from "react-router-dom";
+import { useRouter } from "next/navigation";
 
-const Home = () => {
-  const fileInputRef = useRef(null);
-  const citationStyles = [
+type Citation = {
+  id: string;
+  title?: string[] | string;
+  author?: { given?: string; family?: string }[];
+  used?: boolean;
+  inTextCitations?: string[];
+  [key: string]: any;
+};
+
+type CitationStyle = {
+  value: string;
+  label: string;
+};
+
+const Home: React.FC = () => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const citationStyles: CitationStyle[] = [
     { value: "apa", label: "APA (American Psychological Association)" },
     { value: "mla", label: "MLA (Modern Language Association)" },
     { value: "chicago", label: "Chicago Manual of Style" },
@@ -20,27 +36,23 @@ const Home = () => {
     { value: "nature", label: "Nature" },
     { value: "science", label: "Science" },
   ];
-  const handleCitationSearch = async () => {
+  const handleCitationSearch = async (): Promise<void> => {
     if (!searchQuery.trim()) return;
-
     setIsSearching(true);
     setSearchResults([]);
     setStatus("Searching academic databases...");
-
     try {
       const [crossrefResults, doiResult] = await Promise.allSettled([
         searchCrossref(searchQuery),
         searchByDOI(searchQuery),
       ]);
-
-      let results = [];
+      let results: Citation[] = [];
       if (crossrefResults.status === "fulfilled") {
-        results = results.concat(crossrefResults.value);
+        results = results.concat(crossrefResults.value as Citation[]);
       }
       if (doiResult.status === "fulfilled" && doiResult.value) {
-        results.unshift(doiResult.value);
+        results.unshift(doiResult.value as Citation);
       }
-
       setSearchResults(results);
       setStatus(
         results.length > 0
@@ -54,30 +66,29 @@ const Home = () => {
       setIsSearching(false);
     }
   };
-   const [isOfficeReady, setIsOfficeReady] = useState(false);
-  const [status, setStatus] = useState("Loading...");
+  const [isOfficeReady, setIsOfficeReady] = useState<boolean>(false);
+  const [status, setStatus] = useState<string>("Loading...");
 
   // Auth
-  const getTokenFromUrl = () => {
+  const getTokenFromUrl = (): string | null => {
     const params = new URLSearchParams(window.location.search);
     return params.get("token");
   };
-  const [token, setToken] = useState("");
-  const navigate = useNavigate();
-  
+  const [token, setToken] = useState<string>("");
+  const router = useRouter();
   if (!token) {
-    navigate("/");
+    router.push("/");
   }
   // Citation state
-  const [citationStyle, setCitationStyle] = useState("apa");
-  const [citations, setCitations] = useState([]);
-  const [bibliography, setBibliography] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [citationFormat, setCitationFormat] = useState("in-text");
-  const [bibliographyTitle, setBibliographyTitle] = useState("References");
-  const [recentCitations, setRecentCitations] = useState([]);
+  const [citationStyle, setCitationStyle] = useState<string>("apa");
+  const [citations, setCitations] = useState<Citation[]>([]);
+  // const [bibliography, setBibliography] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [searchResults, setSearchResults] = useState<Citation[]>([]);
+  const [isSearching, setIsSearching] = useState<boolean>(false);
+  const [citationFormat, setCitationFormat] = useState<string>("in-text");
+  const [bibliographyTitle, setBibliographyTitle] = useState<string>("References");
+  // const [recentCitations, setRecentCitations] = useState<Citation[]>([]);
 
 
   useEffect(() => {
@@ -89,12 +100,14 @@ const Home = () => {
       const stored = localStorage.getItem("token");
       if (stored) setToken(stored);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (typeof Office !== "undefined") {
-      Office.onReady((info) => {
-        if (info.host === Office.HostType.Word) {
+      Office.onReady((info: unknown) => {
+        const hostInfo = info as { host: string };
+        if (hostInfo.host === (Office as any).HostType.Word) {
           setIsOfficeReady(true);
           setStatus("ResearchCollab Add-in Ready");
           loadSavedCitations();
@@ -106,42 +119,43 @@ const Home = () => {
       setStatus("Office.js not loaded - Demo mode active");
       loadSavedCitations();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadSavedCitations = () => {
+  const loadSavedCitations = (): void => {
     try {
       const saved = localStorage.getItem("researchCollab_citations");
       if (saved) {
-        const parsed = JSON.parse(saved);
+        const parsed: Citation[] = JSON.parse(saved);
         setCitations(parsed);
-        setRecentCitations(parsed.slice(-5));
+        // setRecentCitations(parsed.slice(-5));
       }
     } catch (e) {
       console.error("Load citations failed:", e);
     }
   };
 
-  const saveCitations = (updated) => {
+  const saveCitations = (updated: Citation[]): void => {
     localStorage.setItem("researchCollab_citations", JSON.stringify(updated));
-    setRecentCitations(updated.slice(-5));
+    // setRecentCitations(updated.slice(-5));
   };
 
 
 
-  const searchCrossref = async (query) => {
+  const searchCrossref = async (query: string): Promise<Citation[]> => {
     const res = await fetch(
       `https://api.crossref.org/works?query=${encodeURIComponent(query)}&rows=10`
     );
     const data = await res.json();
-    return (data.message?.items || []).map((item) => ({
+    return (data.message?.items || []).map((item: any) => ({
       ...item,
       source: "crossref",
       id: item.DOI || `crossref_${Date.now()}_${Math.random()}`,
     }));
   };
 
-  const searchByDOI = async (query) => {
-    const match = query.match(/10\.\d{4,}\/[^\s]+/);
+  const searchByDOI = async (query: string): Promise<Citation | null> => {
+    const match = query.match(/10\.\d{4,}\/[^"]+/);
     if (!match) return null;
     try {
       const res = await fetch(`https://api.crossref.org/works/${match[0]}`);
@@ -156,8 +170,8 @@ const Home = () => {
     }
   };
 
-  const addCitationToLibrary = (citation) => {
-    const citationWithMeta = {
+  const addCitationToLibrary = (citation: Citation): void => {
+    const citationWithMeta: Citation = {
       ...citation,
       id: citation.id || `citation_${Date.now()}_${Math.random()}`,
       addedDate: new Date().toISOString(),
@@ -170,9 +184,8 @@ const Home = () => {
     setStatus("Citation added to library");
   };
 
-  const insertCitation = async (citation) => {
+  const insertCitation = async (citation: Citation): Promise<void> => {
     if (!isOfficeReady) return alert("Run this in Microsoft Word");
-
     try {
       const cite = new Cite(citation);
       const formatted = cite.format("citation", {
@@ -180,8 +193,7 @@ const Home = () => {
         type: "string",
         style: citationStyle,
       });
-
-      await Word.run(async (context) => {
+      await Word.run(async (context: any) => {
         const selection = context.document.getSelection();
         if (citationFormat === "in-text") {
           selection.insertText(formatted, Word.InsertLocation.replace);
@@ -190,7 +202,6 @@ const Home = () => {
         }
         await context.sync();
       });
-
       const updated = citations.map((c) =>
         c.id === citation.id
           ? {
@@ -209,12 +220,10 @@ const Home = () => {
     }
   };
 
-  const generateBibliography = async () => {
+  const generateBibliography = async (): Promise<void> => {
     if (!isOfficeReady) return alert("Run this in Word");
-
     const used = citations.filter((c) => c.used);
     if (used.length === 0) return alert("No citations used");
-
     try {
       const cite = new Cite(used);
       const bib = cite.format("bibliography", {
@@ -222,8 +231,7 @@ const Home = () => {
         type: "string",
         style: citationStyle,
       });
-
-      await Word.run(async (context) => {
+      await Word.run(async (context: any) => {
         const body = context.document.body;
         body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
         const title = body.insertParagraph(bibliographyTitle, Word.InsertLocation.end);
@@ -237,8 +245,7 @@ const Home = () => {
         content.firstLineIndent = -36;
         await context.sync();
       });
-
-      setBibliography(bib);
+      // setBibliography(bib);
       setStatus("Bibliography inserted");
     } catch (e) {
       console.error("Bibliography error:", e);
@@ -246,7 +253,7 @@ const Home = () => {
     }
   };
 
-  const exportCitations = () => {
+  const exportCitations = (): void => {
     if (citations.length === 0) return alert("Nothing to export");
     const cite = new Cite(citations);
     const bibtex = cite.format("bibtex");
@@ -260,15 +267,15 @@ const Home = () => {
     setStatus("Exported");
   };
 
-  const handleImportCitations = (e) => {
-    const file = e.target.files[0];
+  const handleImportCitations = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const bibtex = ev.target.result;
+        const bibtex = (ev.target && (ev.target as FileReader).result) as string;
         const cite = new Cite(bibtex);
-        const parsed = cite.data;
+        const parsed: Citation[] = cite.data;
         const newCitations = parsed.map((entry, idx) => ({
           ...entry,
           id: entry.id || `import_${Date.now()}_${idx}`,
@@ -287,10 +294,26 @@ const Home = () => {
     reader.readAsText(file);
   };
 
-  const getCitationTitle = (c) => c.title?.[0] || c.title || "Untitled";
-  const getCitationAuthors = (c) =>
-    c.author?.map((a) => `${a.given || ""} ${a.family || ""}`.trim()).join(", ") ||
+  const getCitationTitle = (c: Citation): string => Array.isArray(c.title) ? c.title[0] : c.title || "Untitled";
+  const getCitationAuthors = (c: Citation): string =>
+    c.author?.map((a: { given?: string; family?: string }) => `${a.given || ""} ${a.family || ""}`.trim()).join(", ") ||
     "Unknown";
+
+  // Add missing props for CitationLibrary
+  const formatCitationPreview = (c: Citation): string => {
+    try {
+      const cite = new Cite(c);
+      return cite.format("citation", { format: "text", type: "string", style: citationStyle });
+    } catch {
+      return getCitationTitle(c);
+    }
+  };
+  const removeCitationFromLibrary = (id: string): void => {
+    const updated = citations.filter((c) => c.id !== id);
+    setCitations(updated);
+    saveCitations(updated);
+    setStatus("Citation removed");
+  };
 
   const mockPDFs = [
     {
@@ -300,16 +323,17 @@ const Home = () => {
     },
   ];
 
-  const handlePDFClick = (pdf) => {
+  const handlePDFClick = (pdf: { id: number; title: string; content: string }): void => {
     if (!isOfficeReady) return alert("Use this in Word");
-    Word.run(async (context) => {
-      const body = context.document.body;
-      body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
-      const title = body.insertParagraph(pdf.title, Word.InsertLocation.end);
+    Word.run(async (context: unknown) => {
+      const ctx = context as { document: any };
+      const body = ctx.document.body;
+      body.insertBreak((Word as any).BreakType.page, (Word as any).InsertLocation.end);
+      const title = body.insertParagraph(pdf.title, (Word as any).InsertLocation.end);
       title.style = "Heading 1";
-      const content = body.insertParagraph(pdf.content, Word.InsertLocation.end);
+      const content = body.insertParagraph(pdf.content, (Word as any).InsertLocation.end);
       content.font.size = 11;
-      await context.sync();
+      await ctx.document.context.sync();
       setStatus(`Inserted: ${pdf.title}`);
     });
   };
@@ -345,8 +369,10 @@ const Home = () => {
           exportCitations={exportCitations}
           handleImportCitations={handleImportCitations}
           insertCitation={insertCitation}
+          removeCitationFromLibrary={removeCitationFromLibrary}
           getCitationTitle={getCitationTitle}
           getCitationAuthors={getCitationAuthors}
+          formatCitationPreview={formatCitationPreview}
           isOfficeReady={isOfficeReady}
         />
 

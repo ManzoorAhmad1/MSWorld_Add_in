@@ -1,63 +1,40 @@
-# MS Word Add-in with React.js
+# ms_world
 
-This is a Microsoft Word add-in built with React.js that allows users to insert "Hello World" text into their Word documents.
+This is a Next.js project bootstrapped with TypeScript, Tailwind CSS, and the App Router.
+
+## Getting Started
+
+First, install dependencies if you haven't already:
+
+```
+npm install
+```
+
+Then, run the development server:
+
+```
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
 ## Features
+- Next.js (App Router)
+- TypeScript
+- Tailwind CSS
 
-- Built with pure React.js (no Vite)
-- Uses Office.js API for Word integration
-- Simple button to insert "Hello World" text
-- Modern UI with Microsoft Office styling
+## Learn More
+- [Next.js Documentation](https://nextjs.org/docs)
+- [Tailwind CSS Documentation](https://tailwindcss.com/docs)
 
-## Setup Instructions
+To learn more about Next.js, take a look at the following resources:
 
-1. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-2. **Start the development server:**
-   ```bash
-   npm start
-   ```
-   The app will run on `http://localhost:3000`
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-3. **Load the add-in in Word:**
-   - Open Microsoft Word
-   - Go to Insert > My Add-ins > Upload My Add-in
-   - Select the `manifest.xml` file from this project
-   - The add-in will appear in the Home tab
+## Deploy on Vercel
 
-## Usage
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
-1. Once the add-in is loaded, you'll see a "Show Taskpane" button in the Home tab
-2. Click the button to open the add-in panel
-3. Click "Insert Hello World" to add the text to your document
-
-## Project Structure
-
-```
-MSWorld_Add_in/
-├── public/
-│   └── index.html
-├── src/
-│   ├── App.js
-│   ├── App.css
-│   ├── index.js
-│   └── index.css
-├── manifest.xml
-├── package.json
-└── webpack.config.js
-```
-
-## Development
-
-- `npm start` - Start development server
-- `npm run build` - Build for production
-- `npm run dev` - Start development server with auto-open
-
-## Notes
-
-- The add-in requires HTTPS in production
-- Make sure Office.js is loaded before the React app initializes
-- The manifest.xml file needs to be uploaded to Word for the add-in to work
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

@@ -1,15 +1,20 @@
+'use client';
 import React, {  useState } from "react";
-import "./App.css";
+
+type User = {
+  email: string;
+  token: string;
+};
 
 export default function LoginPage() {
-  const [user, setUser] = useState(null);
-  const [dialog, setDialog] = useState(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [dialog, setDialog] = useState<any>(null);
 
   const handleLogin = () => {
     Office.context.ui.displayDialogAsync(
       "https://ms-world-add-in.vercel.app/login", // Updated to /login route
       { height: 60, width: 60, displayInIframe: true },
-      (asyncResult) => {
+      (asyncResult:any) => {
         if (asyncResult.status === Office.AsyncResultStatus.Failed) {
           alert("Failed to open dialog: " + asyncResult.error.message);
           return;
@@ -20,7 +25,7 @@ export default function LoginPage() {
         // Event handler for dialog messages (receives OAuth token)
         dialogInstance.addEventHandler(
           Office.EventType.DialogMessageReceived,
-          (arg) => {
+          (arg:any) => {
             try {
               const message = JSON.parse(arg.message);
               if (message.token) {
@@ -39,7 +44,7 @@ export default function LoginPage() {
         // Optional: handle dialog closed without login
         dialogInstance.addEventHandler(
           Office.EventType.DialogEventReceived,
-          (event) => {
+          (event: any) => {
             if (event.error === 12006) {
               // Dialog closed by user
               setDialog(null);
