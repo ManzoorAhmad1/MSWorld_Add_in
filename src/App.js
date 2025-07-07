@@ -374,9 +374,9 @@ function App() {
         <Route
           path="*"
           element={
-            (typeof Office !== "undefined" && isOfficeReady) || token
-              ? renderMainApp()
-              : <LoginPage />
+            // (typeof Office !== "undefined" && isOfficeReady) || token
+            //   ? renderMainApp()
+               <LoginPage />
           }
         />
       </Routes>
