@@ -1,5 +1,7 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+// Polyfill for citation-js v0.5.0 (requires querystring in browser)
+const webpack = require('webpack');
 
 module.exports = {
   entry: './src/index.js',
@@ -26,9 +28,19 @@ module.exports = {
       }
     ]
   },
+  resolve: {
+  fallback: {
+    "querystring": require.resolve("querystring-es3"),
+    "process": require.resolve("process/browser")
+  }
+},
   plugins: [
     new HtmlWebpackPlugin({
       template: './public/index.html'
+    }),
+    // Polyfill for querystring (citation-js v0.5.0)
+    new webpack.ProvidePlugin({
+      process: 'process/browser',
     })
   ],
   devServer: {

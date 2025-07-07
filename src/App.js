@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
-import Cite from 'citation-js';
+import Cite from 'citation-js'; // v0.5.0
 
 function App() {
   const [isOfficeReady, setIsOfficeReady] = useState(false);
@@ -324,7 +324,7 @@ While still in early stages, quantum computing promises to revolutionize scienti
     });
   };
 
-  // Insert citation at cursor
+  // Insert citation at cursor (citation-js v0.5.0 API)
   const handleInsertCitation = async () => {
     if (!isOfficeReady) {
       alert('This add-in needs to be loaded in Microsoft Word');
@@ -335,9 +335,13 @@ While still in early stages, quantum computing promises to revolutionize scienti
       return;
     }
     try {
-      // Use citation-js to parse and format
+      // citation-js v0.5.0: use Cite(input).format('citation', ...)
       const cite = new Cite(citationInput);
-      const formatted = cite.format('citation', { format: 'text', template: citationStyle });
+      const formatted = cite.format('citation', {
+        format: 'text',
+        type: 'string',
+        style: citationStyle
+      });
       setCitations([...citations, citationInput]);
       setStatus('Citation inserted!');
       // Insert into Word
@@ -350,7 +354,7 @@ While still in early stages, quantum computing promises to revolutionize scienti
     }
   };
 
-  // Generate bibliography
+  // Generate bibliography (citation-js v0.5.0 API)
   const handleGenerateBibliography = async () => {
     if (!isOfficeReady) {
       alert('This add-in needs to be loaded in Microsoft Word');
@@ -362,7 +366,11 @@ While still in early stages, quantum computing promises to revolutionize scienti
     }
     try {
       const cite = new Cite(citations);
-      const bib = cite.format('bibliography', { format: 'text', template: citationStyle });
+      const bib = cite.format('bibliography', {
+        format: 'text',
+        type: 'string',
+        style: citationStyle
+      });
       setBibliography(bib);
       // Insert at end of document
       await Word.run(async (context) => {
