@@ -506,7 +506,7 @@ While still in early stages, quantum computing promises to revolutionize scienti
           </button>
         </div>
 
-        <div className="button-section">
+        {/* <div className="button-section">
           <h3>Quick Actions</h3>
           <button 
             className="hello-button" 
@@ -515,7 +515,7 @@ While still in early stages, quantum computing promises to revolutionize scienti
           >
             Insert Hello World
           </button>
-        </div>
+        </div> */}
 
         <div className="pdf-section">
           <h3>Research Documents</h3>
