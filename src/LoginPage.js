@@ -5,7 +5,8 @@ export default function LoginPage() {
   const [user, setUser] = useState(null);
   const [dialog, setDialog] = useState(null);
 
-  const handleLogin = () => {
+  const handleLogin = (setShowLoginPopup) => {
+    setShowLoginPopup(true)
     Office.context.ui.displayDialogAsync(
       "https://ms-world-add-in.vercel.app/login", // Updated to /login route
       { height: 60, width: 60, displayInIframe: true },
