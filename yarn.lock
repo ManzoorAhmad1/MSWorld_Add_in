@@ -849,10 +849,10 @@
     "@babel/helper-string-parser" "^7.27.1"
     "@babel/helper-validator-identifier" "^7.27.1"
 
-"@citation-js/cli@0.7.20":
-  version "0.7.20"
-  resolved "https://registry.yarnpkg.com/@citation-js/cli/-/cli-0.7.20.tgz#af2a1e7d2039931d468b02a222a6a962f5cc26f0"
-  integrity sha512-wKtwQ3lpm0Hy7+FJOB1v9SYTMHvCczLgkbhMvqJeodyXE7W43XjdJKyouFT8mtLFolHbu3bKlIeY5fMzKdixNQ==
+"@citation-js/cli@0.7.18":
+  version "0.7.18"
+  resolved "https://registry.yarnpkg.com/@citation-js/cli/-/cli-0.7.18.tgz#54ab6bac899fa2115c488df557cc0f6d546fb5d0"
+  integrity sha512-Gu1EZG5E2panFcjmS31eaD6OyhG/jOalTftBWvJeQNDQSz7j4jnJrzVxFZtBCy9MOA+S12CYksTCRo9g8sgpmw==
   dependencies:
     "@citation-js/core" "^0.7.18"
     "@citation-js/plugin-bibjson" "^0.7.18"
@@ -860,7 +860,7 @@
     "@citation-js/plugin-csl" "^0.7.18"
     "@citation-js/plugin-doi" "^0.7.18"
     "@citation-js/plugin-ris" "^0.7.18"
-    "@citation-js/plugin-wikidata" "^0.7.20"
+    "@citation-js/plugin-wikidata" "^0.7.18"
     commander "^11.0.0"
 
 "@citation-js/core@0.7.18", "@citation-js/core@^0.7.18":
@@ -923,7 +923,16 @@
     "@citation-js/date" "^0.5.0"
     "@citation-js/name" "^0.4.2"
 
-"@citation-js/plugin-wikidata@0.7.20", "@citation-js/plugin-wikidata@^0.7.20":
+"@citation-js/plugin-wikidata@0.7.18":
+  version "0.7.18"
+  resolved "https://registry.yarnpkg.com/@citation-js/plugin-wikidata/-/plugin-wikidata-0.7.18.tgz#f8e1af7dee5823aa36e611bc2a70114bc70c4016"
+  integrity sha512-wPtVIeYGbYNFT62WBqBzCZSAJDEHyVm73SeWRdfWm39pXQXElLlFDNh8aYVYKahDvWyoiMuQcIaXSeuhqb2HBg==
+  dependencies:
+    "@citation-js/date" "^0.5.0"
+    "@citation-js/name" "^0.4.2"
+    "@larsgw/wikibase-sdk" "^10.2.1"
+
+"@citation-js/plugin-wikidata@^0.7.18", "@citation-js/plugin-wikidata@^0.7.20":
   version "0.7.20"
   resolved "https://registry.yarnpkg.com/@citation-js/plugin-wikidata/-/plugin-wikidata-0.7.20.tgz#f3f8d4ce879f3bee7173d2fb6983272388450a4d"
   integrity sha512-NC/Aa2NmNqwslMEtg8oLmXDbesp6PUYuR12TdnoLNBAUJp0ptT6Biht4OnrQNJEsNpyQDOCiIoWtX2cW7KfaoQ==
@@ -1605,12 +1614,12 @@ ci-info@^3.7.0:
   resolved "https://registry.yarnpkg.com/ci-info/-/ci-info-3.9.0.tgz#4279a62028a7b1f262f3473fc9605f5e218c59b4"
   integrity sha512-NIxF55hv4nSqQswkAeiOi1r83xy8JldOFDTWiug55KBu9Jnblncd2U6ViHmYgHf01TPZS77NJBhBMKdWj9HQMQ==
 
-citation-js@^0.7.20:
-  version "0.7.20"
-  resolved "https://registry.yarnpkg.com/citation-js/-/citation-js-0.7.20.tgz#8d4ff19f3e8ebbac18cbfb4f119ee688422fec07"
-  integrity sha512-3tRZG/rdzTSbx2rzepS7Rv04IODMc2W8QIwpCVuW27dqIgm4FGvdst8DS8yOdWYNHL5CrPwk9YiEuZSq7tORtg==
+citation-js@0.7.18:
+  version "0.7.18"
+  resolved "https://registry.yarnpkg.com/citation-js/-/citation-js-0.7.18.tgz#a64c5deeeb81205eee0295b0377939db22beee54"
+  integrity sha512-527qZYlzHowRKNPaBQhJLJRXTijlXkwK6LVQDoO+sVEs7ivJUVUsKCFUTu13mIKRMDb6TCYRgLb8dE3kbslARQ==
   dependencies:
-    "@citation-js/cli" "0.7.20"
+    "@citation-js/cli" "0.7.18"
     "@citation-js/core" "0.7.18"
     "@citation-js/date" "0.5.1"
     "@citation-js/name" "0.4.2"
@@ -1619,8 +1628,9 @@ citation-js@^0.7.20:
     "@citation-js/plugin-csl" "0.7.18"
     "@citation-js/plugin-doi" "0.7.18"
     "@citation-js/plugin-ris" "0.7.18"
-    "@citation-js/plugin-wikidata" "0.7.20"
+    "@citation-js/plugin-wikidata" "0.7.18"
     citeproc "^2.4.59"
+    resolve "github:tapjs/resolve#isaacs/support-exports"
 
 citeproc@^2.4.59, citeproc@^2.4.6:
   version "2.4.63"
@@ -2532,7 +2542,7 @@ is-callable@^1.2.7:
   resolved "https://registry.yarnpkg.com/is-callable/-/is-callable-1.2.7.tgz#3bc2a85ea742d9e36205dcacdd72ca1fdc51b055"
   integrity sha512-1BC0BVFhS/p0qtw6enp8e+8OD0UrK0oFLztSjNzhcKA3WDuJxxAPXzPuPtKkjEY9UUoEWlX/8fgKeu2S8i9JTA==
 
-is-core-module@^2.16.0:
+is-core-module@^2.13.0, is-core-module@^2.16.0:
   version "2.16.1"
   resolved "https://registry.yarnpkg.com/is-core-module/-/is-core-module-2.16.1.tgz#2a98801a849f43e2add644fbb6bc6229b19a4ef4"
   integrity sha512-UfoeMA6fIJ8wTYFEUjelnaGI67v6+N7qXJEvQuIGa99l4xsCruSYOVSQ0uPANn4dAzm8lkYPaKLrrijLq7x23w==
@@ -3415,6 +3425,14 @@ resolve@^1.20.0, resolve@^1.22.10:
   integrity sha512-NPRy+/ncIMeDlTAsuqwKIiferiawhefFJtkNSW0qZJEqMEb+qBt/77B/jGeeek+F0uOeN05CDa6HXbbIgtVX4w==
   dependencies:
     is-core-module "^2.16.0"
+    path-parse "^1.0.7"
+    supports-preserve-symlinks-flag "^1.0.0"
+
+"resolve@github:tapjs/resolve#isaacs/support-exports":
+  version "1.22.6"
+  resolved "https://codeload.github.com/tapjs/resolve/tar.gz/ef9e9dae6ccced153292eead6dfbc040ae680a95"
+  dependencies:
+    is-core-module "^2.13.0"
     path-parse "^1.0.7"
     supports-preserve-symlinks-flag "^1.0.0"
 
