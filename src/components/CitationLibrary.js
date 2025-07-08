@@ -46,7 +46,7 @@ const CitationLibrary = ({
                 onClick={() => {
                   insertCitation(citation);
                 }}
-                // disabled={!isOfficeReady}
+                disabled={!isOfficeReady}
                 className="insert-button"
               >
                 📝 Insert

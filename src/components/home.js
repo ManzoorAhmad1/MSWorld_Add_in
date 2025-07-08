@@ -53,7 +53,7 @@ const Home = () => {
       setIsSearching(false);
     }
   };
-   const [isOfficeReady, setIsOfficeReady] = useState(false);
+  const [isOfficeReady, setIsOfficeReady] = useState(false);
   const [status, setStatus] = useState("Loading...");
 
   // Auth
@@ -73,7 +73,6 @@ const Home = () => {
   const [bibliographyTitle, setBibliographyTitle] = useState("References");
   const [recentCitations, setRecentCitations] = useState([]);
 
-
   useEffect(() => {
     const urlToken = getTokenFromUrl();
     if (urlToken) {
@@ -85,24 +84,24 @@ const Home = () => {
     }
   }, []);
 
-useEffect(() => {
-  if (typeof Office !== "undefined" && typeof Office.onReady === "function") {
-    // console.log("Office.js loaded and onReady is available", Office.onReady());
-    Office.onReady((info) => {
-      console.log("Office.onReady called", info,Office.HostType.Word);
-      if (info.host === Office.HostType.Word) {
-        setIsOfficeReady(true);
-        setStatus("ResearchCollab Add-in Ready");
-        loadSavedCitations();
-      } else {
-        setStatus("Please run this add-in in Microsoft Word");
-      }
-    });
-  } else {
-    setStatus("Office.js not loaded or not running in Office host - Demo mode active");
-    loadSavedCitations();
-  }
-}, []);
+  useEffect(() => {
+    if (typeof Office !== "undefined" && typeof Office.onReady === "function") {
+      Office.onReady((info) => {
+        if (info.host === Office.HostType.Word) {
+          setIsOfficeReady(true);
+          setStatus("ResearchCollab Add-in Ready");
+          loadSavedCitations();
+        } else {
+          setStatus("Please run this add-in in Microsoft Word");
+        }
+      });
+    } else {
+      setStatus(
+        "Office.js not loaded or not running in Office host - Demo mode active"
+      );
+      loadSavedCitations();
+    }
+  }, []);
 
   const loadSavedCitations = () => {
     try {
@@ -122,11 +121,11 @@ useEffect(() => {
     setRecentCitations(updated.slice(-5));
   };
 
-
-
   const searchCrossref = async (query) => {
     const res = await fetch(
-      `https://api.crossref.org/works?query=${encodeURIComponent(query)}&rows=10`
+      `https://api.crossref.org/works?query=${encodeURIComponent(
+        query
+      )}&rows=10`
     );
     const data = await res.json();
     return (data.message?.items || []).map((item) => ({
@@ -231,7 +230,10 @@ useEffect(() => {
       await Word.run(async (context) => {
         const body = context.document.body;
         body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
-        const title = body.insertParagraph(bibliographyTitle, Word.InsertLocation.end);
+        const title = body.insertParagraph(
+          bibliographyTitle,
+          Word.InsertLocation.end
+        );
         title.style = "Heading 1";
         title.font.bold = true;
         title.font.size = 16;
@@ -297,8 +299,9 @@ useEffect(() => {
 
   const getCitationTitle = (c) => c.title?.[0] || c.title || "Untitled";
   const getCitationAuthors = (c) =>
-    c.author?.map((a) => `${a.given || ""} ${a.family || ""}`.trim()).join(", ") ||
-    "Unknown";
+    c.author
+      ?.map((a) => `${a.given || ""} ${a.family || ""}`.trim())
+      .join(", ") || "Unknown";
 
   const removeCitationFromLibrary = (id) => {
     const updated = citations.filter((c) => c.id !== id);
@@ -310,7 +313,8 @@ useEffect(() => {
   const formatCitationPreview = (citation) => {
     // Show title and year for preview
     const title = getCitationTitle(citation);
-    const year = citation.issued?.["date-parts"]?.[0]?.[0] || citation.year || "";
+    const year =
+      citation.issued?.["date-parts"]?.[0]?.[0] || citation.year || "";
     return `${title}${year ? " (" + year + ")" : ""}`;
   };
 
@@ -329,7 +333,10 @@ useEffect(() => {
       body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
       const title = body.insertParagraph(pdf.title, Word.InsertLocation.end);
       title.style = "Heading 1";
-      const content = body.insertParagraph(pdf.content, Word.InsertLocation.end);
+      const content = body.insertParagraph(
+        pdf.content,
+        Word.InsertLocation.end
+      );
       content.font.size = 11;
       await context.sync();
       setStatus(`Inserted: ${pdf.title}`);
