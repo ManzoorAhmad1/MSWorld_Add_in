@@ -1,24 +1,45 @@
 import React, { useState } from "react";
 import { Mail, Eye, EyeOff } from "lucide-react";
 
-export default function LoginPopup() {
+export default function LoginPopup({setShowLoginPopup}) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
 
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    if (email && password) {
+    if (!email || !password) {
+      setError("Please enter both email and password.");
+      return;
+    }
+    try {
+      const response = await fetch("https://research-collab-backend-agep.onrender.com/api/v1/users/signin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Login failed");
+      }
+
+      setShowLoginPopup(false);
+      localStorage.setItem("user", JSON.stringify({ email, token: data?.data?.token }));
+
       window.parent.postMessage(
-        JSON.stringify({ email, token: "dummy-token" }),
+        JSON.stringify({ email, token: data?.data?.token }),
         "*"
       );
-    } else {
-      setError("Please enter both email and password.");
+    } catch (error) {
+      console.error("Login error:", error);
+      setError(error.message || "An unexpected error occurred. Please try again later.");
     }
   };
 

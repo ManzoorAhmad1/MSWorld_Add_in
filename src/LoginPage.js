@@ -1,14 +1,14 @@
 import React, {  useState } from "react";
 import "./App.css";
 
-export default function LoginPage() {
+export default function LoginPage({setShowLoginPopup}) {
   const [user, setUser] = useState(null);
   const [dialog, setDialog] = useState(null);
 
-  const handleLogin = (setShowLoginPopup) => {
+  const handleLogin = () => {
     setShowLoginPopup(true)
     Office.context.ui.displayDialogAsync(
-      "https://ms-world-add-in.vercel.app/login", // Updated to /login route
+      "https://ms-world-add-in.vercel.app", 
       { height: 60, width: 60, displayInIframe: true },
       (asyncResult) => {
         if (asyncResult.status === Office.AsyncResultStatus.Failed) {

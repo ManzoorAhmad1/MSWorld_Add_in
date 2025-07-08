@@ -6,7 +6,6 @@ import ResearchDocuments from "../components/ResearchDocuments";
 import OfficeWarning from "../components/OfficeWarning";
 import Cite from "citation-js";
 import React, { useState, useEffect, useRef } from "react";
-import {  useNavigate } from "react-router-dom";
 
 const Home = () => {
   const fileInputRef = useRef(null);
@@ -62,12 +61,7 @@ const Home = () => {
     const params = new URLSearchParams(window.location.search);
     return params.get("token");
   };
-  const [token, setToken] = useState("");
-  const navigate = useNavigate();
-  
-  if (!token) {
-    navigate("/");
-  }
+
   // Citation state
   const [citationStyle, setCitationStyle] = useState("apa");
   const [citations, setCitations] = useState([]);
