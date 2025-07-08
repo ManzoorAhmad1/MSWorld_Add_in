@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import axios from "axios";
 import { Mail, Eye, EyeOff } from "lucide-react";
 
 export default function LoginPopup({setShowLoginPopup}) {
@@ -7,6 +8,7 @@ export default function LoginPopup({setShowLoginPopup}) {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -15,20 +17,15 @@ export default function LoginPopup({setShowLoginPopup}) {
       setError("Please enter both email and password.");
       return;
     }
+    setLoading(true);
     try {
-      const response = await fetch("https://research-collab-backend-agep.onrender.com/api/v1/users/signin", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      });
+      const response = await axios.post(
+        "https://research-collab-backend-agep.onrender.com/api/v1/users/signin",
+        { email, password },
+        { headers: { "Content-Type": "application/json" } }
+      );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Login failed");
-      }
+      const data = response.data;
 
       setShowLoginPopup(false);
       localStorage.setItem("user", JSON.stringify({ email, token: data?.data?.token }));
@@ -39,7 +36,10 @@ export default function LoginPopup({setShowLoginPopup}) {
       );
     } catch (error) {
       console.error("Login error:", error);
-      setError(error.message || "An unexpected error occurred. Please try again later.");
+      const errorMsg = error.response?.data?.message || error.message || "An unexpected error occurred. Please try again later.";
+      setError(errorMsg);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -123,8 +123,20 @@ export default function LoginPopup({setShowLoginPopup}) {
               <button
                 onClick={handleSubmit}
                 className="login-popup-login-btn"
+                disabled={loading}
               >
-                Login
+                {loading ? (
+                  <span className="login-popup-loader" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="20" height="20" viewBox="0 0 50 50" style={{ marginRight: 8 }}>
+                      <circle cx="25" cy="25" r="20" fill="none" stroke="#fff" strokeWidth="5" strokeDasharray="31.4 31.4" strokeLinecap="round">
+                        <animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="1s" repeatCount="indefinite" />
+                      </circle>
+                    </svg>
+                    Logging in...
+                  </span>
+                ) : (
+                  'Login'
+                )}
               </button>
            
             </div>

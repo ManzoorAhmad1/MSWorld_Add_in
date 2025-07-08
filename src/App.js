@@ -19,7 +19,7 @@ function App() {
         "*"
       );
     }
-  }, []);
+  }, [token,showLoginPopup]);
   console.log(token, "token in app");
   return (
     <div>
