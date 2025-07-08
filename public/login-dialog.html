@@ -14,35 +14,7 @@
   </style>
 </head>
 <body>
-  <div class="box">
-    <h2>Login</h2>
-    <form id="loginForm">
-      <input type="email" id="email" placeholder="Email" required />
-      <input type="password" id="password" placeholder="Password" required />
-      <button type="submit">Login</button>
-    </form>
-  </div>
-
-  <script>
-    document.getElementById("loginForm").onsubmit = function (e) {
-      e.preventDefault();
-
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
-
-      // Simulate token (replace with real backend call)
-      const token = "mock-token-" + Date.now();
-
-      if (Office.context?.ui?.messageParent) {
-        Office.context.ui.messageParent(JSON.stringify({
-          email,
-          token
-        }));
-        Office.context.ui.closeContainer();
-      } else {
-        alert("Not running inside Office.");
-      }
-    };
-  </script>
+  <div id="root"></div>
+  <script src="../dist/login-dialog.js"></script>
 </body>
 </html>
