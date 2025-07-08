@@ -8,48 +8,27 @@ export default function LoginPage({setShowLoginPopup}) {
   const handleLogin = () => {
     console.log(Office.context,'Office')
     setShowLoginPopup(true)
-    Office.context.ui.displayDialogAsync(
-      "https://ms-world-add-in.vercel.app", 
-      { height: 60, width: 60, displayInIframe: true },
-      (asyncResult) => {
-        if (asyncResult.status === Office.AsyncResultStatus.Failed) {
-          alert("Failed to open dialog: " + asyncResult.error.message);
-          return;
-        }
-        const dialogInstance = asyncResult.value;
-        setDialog(dialogInstance);
-
-        // Event handler for dialog messages (receives OAuth token)
-        dialogInstance.addEventHandler(
-          Office.EventType.DialogMessageReceived,
-          (arg) => {
-            try {
-              const message = JSON.parse(arg.message);
-              if (message.token) {
-                setUser({ email: message.email, token: message.token });
-                dialogInstance.close();
-                setDialog(null);
-              } else if (message.error) {
-                alert("Login error: " + message.error);
-              }
-            } catch (e) {
-              alert("Invalid message received from dialog");
-            }
+ if (
+    window.Office &&
+    typeof Office.onReady === "function"
+  ) {
+    Office.onReady().then(() => {
+      console.log("Office.js is loaded and ready", Office.context);
+      if (Office.context && Office.context.ui && Office.context.ui.displayDialogAsync) {
+        Office.context.ui.displayDialogAsync(
+          "https://ms-world-add-in.vercel.app",
+          { height: 60, width: 60, displayInIframe: true },
+          (asyncResult) => {
+            // ...existing code...
           }
         );
-
-        // Optional: handle dialog closed without login
-        dialogInstance.addEventHandler(
-          Office.EventType.DialogEventReceived,
-          (event) => {
-            if (event.error === 12006) {
-              // Dialog closed by user
-              setDialog(null);
-            }
-          }
-        );
+      } else {
+        alert("Office.js is loaded, but not running inside an Office Add-in.");
       }
-    );
+    });
+  } else {
+    alert("Office.js is not loaded. Please run this inside an Office Add-in.");
+  }
   };
 
   return (
