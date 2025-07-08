@@ -43,10 +43,16 @@ const CitationLibrary = ({
             </div>
             <div className="citation-actions">
               <button 
-                onClick={() => {
-                  insertCitation(citation);
+                onClick={async () => {
+                  if (window.Office && window.Office.onReady) {
+                    console.log('Office.js is available, inserting citation...');
+                    await window.Office.onReady();
+                    insertCitation(citation);
+                    console.log('Citation inserted:', citation);
+                  } else {
+                    alert('Office.js is not available.');
+                  }
                 }}
-                disabled={!isOfficeReady}
                 className="insert-button"
               >
                 📝 Insert
