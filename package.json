@@ -6,7 +6,8 @@
   "scripts": {
     "start": "webpack serve --mode development",
     "build": "webpack --mode production",
-    "dev": "webpack serve --mode development --open"
+    "dev": "webpack serve --mode development --open",
+    "postinstall": "patch-package"
   },
   "keywords": [
     "office",
@@ -39,7 +40,6 @@
     "babel-loader": "^9.1.0",
     "css-loader": "^6.8.0",
     "html-webpack-plugin": "^5.5.0",
-    "patch-package": "^8.0.0",
     "postcss": "^8.5.6",
     "process": "^0.11.10",
     "querystring-es3": "^0.2.1",
