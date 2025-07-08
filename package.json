@@ -26,11 +26,11 @@
     "core-js": "^3.44.0",
     "history": "^5.3.0",
     "lucide-react": "^0.525.0",
+    "patch-package": "^8.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.6.3",
-    "util": "^0.12.5",
-    "patch-package": "^8.0.0"
+    "util": "^0.12.5"
   },
   "devDependencies": {
     "@babel/core": "^7.22.0",
@@ -47,6 +47,6 @@
     "tailwindcss": "^4.1.11",
     "webpack": "^5.88.0",
     "webpack-cli": "^5.1.0",
-    "webpack-dev-server": "^4.15.2"
+    "webpack-dev-server": "^5.2.2"
   }
 }
