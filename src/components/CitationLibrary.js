@@ -43,8 +43,10 @@ const CitationLibrary = ({
             </div>
             <div className="citation-actions">
               <button 
-                onClick={() => insertCitation(citation)}
-                disabled={!isOfficeReady}
+                onClick={() => {
+                  insertCitation(citation);
+                }}
+                // disabled={!isOfficeReady}
                 className="insert-button"
               >
                 📝 Insert

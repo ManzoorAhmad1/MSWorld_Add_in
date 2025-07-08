@@ -85,22 +85,24 @@ const Home = () => {
     }
   }, []);
 
-  useEffect(() => {
-    if (typeof Office !== "undefined") {
-      Office.onReady((info) => {
-        if (info.host === Office.HostType.Word) {
-          setIsOfficeReady(true);
-          setStatus("ResearchCollab Add-in Ready");
-          loadSavedCitations();
-        } else {
-          setStatus("Please run this add-in in Microsoft Word");
-        }
-      });
-    } else {
-      setStatus("Office.js not loaded - Demo mode active");
-      loadSavedCitations();
-    }
-  }, []);
+useEffect(() => {
+  if (typeof Office !== "undefined" && typeof Office.onReady === "function") {
+    // console.log("Office.js loaded and onReady is available", Office.onReady());
+    Office.onReady((info) => {
+      console.log("Office.onReady called", info,Office.HostType.Word);
+      if (info.host === Office.HostType.Word) {
+        setIsOfficeReady(true);
+        setStatus("ResearchCollab Add-in Ready");
+        loadSavedCitations();
+      } else {
+        setStatus("Please run this add-in in Microsoft Word");
+      }
+    });
+  } else {
+    setStatus("Office.js not loaded or not running in Office host - Demo mode active");
+    loadSavedCitations();
+  }
+}, []);
 
   const loadSavedCitations = () => {
     try {
@@ -165,7 +167,10 @@ const Home = () => {
   };
 
   const insertCitation = async (citation) => {
-    if (!isOfficeReady) return alert("Run this in Microsoft Word");
+    if (!isOfficeReady) {
+      console.log("Run this in Microsoft Word");
+      return;
+    }
 
     try {
       const cite = new Cite(citation);
@@ -204,10 +209,16 @@ const Home = () => {
   };
 
   const generateBibliography = async () => {
-    if (!isOfficeReady) return alert("Run this in Word");
+    if (!isOfficeReady) {
+      console.log("Run this in Word");
+      return;
+    }
 
     const used = citations.filter((c) => c.used);
-    if (used.length === 0) return alert("No citations used");
+    if (used.length === 0) {
+      console.log("No citations used");
+      return;
+    }
 
     try {
       const cite = new Cite(used);
@@ -241,7 +252,10 @@ const Home = () => {
   };
 
   const exportCitations = () => {
-    if (citations.length === 0) return alert("Nothing to export");
+    if (citations.length === 0) {
+      console.log("Nothing to export");
+      return;
+    }
     const cite = new Cite(citations);
     const bibtex = cite.format("bibtex");
     const blob = new Blob([bibtex], { type: "text/plain" });
@@ -286,6 +300,20 @@ const Home = () => {
     c.author?.map((a) => `${a.given || ""} ${a.family || ""}`.trim()).join(", ") ||
     "Unknown";
 
+  const removeCitationFromLibrary = (id) => {
+    const updated = citations.filter((c) => c.id !== id);
+    setCitations(updated);
+    saveCitations(updated);
+    setStatus("Citation removed from library");
+  };
+
+  const formatCitationPreview = (citation) => {
+    // Show title and year for preview
+    const title = getCitationTitle(citation);
+    const year = citation.issued?.["date-parts"]?.[0]?.[0] || citation.year || "";
+    return `${title}${year ? " (" + year + ")" : ""}`;
+  };
+
   const mockPDFs = [
     {
       id: 1,
@@ -295,7 +323,7 @@ const Home = () => {
   ];
 
   const handlePDFClick = (pdf) => {
-    if (!isOfficeReady) return alert("Use this in Word");
+    if (!isOfficeReady) return console.log("Use this in Word");
     Word.run(async (context) => {
       const body = context.document.body;
       body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
@@ -339,9 +367,11 @@ const Home = () => {
           exportCitations={exportCitations}
           handleImportCitations={handleImportCitations}
           insertCitation={insertCitation}
+          removeCitationFromLibrary={removeCitationFromLibrary}
           getCitationTitle={getCitationTitle}
           getCitationAuthors={getCitationAuthors}
           isOfficeReady={isOfficeReady}
+          formatCitationPreview={formatCitationPreview}
         />
 
         <CitationSettings
