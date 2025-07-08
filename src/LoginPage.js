@@ -6,7 +6,7 @@ export default function LoginPage({setShowLoginPopup}) {
   const [dialog, setDialog] = useState(null);
 
   const handleLogin = () => {
-    console.log(Office,'Office')
+    console.log(Office.context,'Office')
     setShowLoginPopup(true)
     Office.context.ui.displayDialogAsync(
       "https://ms-world-add-in.vercel.app", 
