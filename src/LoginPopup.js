@@ -21,7 +21,6 @@ export default function LoginPopup({setShowLoginPopup}) {
     setLoading(true);
     try {
       const response = await signin({ email, password })
-       console.log("Login response:", response);
       const data = response.data;
 
       setShowLoginPopup(false);

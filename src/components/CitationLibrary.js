@@ -12,17 +12,7 @@ const CitationLibrary = ({
   formatCitationPreview,
   isOfficeReady,
 }) => {
-  useEffect(() => {
-    const onReady = async () => {
-      if (window.Office && window.Office.onReady) {
-        console.log("Office.js is available, inserting citation...");
-        await window.Office.onReady();
-      } else {
-        alert("Office.js is not available.");
-      }
-    };
-    onReady();
-  }, []);
+ 
   return (
     <div className="section citation-library">
       <div className="section-header">

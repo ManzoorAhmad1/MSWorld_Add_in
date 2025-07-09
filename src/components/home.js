@@ -164,7 +164,17 @@ const Home = () => {
     saveCitations(updated);
     setStatus("Citation added to library");
   };
-
+  useEffect(() => {
+    const onReady = async () => {
+      if (window.Office && window.Office.onReady) {
+        console.log("Office.js is available, inserting citation...");
+        await window.Office.onReady();
+      } else {
+        alert("Office.js is not available.");
+      }
+    };
+    onReady();
+  }, []);
   const insertCitation = async (citation) => {
     if (!isOfficeReady) {
       console.log("Run this in Microsoft Word");
