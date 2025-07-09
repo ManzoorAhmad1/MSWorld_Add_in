@@ -164,18 +164,23 @@ const Home = () => {
     saveCitations(updated);
     setStatus("Citation added to library");
   };
-  useEffect(() => {
-    const onReady = async () => {
-      if (window.Office && window.Office.onReady) {
-        console.log("checking...");
-      let response=  await window.Office.onReady();
-        console.log("Office.js is ready",response);
-      } else {
-        alert("Office.js is not available.");
-      }
-    };
-    onReady();
-  }, []);
+useEffect(() => {
+  let intervalId;
+  const tryConnect = async () => {
+    if (window.Office && window.Office.onReady) {
+      console.log("checking...");
+      let response = await window.Office.onReady();
+      console.log("Office.js is ready", response);
+      clearInterval(intervalId);
+    } else {
+      console.log("Office.js is not available. Retrying in 2s...");
+    }
+  };
+  intervalId = setInterval(tryConnect, 2000);
+  // Try immediately as well
+  tryConnect();
+  return () => clearInterval(intervalId);
+}, []);
   const insertCitation = async (citation) => {
     if (!isOfficeReady) {
       console.log("Run this in Microsoft Word");
