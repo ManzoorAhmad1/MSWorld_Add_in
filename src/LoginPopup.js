@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { Mail, Eye, EyeOff } from "lucide-react";
+import { signin } from "./api";
 
 export default function LoginPopup({setShowLoginPopup}) {
   const [email, setEmail] = useState("");
@@ -19,16 +20,12 @@ export default function LoginPopup({setShowLoginPopup}) {
     }
     setLoading(true);
     try {
-      const response = await axios.post(
-        "https://research-collab-backend-agep.onrender.com/api/v1/users/signin",
-        { email, password },
-        { headers: { "Content-Type": "application/json" } }
-      );
-
+      const response = await signin({ email, password })
+       console.log("Login response:", response);
       const data = response.data;
 
       setShowLoginPopup(false);
-      localStorage.setItem("user", JSON.stringify({ email, token: data?.data?.token }));
+      localStorage.setItem("user", JSON.stringify({  token: data?.token }));
 
       window.parent.postMessage(
         JSON.stringify({ email, token: data?.data?.token }),
