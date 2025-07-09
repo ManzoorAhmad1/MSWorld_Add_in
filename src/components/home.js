@@ -182,15 +182,35 @@ const Home = () => {
       return;
     }
 
+    let formatted = "";
     try {
+      // Try to create a Cite object and format
       const cite = new Cite(citation);
-      console.log("Inserting citation:", cite);
-      const formatted = cite.format("citation", {
+      formatted = cite.format("citation", {
         format: "text",
         type: "string",
         style: citationStyle,
       });
-      console.log("Formatted citation:", formatted);
+      // If formatting fails or returns empty, use fallback
+      if (!formatted || formatted.trim() === "" || formatted.includes("[object Object]")) {
+        throw new Error("Citation-js could not format this citation.");
+      }
+    } catch (e) {
+      // Fallback: use title, year, and link if available
+      const title = citation.file_name || citation.title || "Untitled";
+      const year =
+        (citation.pdf_metadata && citation.pdf_metadata.PublicationYear) ||
+        citation.year ||
+        "";
+      const link =
+        citation.file_link ||
+        (citation.pdf_metadata && citation.pdf_metadata.DOI) ||
+        "";
+      formatted = `${title}${year ? " (" + year + ")" : ""}${link ? " - " + link : ""}`;
+      console.warn("Fallback citation used:", formatted);
+    }
+
+    try {
       await Word.run(async (context) => {
         const selection = context.document.getSelection();
         if (citationFormat === "in-text") {
