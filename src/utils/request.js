@@ -23,7 +23,16 @@ publicRequest.interceptors.request.use(
 privateRequest.interceptors.request.use(
   (config) => {
     // Example: Attach token if available
-    const token = localStorage.getItem('token');
+    const userStr = localStorage.getItem('user');
+    let token;
+    if (userStr) {
+      try {
+        const userObj = JSON.parse(userStr);
+        token = userObj.token;
+      } catch (e) {
+        token = undefined;
+      }
+    }
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }

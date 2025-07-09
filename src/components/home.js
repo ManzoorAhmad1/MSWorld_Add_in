@@ -6,6 +6,7 @@ import ResearchDocuments from "../components/ResearchDocuments";
 import OfficeWarning from "../components/OfficeWarning";
 import Cite from "citation-js";
 import React, { useState, useEffect, useRef } from "react";
+import { fetchUserFilesDocs } from "../api";
 
 const Home = () => {
   const fileInputRef = useRef(null);
@@ -72,7 +73,17 @@ const Home = () => {
   const [citationFormat, setCitationFormat] = useState("in-text");
   const [bibliographyTitle, setBibliographyTitle] = useState("References");
   const [recentCitations, setRecentCitations] = useState([]);
-
+  React.useEffect(() => {
+    const fetchFiles = async () => {
+      try {
+        const response = await fetchUserFilesDocs();
+        setSearchResults(response?.data || []);
+      } catch (e) {
+        console.error("Fetch files error:", e);
+      }
+    };
+    fetchFiles();
+  }, []);
   useEffect(() => {
     const urlToken = getTokenFromUrl();
     if (urlToken) {
@@ -173,12 +184,13 @@ const Home = () => {
 
     try {
       const cite = new Cite(citation);
+      console.log("Inserting citation:", cite);
       const formatted = cite.format("citation", {
         format: "text",
         type: "string",
         style: citationStyle,
       });
-
+      console.log("Formatted citation:", formatted);
       await Word.run(async (context) => {
         const selection = context.document.getSelection();
         if (citationFormat === "in-text") {

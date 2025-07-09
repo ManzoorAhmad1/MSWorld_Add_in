@@ -8,7 +8,7 @@ export const signin = async (body) => {
 };
 
 // Example: Get private data
-export const fetchPrivateData = async () => {
-  const response = await privateRequest.get('/private/data');
+export const fetchUserFilesDocs = async () => {
+  const response = await privateRequest.get('/api/v1/files/user/files');
   return response.data;
 };
