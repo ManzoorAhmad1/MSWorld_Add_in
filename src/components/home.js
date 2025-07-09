@@ -164,38 +164,7 @@ const Home = () => {
     saveCitations(updated);
     setStatus("Citation added to library");
   };
-useEffect(() => {
-  let intervalId;
-  let attempts = 0;
-  const maxAttempts = 20;
 
-  const tryConnect = async () => {
-    attempts++;
-    try {
-      console.log(window.Office,'window.Office')
-      if (window.Office && window.Office.onReady) {
-        console.log("checking...");
-        let response = await window.Office.onReady();
-        console.log("Office.js is ready", response);
-        clearInterval(intervalId);
-      } else {
-        console.log("Office.js is not available. Retrying in 2s...");
-        if (attempts >= maxAttempts) {
-          clearInterval(intervalId);
-          console.error("Failed to connect to Office.js after 20 attempts.");
-        }
-      }
-    } catch (err) {
-      clearInterval(intervalId);
-      console.error("Error while connecting to Office.js:", err);
-    }
-  };
-
-  intervalId = setInterval(tryConnect, 2000);
-  // Try immediately as well
-  tryConnect();
-  return () => clearInterval(intervalId);
-}, []);
   const insertCitation = async (citation) => {
     if (!isOfficeReady) {
       console.log("Run this in Microsoft Word");

@@ -17,9 +17,7 @@ function App() {
     const tryConnect = async () => {
       attempts++;
       try {
-        console.log(window.Office,'window.Office')
         if (window.Office && window.Office.onReady) {
-          console.log("checking...");
           let response = await window.Office.onReady();
           console.log("Office.js is ready", response);
           clearInterval(intervalId);
