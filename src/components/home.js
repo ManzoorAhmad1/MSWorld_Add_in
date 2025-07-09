@@ -167,8 +167,9 @@ const Home = () => {
   useEffect(() => {
     const onReady = async () => {
       if (window.Office && window.Office.onReady) {
-        console.log("Office.js is available, inserting citation...");
+        console.log("checking...");
         await window.Office.onReady();
+        console.log("Office.js is ready");
       } else {
         alert("Office.js is not available.");
       }
