@@ -168,8 +168,8 @@ const Home = () => {
     const onReady = async () => {
       if (window.Office && window.Office.onReady) {
         console.log("checking...");
-        await window.Office.onReady();
-        console.log("Office.js is ready");
+      let response=  await window.Office.onReady();
+        console.log("Office.js is ready",response);
       } else {
         alert("Office.js is not available.");
       }
