@@ -16,6 +16,20 @@ import React, { useState, useEffect, useRef } from "react";
 import { fetchUserFilesDocs } from "../api";
 
 const Home = () => {
+  // Normalize raw citation object to CSL format
+  function normalizeCitation(raw) {
+    return {
+      id: raw.id || `citation_${Date.now()}_${Math.random()}`,
+      author: raw.author && Array.isArray(raw.author) && raw.author.length > 0
+        ? raw.author
+        : [{ given: "Unknown", family: "" }],
+      title: raw.file_name || raw.title || "Untitled",
+      issued: raw.created_at
+        ? { "date-parts": [[new Date(raw.created_at).getFullYear()]] }
+        : { "date-parts": [[2025]] },
+      ...raw
+    };
+  }
   const fileInputRef = useRef(null);
   const citationStyles = [
     { value: "apa", label: "APA (American Psychological Association)" },
@@ -168,9 +182,9 @@ const Home = () => {
   };
 
   const addCitationToLibrary = (citation) => {
+    const normalized = normalizeCitation(citation);
     const citationWithMeta = {
-      ...citation,
-      id: citation.id || `citation_${Date.now()}_${Math.random()}`,
+      ...normalized,
       addedDate: new Date().toISOString(),
       used: false,
       inTextCitations: [],
@@ -384,12 +398,15 @@ const Home = () => {
         const bibtex = ev.target.result;
         const cite = new Cite(bibtex);
         const parsed = cite.data;
-        const newCitations = parsed.map((entry, idx) => ({
-          ...entry,
-          id: entry.id || `import_${Date.now()}_${idx}`,
-          used: false,
-          source: "imported",
-        }));
+        const newCitations = parsed.map((entry, idx) => {
+          const normalized = normalizeCitation(entry);
+          return {
+            ...normalized,
+            id: normalized.id || `import_${Date.now()}_${idx}`,
+            used: false,
+            source: "imported",
+          };
+        });
         const updated = [...citations, ...newCitations];
         setCitations(updated);
         saveCitations(updated);
