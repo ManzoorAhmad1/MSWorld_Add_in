@@ -6,13 +6,12 @@ import ResearchDocuments from "../components/ResearchDocuments";
 import OfficeWarning from "../components/OfficeWarning";
 import CSL from "citeproc";
 import apaStyle from "../csl-locales/apa.csl";
-// Fixed import paths (corrected typos)
-import ieeeStyle from "../csl-styles/ieee.csl";
-import harvardStyle from "../csl-styles/harvard-limerick.csl";
-import vancouverStyle from "../csl-styles/vancouver.csl";
-import natureStyle from "../csl-styles/nature.csl";
-import scienceStyle from "../csl-styles/science.csl";
-import enLocale from "../csl-styles/locales-en-US.xml";
+import ieeeStyle from "../csl-styes/ieee.csl";
+import harvardStyle from "../csl-styes/harvard-limerick.csl";
+import vancouverStyle from "../csl-styes/vancouver.csl";
+import natureStyle from "../csl-styes/nature.csl";
+import scienceStyle from "../csl-styes/science.csl";
+import enLocale from "../csl-styes/localesen-US.xml";
 import React, { useState, useEffect, useRef } from "react";
 import { fetchUserFilesDocs } from "../api";
 
