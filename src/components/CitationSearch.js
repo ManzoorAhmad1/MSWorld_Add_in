@@ -16,6 +16,7 @@ const CitationSearch = ({
       <div className="search-results">
         <h4>Search Results ({searchResults.length})</h4>
         {searchResults.map((result, index) => {
+          console.log(result,'result')
           return (
             <div key={result.id || index} className="search-result-item" style={{
               background: "#f9fbfd",
