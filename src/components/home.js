@@ -240,8 +240,20 @@ const Home = () => {
     }
 
     try {
+      console.log("Citation object:", citation);
       const formatted = formatCitationCiteproc(citation, citationStyle, citationFormat);
-      console.log("Formatted citation:", formatted);
+      if (formatted === undefined) {
+        console.error("Formatted citation is undefined. Possible reasons: missing citation.id, missing required fields, invalid CSL style or locale.");
+        console.log("Debug info:", {
+          citation,
+          citationStyle,
+          citationFormat,
+          styleXML: getCSLStyle(citationStyle),
+          localeXML: enLocale
+        });
+      } else {
+        console.log("Formatted citation:", formatted);
+      }
       await Word.run(async (context) => {
         const selection = context.document.getSelection();
         if (citationFormat === "in-text") {
