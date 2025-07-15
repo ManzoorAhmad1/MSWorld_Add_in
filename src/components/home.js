@@ -309,7 +309,6 @@ const Home = () => {
 
       // Normalize all citations
       const normalizedCitations = citationsArr.map(c => normalizeCitation(c)).filter(c => c);
-      
       if (normalizedCitations.length === 0) {
         return "";
       }
@@ -320,7 +319,6 @@ const Home = () => {
       };
 
       const styleXML = getCSLStyle(styleName);
-      
       let citeproc;
       try {
         citeproc = new CSL.Engine(sys, styleXML, "en-US");
@@ -332,10 +330,11 @@ const Home = () => {
 
       const ids = normalizedCitations.map((c) => c.id);
       citeproc.updateItems(ids);
-      
       const bibResult = citeproc.makeBibliography();
       if (bibResult && bibResult[1]) {
-        return bibResult[1].join("\n");
+        // Strip HTML tags from each entry
+        const stripHtml = (html) => html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+        return bibResult[1].map(stripHtml).join("\n");
       } else {
         // Fallback bibliography
         return normalizedCitations.map(c => formatCitationFallback(c, "full")).join("\n\n");
