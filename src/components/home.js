@@ -4,7 +4,14 @@ import CitationSettings from "../components/CitationSettings";
 import BibliographySection from "../components/BibliographySection";
 import ResearchDocuments from "../components/ResearchDocuments";
 import OfficeWarning from "../components/OfficeWarning";
-import Cite from "citation-js";
+import CSL from "citeproc";
+import apaStyle from "../csl-locales/apa.csl";
+import ieeeStyle from "../csl-styes/ieee.csl";
+import harvardStyle from "../csl-styes/harvard-limerick.csl";
+import vancouverStyle from "../csl-styes/vancouver.csl";
+import natureStyle from "../csl-styes/nature.csl";
+import scienceStyle from "../csl-styes/science.csl";
+import enLocale from "../csl-styes/localesen-US.xml";
 import React, { useState, useEffect, useRef } from "react";
 import { fetchUserFilesDocs } from "../api";
 
@@ -12,8 +19,6 @@ const Home = () => {
   const fileInputRef = useRef(null);
   const citationStyles = [
     { value: "apa", label: "APA (American Psychological Association)" },
-    { value: "mla", label: "MLA (Modern Language Association)" },
-    { value: "chicago", label: "Chicago Manual of Style" },
     { value: "ieee", label: "IEEE" },
     { value: "harvard", label: "Harvard" },
     { value: "vancouver", label: "Vancouver" },
@@ -176,6 +181,58 @@ const Home = () => {
     setStatus("Citation added to library");
   };
 
+  // Helper to get CSL style XML by style name
+  const getCSLStyle = (styleName) => {
+    switch (styleName) {
+      case "apa":
+        return apaStyle;
+      case "ieee":
+        return ieeeStyle;
+      case "harvard":
+        return harvardStyle;
+      case "vancouver":
+        return vancouverStyle;
+      case "nature":
+        return natureStyle;
+      case "science":
+        return scienceStyle;
+      default:
+        return apaStyle;
+    }
+  };
+
+  // Format a single citation using citeproc-js
+  const formatCitationCiteproc = (citation, styleName = "apa", format = "in-text") => {
+    const sys = {
+      retrieveLocale: () => enLocale,
+      retrieveItem: (id) => citation,
+    };
+    const styleXML = getCSLStyle(styleName);
+    const citeproc = new CSL.Engine(sys, styleXML, "en-US");
+    citeproc.updateItems([citation.id]);
+    let result;
+    if (format === "in-text") {
+      result = citeproc.makeCitationCluster([{ id: citation.id }]);
+    } else {
+      result = citeproc.makeCitationCluster([{ id: citation.id, locator: "footnote" }]);
+    }
+    return result[0][1];
+  };
+
+  // Format bibliography using citeproc-js
+  const formatBibliographyCiteproc = (citationsArr, styleName = "apa") => {
+    const sys = {
+      retrieveLocale: () => enLocale,
+      retrieveItem: (id) => citationsArr.find((c) => c.id === id),
+    };
+    const styleXML = getCSLStyle(styleName);
+    const citeproc = new CSL.Engine(sys, styleXML, "en-US");
+    const ids = citationsArr.map((c) => c.id);
+    citeproc.updateItems(ids);
+    const bibResult = citeproc.makeBibliography();
+    return bibResult[1].join("\n");
+  };
+
   const insertCitation = async (citation) => {
     if (!isOfficeReady) {
       console.log("Run this in Microsoft Word");
@@ -183,12 +240,7 @@ const Home = () => {
     }
 
     try {
-      const cite = new Cite(citation);
-      const formatted = cite.format("citation", {
-        format: "text",
-        type: "string",
-        style: citationStyle,
-      });
+      const formatted = formatCitationCiteproc(citation, citationStyle, citationFormat);
       console.log("Formatted citation:", formatted);
       await Word.run(async (context) => {
         const selection = context.document.getSelection();
@@ -231,13 +283,7 @@ const Home = () => {
     }
 
     try {
-      const cite = new Cite(used);
-      const bib = cite.format("bibliography", {
-        format: "text",
-        type: "string",
-        style: citationStyle,
-      });
-
+      const bib = formatBibliographyCiteproc(used, citationStyle);
       await Word.run(async (context) => {
         const body = context.document.body;
         body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
