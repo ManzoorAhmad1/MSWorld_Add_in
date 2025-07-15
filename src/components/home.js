@@ -228,7 +228,18 @@ const Home = () => {
     }
     const sys = {
       retrieveLocale: () => enLocale,
-      retrieveItem: (id) => citation.id === id ? citation : citations.find(c => c.id === id),
+      retrieveItem: (id) => {
+        const found = citations.find(c => c.id === id);
+        if (found) return found;
+        if (citation.id === id) return citation;
+        // Fallback: return a minimal valid object
+        return {
+          id,
+          author: [{ given: "Unknown", family: "" }],
+          title: "Untitled",
+          issued: { "date-parts": [[2025]] }
+        };
+      },
     };
     const styleXML = getCSLStyle(styleName);
     let citeproc;
