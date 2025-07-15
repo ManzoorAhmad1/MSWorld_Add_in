@@ -496,7 +496,7 @@ const Home = () => {
           handleCitationSearch={handleCitationSearch}
           isSearching={isSearching}
           searchResults={searchResults}
-          addCitationToLibrary={addCitationToLibrary}
+          addCitationToLibrary={(citation) => addCitationToLibrary(normalizeCitation(citation))}
           getCitationTitle={getCitationTitle}
           getCitationAuthors={getCitationAuthors}
         />
