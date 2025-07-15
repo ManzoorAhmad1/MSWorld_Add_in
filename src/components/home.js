@@ -635,27 +635,68 @@ const Home = () => {
     }
 
     try {
-      const bib = formatBibliographyCiteproc(used, citationStyle);
-      await Word.run(async (context) => {
-        const body = context.document.body;
-        body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
-        const title = body.insertParagraph(
-          bibliographyTitle,
-          Word.InsertLocation.end
-        );
-        title.style = "Heading 1";
-        title.font.bold = true;
-        title.font.size = 16;
-        const content = body.insertParagraph(bib, Word.InsertLocation.end);
-        content.font.name = "Times New Roman";
-        content.font.size = 12;
-        content.leftIndent = 36;
-        content.firstLineIndent = -36;
-        await context.sync();
-      });
-
-      setBibliography(bib);
-      setStatus("Bibliography inserted");
+      const bibRaw = formatBibliographyCiteproc(used, citationStyle);
+      if (citationStyle === "apa" && isOfficeReady) {
+        // Parse each bibliography entry for <i>...</i> and apply italics in Word
+        const bibEntries = bibRaw.split("\n");
+        await Word.run(async (context) => {
+          const body = context.document.body;
+          body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
+          const title = body.insertParagraph(bibliographyTitle, Word.InsertLocation.end);
+          title.style = "Heading 1";
+          title.font.bold = true;
+          title.font.size = 16;
+          for (let entry of bibEntries) {
+            // Find <i>...</i> regions
+            let parts = [];
+            let lastIndex = 0;
+            const regex = /\*(.*?)\*/g; // Markdown italics from cleanEntry
+            let match;
+            let para = body.insertParagraph("", Word.InsertLocation.end);
+            para.font.name = "Times New Roman";
+            para.font.size = 12;
+            para.leftIndent = 36;
+            para.firstLineIndent = -36;
+            let cursor = 0;
+            while ((match = regex.exec(entry)) !== null) {
+              // Add text before italic
+              if (match.index > cursor) {
+                const before = entry.substring(cursor, match.index);
+                para.insertText(before, Word.InsertLocation.end).font.italic = false;
+              }
+              // Add italic text
+              para.insertText(match[1], Word.InsertLocation.end).font.italic = true;
+              cursor = regex.lastIndex;
+            }
+            // Add remaining text
+            if (cursor < entry.length) {
+              const after = entry.substring(cursor);
+              para.insertText(after, Word.InsertLocation.end).font.italic = false;
+            }
+          }
+          await context.sync();
+        });
+        setBibliography(bibRaw);
+        setStatus("Bibliography inserted with APA italics");
+      } else {
+        // Default: insert as plain text
+        await Word.run(async (context) => {
+          const body = context.document.body;
+          body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
+          const title = body.insertParagraph(bibliographyTitle, Word.InsertLocation.end);
+          title.style = "Heading 1";
+          title.font.bold = true;
+          title.font.size = 16;
+          const content = body.insertParagraph(bibRaw, Word.InsertLocation.end);
+          content.font.name = "Times New Roman";
+          content.font.size = 12;
+          content.leftIndent = 36;
+          content.firstLineIndent = -36;
+          await context.sync();
+        });
+        setBibliography(bibRaw);
+        setStatus("Bibliography inserted");
+      }
     } catch (e) {
       console.error("Bibliography error:", e);
       setStatus("Error generating bibliography");
