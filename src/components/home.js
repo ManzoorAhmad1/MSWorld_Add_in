@@ -332,9 +332,17 @@ const Home = () => {
       citeproc.updateItems(ids);
       const bibResult = citeproc.makeBibliography();
       if (bibResult && bibResult[1]) {
-        // Strip HTML tags from each entry
-        const stripHtml = (html) => html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
-        return bibResult[1].map(stripHtml).join("\n");
+        // Improved HTML stripping: preserve <i> for journal titles as *italic*, remove other tags
+        const cleanEntry = (html) => {
+          // Replace <i>...</i> with *...*
+          let text = html.replace(/<i>(.*?)<\/i>/gi, '*$1*');
+          // Remove all other HTML tags
+          text = text.replace(/<[^>]+>/g, "");
+          // Replace multiple spaces/newlines with single space
+          text = text.replace(/\s+/g, " ").trim();
+          return text;
+        };
+        return bibResult[1].map(cleanEntry).join("\n");
       } else {
         // Fallback bibliography
         return normalizedCitations.map(c => formatCitationFallback(c, "full")).join("\n\n");
