@@ -709,9 +709,47 @@ const Home = () => {
         try {
           parsed = JSON.parse(content);
         } catch {
-          // If JSON parsing fails, try simple BibTeX parsing
-          setStatus("BibTeX import not fully supported, please use JSON format");
-          return;
+          // If JSON parsing fails, try BibTeX parsing
+          // Basic BibTeX parser (supports @article, @book, @misc)
+          const bibtexEntryRegex = /@(\w+)\s*\{([^,]+),([\s\S]*?)\}/g;
+          const fieldRegex = /(\w+)\s*=\s*\{([^}]*)\}/g;
+          let match;
+          while ((match = bibtexEntryRegex.exec(content)) !== null) {
+            const [, entryType, entryId, fieldsBlock] = match;
+            let fields = {};
+            let fieldMatch;
+            while ((fieldMatch = fieldRegex.exec(fieldsBlock)) !== null) {
+              const [, key, value] = fieldMatch;
+              fields[key.toLowerCase()] = value;
+            }
+            // Map BibTeX fields to normalized citation
+            parsed.push({
+              id: entryId,
+              type: entryType === "article" ? "article-journal" : entryType,
+              title: fields.title || "Untitled",
+              author: fields.author
+                ? fields.author.split(/\s+and\s+/).map(name => {
+                    const parts = name.split(",");
+                    if (parts.length === 2) {
+                      return { family: parts[0].trim(), given: parts[1].trim() };
+                    } else {
+                      const nameParts = name.trim().split(" ");
+                      return { given: nameParts[0], family: nameParts.slice(1).join(" ") };
+                    }
+                  })
+                : [{ given: "Unknown", family: "Author" }],
+              issued: fields.year ? { "date-parts": [[parseInt(fields.year)]] } : { "date-parts": [[2025]] },
+              "container-title": fields.journal || fields.booktitle || "",
+              volume: fields.volume || "",
+              issue: fields.number || "",
+              page: fields.pages || "",
+              DOI: fields.doi || "",
+              URL: fields.url || "",
+              publisher: fields.publisher || "",
+              abstract: fields.abstract || "",
+              source: "bibtex",
+            });
+          }
         }
 
         if (!Array.isArray(parsed)) {
@@ -724,7 +762,7 @@ const Home = () => {
             ...normalized,
             id: normalized.id || `import_${Date.now()}_${idx}`,
             used: false,
-            source: "imported",
+            source: entry.source || "imported",
             addedDate: new Date().toISOString(),
           };
         }).filter(c => c);
