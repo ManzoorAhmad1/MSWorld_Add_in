@@ -202,27 +202,41 @@ const Home = () => {
   };
 
   // Format a single citation using citeproc-js
-  const formatCitationCiteproc = (
-    citation,
-    styleName = "apa",
-    format = "in-text"
-  ) => {
+  const formatCitationCiteproc = (citation, styleName = "apa", format = "in-text") => {
+    // Validate citation object
+    if (!citation || !citation.id) {
+      console.error("Citation is missing required id field.", citation);
+      return undefined;
+    }
+    // Check for required fields (author, title, issued)
+    if (!citation.author || !citation.title || !citation.issued) {
+      console.warn("Citation may be missing required fields (author, title, issued)", citation);
+    }
     const sys = {
       retrieveLocale: () => enLocale,
-      retrieveItem: (id) => citation,
+      retrieveItem: (id) => citation.id === id ? citation : citations.find(c => c.id === id),
     };
     const styleXML = getCSLStyle(styleName);
-    const citeproc = new CSL.Engine(sys, styleXML, "en-US");
-    citeproc.updateItems([citation.id]);
-    let result;
-    if (format === "in-text") {
-      result = citeproc.makeCitationCluster([{ id: citation.id }]);
-    } else {
-      result = citeproc.makeCitationCluster([
-        { id: citation.id, locator: "footnote" },
-      ]);
+    let citeproc;
+    try {
+      citeproc = new CSL.Engine(sys, styleXML, "en-US");
+    } catch (e) {
+      console.error("CSL Engine initialization failed", e);
+      return undefined;
     }
-    return result[0][1];
+    try {
+      citeproc.updateItems([citation.id]);
+      let result;
+      if (format === "in-text") {
+        result = citeproc.makeCitationCluster([{ id: citation.id }]);
+      } else {
+        result = citeproc.makeCitationCluster([{ id: citation.id, locator: "footnote" }]);
+      }
+      return result && result[0] && result[0][1] ? result[0][1] : undefined;
+    } catch (e) {
+      console.error("Citation formatting failed", e);
+      return undefined;
+    }
   };
 
   // Format bibliography using citeproc-js
