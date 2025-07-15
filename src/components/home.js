@@ -202,7 +202,11 @@ const Home = () => {
   };
 
   // Format a single citation using citeproc-js
-  const formatCitationCiteproc = (citation, styleName = "apa", format = "in-text") => {
+  const formatCitationCiteproc = (
+    citation,
+    styleName = "apa",
+    format = "in-text"
+  ) => {
     const sys = {
       retrieveLocale: () => enLocale,
       retrieveItem: (id) => citation,
@@ -214,7 +218,9 @@ const Home = () => {
     if (format === "in-text") {
       result = citeproc.makeCitationCluster([{ id: citation.id }]);
     } else {
-      result = citeproc.makeCitationCluster([{ id: citation.id, locator: "footnote" }]);
+      result = citeproc.makeCitationCluster([
+        { id: citation.id, locator: "footnote" },
+      ]);
     }
     return result[0][1];
   };
@@ -240,29 +246,45 @@ const Home = () => {
     }
 
     try {
-      console.log("Citation object:", citation);
-      const formatted = formatCitationCiteproc(citation, citationStyle, citationFormat);
+      const formatted = formatCitationCiteproc(
+        citation,
+        citationStyle,
+        citationFormat
+      );
+      console.log("Citation object:", citation, citationStyle, citationFormat);
+
       if (formatted === undefined) {
-        console.error("Formatted citation is undefined. Possible reasons: missing citation.id, missing required fields, invalid CSL style or locale.");
+        console.error(
+          "Formatted citation is undefined. Possible reasons: missing citation.id, missing required fields, invalid CSL style or locale."
+        );
         console.log("Debug info:", {
           citation,
           citationStyle,
           citationFormat,
           styleXML: getCSLStyle(citationStyle),
-          localeXML: enLocale
+          localeXML: enLocale,
         });
+        setStatus(
+          "Failed to format citation. Please check citation data and style."
+        );
+        return;
       } else {
         console.log("Formatted citation:", formatted);
       }
-      await Word.run(async (context) => {
-        const selection = context.document.getSelection();
-        if (citationFormat === "in-text") {
-          selection.insertText(formatted, Word.InsertLocation.replace);
-        } else {
-          selection.insertFootnote(formatted);
-        }
-        await context.sync();
-      });
+      if (typeof formatted === "string" && formatted.trim().length > 0) {
+        await Word.run(async (context) => {
+          const selection = context.document.getSelection();
+          if (citationFormat === "in-text") {
+            selection.insertText(formatted, Word.InsertLocation.replace);
+          } else {
+            selection.insertFootnote(formatted);
+          }
+          await context.sync();
+        });
+      } else {
+        setStatus("Formatted citation is empty or invalid.");
+        return;
+      }
 
       const updated = citations.map((c) =>
         c.id === citation.id
