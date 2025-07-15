@@ -98,7 +98,8 @@ const Home = () => {
         family: nameParts.slice(1).join(' ') || "Author"
       }];
     } else {
-      authors = [{ given: "Unknown", family: "Author" }];
+      // Fallback author for missing data
+      authors = [{ given: "No", family: "Author" }];
     }
 
     // Ensure we have a valid issued date
@@ -356,6 +357,8 @@ const Home = () => {
   const fileInputRef = useRef(null);
   const [token, setToken] = useState("");
   
+  // Citation styles available for selection in the UI
+  // These styles are loaded from CSL files and used by citeproc
   const citationStyles = [
     { value: "apa", label: "APA (American Psychological Association)" },
     { value: "ieee", label: "IEEE" },
