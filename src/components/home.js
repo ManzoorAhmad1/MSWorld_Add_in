@@ -261,7 +261,7 @@ const Home = () => {
     }
   };
 
-  // Fallback formatting function
+  // Enhanced fallback formatting function with style-specific formatting
   const formatCitationFallback = (citation, format = "in-text") => {
     try {
       const normalized = normalizeCitation(citation);
@@ -271,6 +271,9 @@ const Home = () => {
       const year = normalized.issued?.["date-parts"]?.[0]?.[0] || "n.d.";
       const title = normalized.title || "Untitled";
       const journal = normalized["container-title"] || "";
+      const volume = normalized.volume || "";
+      const issue = normalized.issue || "";
+      const pages = normalized.page || "";
       
       if (format === "in-text") {
         const firstAuthor = authors[0];
@@ -290,21 +293,35 @@ const Home = () => {
             return `(${authorName}, ${year})`;
         }
       } else {
-        // Full citation format for bibliography
+        // Full citation format for bibliography with proper formatting
         const authorList = authors.map(a => 
           `${a.family || "Unknown"}, ${a.given || ""}`.trim()
         ).join(", ");
         
+        const styleFont = getCitationStyleFont(citationStyle);
+        
         switch (citationStyle) {
           case "mla":
+            // MLA: Author. "Title." *Journal*, Year.
             return `${authorList}. "${title}." ${journal ? `*${journal}*, ` : ""}${year}.`;
           case "ieee":
+            // IEEE: Author, "Title," *Journal*, Year.
             return `${authorList}, "${title}," ${journal ? `*${journal}*, ` : ""}${year}.`;
           case "nature":
+            // Nature: Author Title. *Journal* **volume**, pages (year).
+            return `${authorList} ${title}. ${journal ? `*${journal}* ` : ""}${volume ? `**${volume}**` : ""}${pages ? `, ${pages}` : ""} (${year}).`;
           case "science":
-            return `${authorList} ${title}. ${journal ? `*${journal}* ` : ""}(${year}).`;
-          default: // APA, Harvard, Chicago, Vancouver
-            return `${authorList} (${year}). ${title}. ${journal ? `*${journal}*.` : ""}`;
+            // Science: Author, Title. *Journal* **volume**, pages (year).
+            return `${authorList}, ${title}. ${journal ? `*${journal}* ` : ""}${volume ? `**${volume}**` : ""}${pages ? `, ${pages}` : ""} (${year}).`;
+          case "vancouver":
+            // Vancouver: Author. Title. Journal. Year;volume(issue):pages.
+            return `${authorList}. ${title}. ${journal ? `${journal}. ` : ""}${year}${volume ? `;${volume}` : ""}${issue ? `(${issue})` : ""}${pages ? `:${pages}` : ""}.`;
+          case "chicago":
+            // Chicago: Author. "Title." *Journal* volume, no. issue (Year): pages.
+            return `${authorList}. "${title}." ${journal ? `*${journal}* ` : ""}${volume ? `${volume}` : ""}${issue ? `, no. ${issue}` : ""} (${year})${pages ? `: ${pages}` : ""}.`;
+          default: // APA, Harvard
+            // APA: Author (Year). Title. *Journal*, volume(issue), pages.
+            return `${authorList} (${year}). ${title}. ${journal ? `*${journal}*` : ""}${volume ? `, ${volume}` : ""}${issue ? `(${issue})` : ""}${pages ? `, ${pages}` : ""}.`;
         }
       }
     } catch (error) {
@@ -677,7 +694,7 @@ const Home = () => {
     }
   };
 
-  // Enhanced insertCitation function
+  // Enhanced insertCitation function with proper formatting
   const insertCitation = async (citation) => {
     if (!isOfficeReady) {
       console.log("Run this in Microsoft Word");
@@ -718,14 +735,30 @@ const Home = () => {
         }
       }
 
-      // Insert into Word
+      // Insert into Word with proper formatting
       await Word.run(async (context) => {
         const selection = context.document.getSelection();
+        const styleFont = getCitationStyleFont(citationStyle);
+        
         if (citationFormat === "in-text") {
-          selection.insertText(formatted, Word.InsertLocation.replace);
+          // For in-text citations, apply formatting based on style
+          if (formatted.includes('*') || formatted.includes('**') || formatted.includes('___')) {
+            // Create a paragraph to handle formatting
+            const tempPara = selection.insertParagraph("", Word.InsertLocation.replace);
+            await parseAndFormatText(tempPara, formatted, citationStyle);
+          } else {
+            // Simple text insertion with font styling
+            const range = selection.insertText(formatted, Word.InsertLocation.replace);
+            range.font.name = styleFont.family;
+            range.font.size = styleFont.size;
+          }
         } else {
-          selection.insertFootnote(formatted);
+          // For footnotes, create formatted footnote
+          const footnote = selection.insertFootnote(formatted);
+          footnote.body.font.name = styleFont.family;
+          footnote.body.font.size = styleFont.size - 1; // Footnotes typically smaller
         }
+        
         await context.sync();
       });
 
@@ -741,7 +774,7 @@ const Home = () => {
       );
       setCitations(updated);
       saveCitations(updated);
-      setStatus(`Citation inserted successfully with ${citationStyle.toUpperCase()} style`);
+      setStatus(`Citation inserted successfully with ${citationStyle.toUpperCase()} style and proper formatting`);
     } catch (error) {
       console.error("Insert citation failed:", error);
       setStatus(`Insert failed: ${error.message}`);
@@ -762,52 +795,39 @@ const Home = () => {
 
     try {
       const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
+      const styleFont = getCitationStyleFont(citationStyle);
       
       await Word.run(async (context) => {
         const body = context.document.body;
         body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
+        
+        // Insert bibliography title
         const title = body.insertParagraph(bibliographyTitle, Word.InsertLocation.end);
         title.style = "Heading 1";
         title.font.bold = true;
         title.font.size = 16;
+        title.font.name = styleFont.family;
         
-        // Handle italics for journal titles if needed
+        // Process bibliography entries with proper formatting
         if (bibRaw.includes('*')) {
           const bibEntries = bibRaw.split("\n");
           for (let entry of bibEntries) {
             if (entry.trim()) {
               let para = body.insertParagraph("", Word.InsertLocation.end);
-              para.font.name = "Times New Roman";
-              para.font.size = 12;
+              para.font.name = styleFont.family;
+              para.font.size = styleFont.size;
               para.leftIndent = 36;
               para.firstLineIndent = -36;
               
-              // Handle italics
-              const regex = /\*(.*?)\*/g;
-              let cursor = 0;
-              let match;
-              
-              while ((match = regex.exec(entry)) !== null) {
-                // Add text before italic
-                if (match.index > cursor) {
-                  const before = entry.substring(cursor, match.index);
-                  para.insertText(before, Word.InsertLocation.end).font.italic = false;
-                }
-                // Add italic text
-                para.insertText(match[1], Word.InsertLocation.end).font.italic = true;
-                cursor = regex.lastIndex;
-              }
-              // Add remaining text
-              if (cursor < entry.length) {
-                const after = entry.substring(cursor);
-                para.insertText(after, Word.InsertLocation.end).font.italic = false;
-              }
+              // Parse and apply formatting for italics, bold, etc.
+              await parseAndFormatText(para, entry, citationStyle);
             }
           }
         } else {
+          // Fallback for entries without special formatting
           const content = body.insertParagraph(bibRaw, Word.InsertLocation.end);
-          content.font.name = "Times New Roman";
-          content.font.size = 12;
+          content.font.name = styleFont.family;
+          content.font.size = styleFont.size;
           content.leftIndent = 36;
           content.firstLineIndent = -36;
         }
@@ -816,10 +836,112 @@ const Home = () => {
       });
       
       setBibliography(bibRaw);
-      setStatus(`Bibliography inserted with ${citationStyle.toUpperCase()} style`);
+      setStatus(`Bibliography inserted with ${citationStyle.toUpperCase()} style using ${styleFont.family} font with proper formatting`);
     } catch (e) {
       console.error("Bibliography error:", e);
       setStatus("Error generating bibliography");
+    }
+  };
+
+  // Enhanced function to parse and format text with multiple formatting types
+  const parseAndFormatText = async (paragraph, text, citationStyle) => {
+    try {
+      const formatPatterns = [
+        { pattern: /\*(.*?)\*/g, type: "italic" },      // *text* for italic
+        { pattern: /\*\*(.*?)\*\*/g, type: "bold" },    // **text** for bold
+        { pattern: /___(.*?)___/g, type: "underline" }, // ___text___ for underline
+        { pattern: /`(.*?)`/g, type: "code" },          // `text` for code/monospace
+      ];
+
+      let cursor = 0;
+      let hasFormatting = false;
+
+      // Check if text contains any formatting patterns
+      for (let pattern of formatPatterns) {
+        if (pattern.pattern.test(text)) {
+          hasFormatting = true;
+          break;
+        }
+      }
+
+      if (!hasFormatting) {
+        // No special formatting, just add as normal text
+        await applyTextFormatting(paragraph, text, "normal", citationStyle);
+        return;
+      }
+
+      // Process formatting patterns in order
+      for (let formatDef of formatPatterns) {
+        const regex = new RegExp(formatDef.pattern.source, 'g');
+        let match;
+        let tempCursor = cursor;
+
+        while ((match = regex.exec(text)) !== null) {
+          // Add text before formatted section
+          if (match.index > tempCursor) {
+            const beforeText = text.substring(tempCursor, match.index);
+            await applyTextFormatting(paragraph, beforeText, "normal", citationStyle);
+          }
+
+          // Add formatted text
+          const formattedText = match[1];
+          await applyFormattedText(paragraph, formattedText, formatDef.type, citationStyle);
+          
+          tempCursor = regex.lastIndex;
+        }
+
+        // Update text by removing processed formatting
+        text = text.replace(formatDef.pattern, '$1');
+      }
+
+      // Add any remaining text
+      if (cursor < text.length) {
+        const remainingText = text.substring(cursor);
+        if (remainingText.trim()) {
+          await applyTextFormatting(paragraph, remainingText, "normal", citationStyle);
+        }
+      }
+    } catch (error) {
+      console.error("Text parsing error:", error);
+      // Fallback to plain text
+      await applyTextFormatting(paragraph, text.replace(/[*_`]/g, ''), "normal", citationStyle);
+    }
+  };
+
+  // Function to apply specific formatting types
+  const applyFormattedText = async (paragraph, text, formatType, citationStyle) => {
+    try {
+      await Word.run(async (context) => {
+        const range = paragraph.insertText(text, Word.InsertLocation.end);
+        const styleFont = getCitationStyleFont(citationStyle);
+        
+        // Apply base font settings
+        range.font.name = styleFont.family;
+        range.font.size = styleFont.size;
+        
+        // Apply specific formatting
+        switch (formatType) {
+          case "italic":
+            range.font.italic = true;
+            break;
+          case "bold":
+            range.font.bold = true;
+            break;
+          case "underline":
+            range.font.underline = Word.UnderlineType.single;
+            break;
+          case "code":
+            range.font.name = "Courier New";
+            range.font.size = styleFont.size - 1;
+            break;
+          default:
+            break;
+        }
+        
+        await context.sync();
+      });
+    } catch (error) {
+      console.error("Formatted text application error:", error);
     }
   };
 
@@ -1063,21 +1185,183 @@ const Home = () => {
     try {
       const inTextFormatted = await formatCitationCiteproc(sampleCitation, styleName, "in-text");
       const fullFormatted = await formatBibliographyCiteproc([sampleCitation], styleName);
+      const styleFont = getCitationStyleFont(styleName);
       
       console.log(`Preview for ${styleName}:`);
+      console.log(`Font: ${styleFont.family}, Size: ${styleFont.size}`);
+      console.log(`Title format: ${styleFont.titleFormat}`);
+      console.log(`Book format: ${styleFont.bookFormat}`);
+      console.log(`Emphasis: ${styleFont.emphasis}`);
       console.log(`In-text: ${inTextFormatted}`);
       console.log(`Bibliography: ${fullFormatted}`);
       
       return {
         inText: inTextFormatted,
-        bibliography: fullFormatted
+        bibliography: fullFormatted,
+        formatting: {
+          font: styleFont.family,
+          size: styleFont.size,
+          titleFormat: styleFont.titleFormat,
+          emphasis: styleFont.emphasis
+        }
       };
     } catch (error) {
       console.error(`Preview failed for ${styleName}:`, error);
       return {
         inText: formatCitationFallback(sampleCitation, "in-text"),
-        bibliography: formatCitationFallback(sampleCitation, "full")
+        bibliography: formatCitationFallback(sampleCitation, "full"),
+        formatting: getCitationStyleFont(styleName)
       };
+    }
+  };
+
+  // Function to test formatting features
+  const testFormattingFeatures = async () => {
+    const testCitation = {
+      id: "test_formatting",
+      type: "article-journal",
+      author: [{ given: "Test", family: "Author" }],
+      title: "Test Article with Formatting",
+      issued: { "date-parts": [[2025]] },
+      "container-title": "Test Journal",
+      volume: "1",
+      issue: "1",
+      page: "1-10"
+    };
+
+    console.log("Testing formatting features for each citation style:");
+    
+    for (const style of citationStyles) {
+      const stylePreview = await previewCitationStyle(style.value);
+      console.log(`\n${style.label} (${style.value}):`);
+      console.log(`- Font: ${stylePreview.formatting.font} ${stylePreview.formatting.size}pt`);
+      console.log(`- Journal titles: ${stylePreview.formatting.titleFormat}`);
+      console.log(`- Emphasis: ${stylePreview.formatting.emphasis}`);
+      console.log(`- Sample: ${stylePreview.inText}`);
+    }
+    
+    setStatus("Formatting features tested - check console for details");
+  };
+
+  // Function to get font family and formatting based on citation style
+  const getCitationStyleFont = (styleName) => {
+    const fontMap = {
+      "apa": { 
+        family: "Times New Roman", 
+        size: 12,
+        titleFormat: "italic", // Journal titles in italic
+        bookFormat: "italic",   // Book titles in italic
+        emphasis: "italic"
+      },
+      "mla": { 
+        family: "Times New Roman", 
+        size: 12,
+        titleFormat: "italic", // Journal/book titles in italic
+        bookFormat: "italic",
+        emphasis: "italic"
+      },
+      "ieee": { 
+        family: "Times New Roman", 
+        size: 10,
+        titleFormat: "italic", // Journal titles in italic
+        bookFormat: "italic",
+        emphasis: "italic"
+      },
+      "harvard": { 
+        family: "Times New Roman", 
+        size: 12,
+        titleFormat: "italic", // Journal titles in italic
+        bookFormat: "italic",
+        emphasis: "italic"
+      },
+      "vancouver": { 
+        family: "Arial", 
+        size: 11,
+        titleFormat: "normal", // No italics for journal titles
+        bookFormat: "normal",
+        emphasis: "bold"
+      },
+      "chicago": { 
+        family: "Times New Roman", 
+        size: 12,
+        titleFormat: "italic", // Journal titles in italic
+        bookFormat: "italic",
+        emphasis: "italic"
+      },
+      "nature": { 
+        family: "Arial", 
+        size: 8,
+        titleFormat: "italic", // Journal titles in italic
+        bookFormat: "italic",
+        emphasis: "bold"
+      },
+      "science": { 
+        family: "Times New Roman", 
+        size: 10,
+        titleFormat: "italic", // Journal titles in italic
+        bookFormat: "italic",
+        emphasis: "italic"
+      }
+    };
+    return fontMap[styleName] || { 
+      family: "Times New Roman", 
+      size: 12, 
+      titleFormat: "italic",
+      bookFormat: "italic",
+      emphasis: "italic"
+    };
+  };
+
+  // Function to apply formatting to text based on citation style
+  const applyTextFormatting = async (paragraph, text, formatType, citationStyle) => {
+    const styleFont = getCitationStyleFont(citationStyle);
+    
+    try {
+      await Word.run(async (context) => {
+        const range = paragraph.insertText(text, Word.InsertLocation.end);
+        
+        // Apply basic font settings
+        range.font.name = styleFont.family;
+        range.font.size = styleFont.size;
+        
+        // Apply specific formatting based on type and style
+        switch (formatType) {
+          case "title":
+          case "journal":
+          case "book":
+            if (styleFont.titleFormat === "italic") {
+              range.font.italic = true;
+            } else if (styleFont.titleFormat === "bold") {
+              range.font.bold = true;
+            } else if (styleFont.titleFormat === "underline") {
+              range.font.underline = Word.UnderlineType.single;
+            }
+            break;
+          case "emphasis":
+            if (styleFont.emphasis === "italic") {
+              range.font.italic = true;
+            } else if (styleFont.emphasis === "bold") {
+              range.font.bold = true;
+            }
+            break;
+          case "volume":
+            // Volume numbers are often bold in many styles
+            if (["nature", "science", "vancouver"].includes(citationStyle)) {
+              range.font.bold = true;
+            }
+            break;
+          default:
+            // Normal text formatting
+            range.font.italic = false;
+            range.font.bold = false;
+            break;
+        }
+        
+        await context.sync();
+        return range;
+      });
+    } catch (error) {
+      console.error("Text formatting error:", error);
     }
   };
 
@@ -1095,37 +1379,27 @@ const Home = () => {
           <span className="status-text">{status}</span>
         </div>
 
-        {/* Debug button to fix existing citations */}
-        <button 
-          onClick={fixExistingCitations}
-          style={{
-            margin: "10px 0",
-            padding: "5px 10px",
-            backgroundColor: "#007acc",
-            color: "white",
-            border: "none",
-            borderRadius: "3px",
-            cursor: "pointer"
-          }}
-        >
-          Fix Existing Citations
-        </button>
-
-        {/* Debug button to test citation styles */}
-        <button 
-          onClick={testCitationStyles}
-          style={{
-            margin: "10px 0",
-            padding: "5px 10px",
-            backgroundColor: "#28a745",
-            color: "white",
-            border: "none",
-            borderRadius: "3px",
-            cursor: "pointer"
-          }}
-        >
-          Test Citation Styles
-        </button>
+        {/* Debug buttons with professional styling */}
+        <div className="debug-buttons">
+          <button 
+            onClick={fixExistingCitations}
+            className="debug-btn debug-btn-primary"
+          >
+            🔧 Fix Citations
+          </button>
+          <button 
+            onClick={testCitationStyles}
+            className="debug-btn debug-btn-success"
+          >
+            🧪 Test Styles
+          </button>
+          <button 
+            onClick={testFormattingFeatures}
+            className="debug-btn debug-btn-info"
+          >
+            🎨 Test Formatting
+          </button>
+        </div>
 
         <CitationSearch
           searchQuery={searchQuery}

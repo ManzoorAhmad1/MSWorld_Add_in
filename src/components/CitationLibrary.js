@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 
 const CitationLibrary = ({
   citations,
@@ -9,80 +9,141 @@ const CitationLibrary = ({
   removeCitationFromLibrary,
   getCitationTitle,
   getCitationAuthors,
-  formatCitationPreview,
   isOfficeReady,
+  formatCitationPreview,
 }) => {
- 
+  const usedCitations = citations.filter((c) => c.used);
+  const unusedCitations = citations.filter((c) => !c.used);
+
   return (
-    <div className="section citation-library">
-      <div className="section-header">
-        <h3>📖 Citation Library ({citations.length})</h3>
+    <div className="library-section">
+      <h2 className="section-title">📖 Citation Library</h2>
+
+      <div className="library-header">
+        <div className="library-stats">
+          <div className="stat-item">
+            <span className="stat-number">{citations.length}</span>
+            <span className="stat-label">Total</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-number used">{usedCitations.length}</span>
+            <span className="stat-label">Used</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-number unused">{unusedCitations.length}</span>
+            <span className="stat-label">Unused</span>
+          </div>
+        </div>
+
         <div className="library-actions">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleImportCitations}
+            accept=".json,.bib,.txt"
+            style={{ display: "none" }}
+          />
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="import-button"
+            className="btn btn-secondary btn-sm"
           >
-            📄 Import BibTeX
+            📥 Import
           </button>
           <button
             onClick={exportCitations}
             disabled={citations.length === 0}
-            className="export-button"
+            className="btn btn-secondary btn-sm"
           >
-            💾 Export Library
+            📤 Export
           </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".bib,.bibtex"
-            onChange={handleImportCitations}
-            style={{ display: "none" }}
-          />
         </div>
       </div>
-      {citations.length > 0 ? (
-        <div className="citations-list">
+
+      {citations.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-icon">📚</div>
+          <h3>No citations yet</h3>
+          <p>Search and add citations to build your library</p>
+        </div>
+      ) : (
+        <div className="citations-grid">
           {citations.map((citation) => (
             <div
               key={citation.id}
-              className={`citation-item ${citation.used ? "used" : ""}`}
+              className={`citation-card ${citation.used ? "used" : "unused"}`}
             >
-              <div className="citation-info">
-                <h5>{getCitationTitle(citation)}</h5>
-                <p className="citation-authors">
-                  {getCitationAuthors(citation)}
-                </p>
-                <p className="citation-preview">
-                  {formatCitationPreview(citation)}
-                </p>
-                {citation.used && (
-                  <span className="used-badge">✓ Used in document</span>
-                )}
+              <div className="citation-card-header">
+                <h4 className="citation-title">
+                  {getCitationTitle(citation)}
+                </h4>
+                <div className="citation-status">
+                  {citation.used ? (
+                    <span className="status-badge used">✓ Used</span>
+                  ) : (
+                    <span className="status-badge unused">○ Unused</span>
+                  )}
+                </div>
               </div>
-              <div className="citation-actions">
+
+              <div className="citation-authors">
+                <strong>Authors:</strong> {getCitationAuthors(citation)}
+              </div>
+
+              {citation["container-title"] && (
+                <div className="citation-journal">
+                  <strong>Journal:</strong> {citation["container-title"]}
+                </div>
+              )}
+
+              {citation.issued?.["date-parts"]?.[0]?.[0] && (
+                <div className="citation-year">
+                  <strong>Year:</strong> {citation.issued["date-parts"][0][0]}
+                </div>
+              )}
+
+              {citation.DOI && (
+                <div className="citation-doi">
+                  <strong>DOI:</strong> 
+                  <a 
+                    href={`https://doi.org/${citation.DOI}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="doi-link"
+                  >
+                    {citation.DOI}
+                  </a>
+                </div>
+              )}
+
+              <div className="citation-preview">
+                <small>{formatCitationPreview(citation)}</small>
+              </div>
+
+              <div className="citation-card-actions">
                 <button
-                  onClick={async () => {
-                    insertCitation(citation);
-                  }}
-                  className="insert-button"
+                  onClick={() => insertCitation(citation)}
+                  disabled={!isOfficeReady}
+                  className="btn btn-primary btn-sm"
                 >
                   📝 Insert
                 </button>
                 <button
                   onClick={() => removeCitationFromLibrary(citation.id)}
-                  className="remove-button"
+                  className="btn btn-danger btn-sm"
                 >
                   🗑️ Remove
                 </button>
               </div>
+
+              {citation.used && citation.inTextCitations && (
+                <div className="usage-info">
+                  <small>
+                    Used {citation.inTextCitations.length} time(s)
+                  </small>
+                </div>
+              )}
             </div>
           ))}
-        </div>
-      ) : (
-        <div className="empty-library">
-          <p>
-            No citations in your library yet. Search and add citations above.
-          </p>
         </div>
       )}
     </div>

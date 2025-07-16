@@ -37,7 +37,7 @@ const CitationSettings = ({
             id="citation-style" 
             value={citationStyle} 
             onChange={(e) => handleStyleChange(e.target.value)}
-            className="style-select"
+            className="form-select"
           >
             {citationStyles.map(style => (
               <option key={style.value} value={style.value}>
@@ -46,38 +46,49 @@ const CitationSettings = ({
             ))}
           </select>
           
-          {/* Style Preview */}
+          {/* Enhanced Style Preview */}
           {stylePreview && (
-            <div className="style-preview" style={{
-              marginTop: "10px",
-              padding: "10px",
-              backgroundColor: "#f8f9fa",
-              border: "1px solid #e9ecef",
-              borderRadius: "4px",
-              fontSize: "12px"
-            }}>
-              <strong>Preview:</strong>
-              <div style={{ marginTop: "5px" }}>
-                <strong>In-text:</strong> {stylePreview.inText}
+            <div className="style-preview">
+              <div style={{ marginBottom: "8px" }}>
+                <strong>📝 In-text Preview:</strong>
+                <div style={{ 
+                  marginTop: "4px", 
+                  fontFamily: "Georgia, serif",
+                  fontSize: "0.9rem",
+                  color: "#1e40af"
+                }}>
+                  {stylePreview.inText}
+                </div>
               </div>
-              <div style={{ marginTop: "5px" }}>
-                <strong>Bibliography:</strong> {stylePreview.bibliography}
+              <div>
+                <strong>📚 Bibliography Preview:</strong>
+                <div style={{ 
+                  marginTop: "4px", 
+                  fontFamily: "Georgia, serif",
+                  fontSize: "0.85rem",
+                  color: "#374151",
+                  lineHeight: "1.4"
+                }}>
+                  {stylePreview.bibliography}
+                </div>
               </div>
             </div>
           )}
         </div>
+        
         <div className="setting-group">
           <label htmlFor="citation-format">Citation Format:</label>
           <select 
             id="citation-format" 
             value={citationFormat} 
             onChange={(e) => setCitationFormat(e.target.value)}
-            className="format-select"
+            className="form-select"
           >
-            <option value="in-text">In-text Citations</option>
-            <option value="footnote">Footnotes</option>
+            <option value="in-text">📝 In-text Citations</option>
+            <option value="footnote">📄 Footnotes</option>
           </select>
         </div>
+        
         <div className="setting-group">
           <label htmlFor="bibliography-title">Bibliography Title:</label>
           <input
@@ -85,7 +96,8 @@ const CitationSettings = ({
             type="text"
             value={bibliographyTitle}
             onChange={(e) => setBibliographyTitle(e.target.value)}
-            className="title-input"
+            className="form-input"
+            placeholder="e.g., References, Bibliography, Works Cited"
           />
         </div>
       </div>

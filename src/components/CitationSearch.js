@@ -9,56 +9,127 @@ const CitationSearch = ({
   addCitationToLibrary,
   getCitationTitle,
   getCitationAuthors,
-}) => (
-  <div className="section citation-search">
-    <h3>Add Citations</h3>
-    {searchResults.length > 0 && (
-      <div className="search-results">
-        <h4>Search Results ({searchResults.length})</h4>
-        {searchResults.map((result, index) => {
-          console.log(result,'result')
-          return (
-            <div key={result.id || index} className="search-result-item" style={{
-              background: "#f9fbfd",
-              border: "1px solid #e3e8ee",
-              borderRadius: "12px",
-              marginBottom: "18px",
-              padding: "22px",
-              boxShadow: "0 2px 8px rgba(44,62,80,0.06)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between"
-            }}>
-              <div className="result-info" style={{ flex: 1 }}>
-                <h5 style={{ fontSize: "16px", color: "#2E75B6", margin: 0, }}>
-                {result?.file_name}
-                </h5>
-              </div>
-              <button
-                onClick={() => addCitationToLibrary(result)}
-                className="add-citation-button"
-                style={{
-                  marginLeft: "24px",
-                  background: "#28a745",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "8px",
-                  padding: "12px 24px",
-                  fontWeight: 600,
-                  fontSize: "1em",
-                  boxShadow: "0 2px 6px rgba(40,167,69,0.08)",
-                  transition: "background 0.2s"
-                }}
-              >
-                ➕ Add to Library
-              </button>
-            </div>
-          );
-        })}
-      </div>
-    )}
+}) => {
+  return (
+    <div className="search-section">
+      <h2 className="section-title">🔍 Search Citations</h2>
+      
+      <div className="search-container">
+        <div className="search-input-group">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyPress={(e) => e.key === "Enter" && handleCitationSearch()}
+            placeholder="Search by title, author, DOI, or keywords..."
+            className="form-input search-input"
+            disabled={isSearching}
+          />
+          <button
+            onClick={handleCitationSearch}
+            disabled={isSearching || !searchQuery.trim()}
+            className="btn btn-primary search-btn"
+          >
+            {isSearching ? (
+              <>
+                <span className="spinner"></span>
+                Searching...
+              </>
+            ) : (
+              "Search"
+            )}
+          </button>
+        </div>
 
-  </div>
-);
+        <div className="search-help">
+          <small>
+            💡 Try searching by title, author name, DOI (10.xxxx/xxxxx), or keywords
+          </small>
+        </div>
+      </div>
+
+      <div className="search-results">
+        {isSearching && (
+          <div className="loading-state">
+            <div className="spinner-large"></div>
+            <p>Searching academic databases...</p>
+          </div>
+        )}
+
+        {!isSearching && searchResults.length === 0 && searchQuery && (
+          <div className="empty-state">
+            <div className="empty-icon">📚</div>
+            <h3>No results found</h3>
+            <p>Try different keywords or check the spelling</p>
+          </div>
+        )}
+
+        {!isSearching && searchResults.length === 0 && !searchQuery && (
+          <div className="empty-state">
+            <div className="empty-icon">🔍</div>
+            <h3>Start your research</h3>
+            <p>Search for academic papers, books, and articles</p>
+          </div>
+        )}
+
+        {searchResults.length > 0 && (
+          <div className="results-grid">
+            {searchResults.map((result, index) => (
+              <div key={result.id || index} className="citation-card">
+                <div className="citation-card-header">
+                  <h4 className="citation-title">
+                    {getCitationTitle(result)}
+                  </h4>
+                  <span className="citation-source">
+                    {result.source || "database"}
+                  </span>
+                </div>
+
+                <div className="citation-authors">
+                  <strong>Authors:</strong> {getCitationAuthors(result)}
+                </div>
+
+                {result["container-title"] && (
+                  <div className="citation-journal">
+                    <strong>Journal:</strong> {result["container-title"]}
+                  </div>
+                )}
+
+                {result.issued?.["date-parts"]?.[0]?.[0] && (
+                  <div className="citation-year">
+                    <strong>Year:</strong> {result.issued["date-parts"][0][0]}
+                  </div>
+                )}
+
+                {result.DOI && (
+                  <div className="citation-doi">
+                    <strong>DOI:</strong> 
+                    <a 
+                      href={`https://doi.org/${result.DOI}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="doi-link"
+                    >
+                      {result.DOI}
+                    </a>
+                  </div>
+                )}
+
+                <div className="citation-card-actions">
+                  <button
+                    onClick={() => addCitationToLibrary(result)}
+                    className="btn btn-success btn-sm"
+                  >
+                    ➕ Add to Library
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 export default CitationSearch;
