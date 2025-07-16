@@ -81,64 +81,119 @@ const Home = () => {
   </terms>
 </locale>`;
 
-  // Enhanced normalizeCitation function
+  // Enhanced normalizeCitation function to handle PDF metadata properly
   const normalizeCitation = (raw) => {
     if (!raw) return null;
 
-    // Ensure we have a valid author array
+    // Handle authors from different sources
     let authors = [];
-    if (raw.author && Array.isArray(raw.author) && raw.author.length > 0) {
-      authors = raw.author.map(author => ({
-        given: author.given || "Unknown",
-        family: author.family || "Author"
-      }));
-    } else if (raw.author && typeof raw.author === 'string') {
-      // Handle string authors
-      const nameParts = raw.author.split(' ');
-      authors = [{
-        given: nameParts[0] || "Unknown",
-        family: nameParts.slice(1).join(' ') || "Author"
-      }];
-    } else {
-      // Fallback author for missing data
+    
+    // Check pdf_metadata first, then pdf_search_data, then direct author field
+    const pdfAuthors = raw.pdf_metadata?.Authors || raw.pdf_search_data?.Authors || raw.author;
+    
+    if (pdfAuthors) {
+      if (Array.isArray(pdfAuthors) && pdfAuthors.length > 0) {
+        authors = pdfAuthors.map(author => ({
+          given: author.given || "Unknown",
+          family: author.family || "Author"
+        }));
+      } else if (typeof pdfAuthors === 'string') {
+        // Parse author string like "Hengshuang Zhao, Jianping Shi, Xiaojuan Qi, Xiaogang Wang, Jiaya Jia"
+        const authorNames = pdfAuthors.split(',').map(name => name.trim());
+        authors = authorNames.map(name => {
+          const nameParts = name.split(' ');
+          if (nameParts.length >= 2) {
+            return {
+              given: nameParts.slice(0, -1).join(' '), // All except last as given name
+              family: nameParts[nameParts.length - 1]   // Last as family name
+            };
+          } else {
+            return {
+              given: nameParts[0] || "Unknown",
+              family: "Author"
+            };
+          }
+        });
+      }
+    }
+    
+    // Fallback if no authors found
+    if (authors.length === 0) {
       authors = [{ given: "No", family: "Author" }];
     }
 
-    // Ensure we have a valid issued date
+    // Handle publication date from multiple sources
     let issued = { "date-parts": [[2025]] };
-    if (raw.issued && raw.issued["date-parts"]) {
-      issued = raw.issued;
-    } else if (raw.created_at) {
-      const year = new Date(raw.created_at).getFullYear();
+    const pubYear = raw.pdf_metadata?.PublicationYear || 
+                   raw.pdf_search_data?.PublicationDate || 
+                   raw.year ||
+                   raw.issued?.["date-parts"]?.[0]?.[0];
+    
+    if (pubYear) {
+      const year = typeof pubYear === 'string' ? 
+        parseInt(pubYear.match(/\d{4}/)?.[0] || '2025') : 
+        parseInt(pubYear);
       issued = { "date-parts": [[year]] };
-    } else if (raw.year) {
-      issued = { "date-parts": [[parseInt(raw.year)]] };
-    } else if (raw.pdf_metadata && raw.pdf_metadata.PublicationYear) {
-      issued = { "date-parts": [[parseInt(raw.pdf_metadata.PublicationYear)]] };
     }
 
-    // Ensure we have a valid title
-    let title = "Untitled";
-    if (raw.title) {
-      if (Array.isArray(raw.title)) {
-        title = raw.title[0] || "Untitled";
-      } else {
-        title = raw.title;
-      }
-    } else if (raw.file_name) {
-      title = raw.file_name;
+    // Handle title from multiple sources
+    let title = raw.pdf_metadata?.Title || 
+               raw.pdf_search_data?.Title || 
+               raw.title || 
+               raw.file_name || 
+               "Untitled";
+    
+    if (Array.isArray(title)) {
+      title = title[0] || "Untitled";
     }
 
-    // Extract additional metadata
-    const containerTitle = raw["container-title"] || 
+    // Handle journal/container title
+    const containerTitle = raw.pdf_metadata?.JournalName || 
+                          raw.pdf_search_data?.JournalName ||
+                          raw["container-title"] || 
                           raw.journal || 
-                          (raw.pdf_metadata && raw.pdf_metadata.JournalName) || 
                           "";
 
-    const doi = raw.DOI || raw.doi || "";
-    const url = raw.URL || raw.url || raw.file_link || raw.straico_file_url || "";
-    const publisher = raw.publisher || 
-                     (raw.pdf_metadata && raw.pdf_metadata.Institution) || 
+    // Handle DOI
+    const doi = raw.pdf_metadata?.DOI || 
+               raw.pdf_search_data?.DOI ||
+               raw.DOI || 
+               raw.doi || 
+               "";
+
+    // Handle URL (prefer straico_file_url for PDF links)
+    const url = raw.straico_file_url || 
+               raw.file_link || 
+               raw.URL || 
+               raw.url || 
+               "";
+
+    // Handle volume and issue
+    const volume = raw.pdf_metadata?.Volume || 
+                  raw.pdf_search_data?.Volume ||
+                  raw.volume || 
+                  "";
+                  
+    const issue = raw.pdf_metadata?.Issue || 
+                 raw.pdf_search_data?.Issue ||
+                 raw.issue || 
+                 "";
+
+    // Handle page numbers
+    const page = raw.pdf_metadata?.Pages || 
+                raw.page || 
+                "";
+
+    // Handle abstract
+    const abstract = raw.pdf_metadata?.Abstract || 
+                    raw.pdf_search_data?.Abstract ||
+                    raw.abstract || 
+                    "";
+
+    // Handle publisher/institution
+    const publisher = raw.pdf_metadata?.Institution || 
+                     raw.pdf_search_data?.Institution ||
+                     raw.publisher || 
                      "";
 
     return {
@@ -151,11 +206,12 @@ const Home = () => {
       URL: url,
       publisher: publisher,
       "container-title": containerTitle,
-      volume: raw.volume || (raw.pdf_metadata && raw.pdf_metadata.Volume) || "",
-      issue: raw.issue || (raw.pdf_metadata && raw.pdf_metadata.Issue) || "",
-      page: raw.page || "",
-      abstract: raw.abstract || (raw.pdf_metadata && raw.pdf_metadata.Abstract) || "",
-      ...raw // Spread other properties
+      volume: volume,
+      issue: issue,
+      page: page,
+      abstract: abstract,
+      // Preserve original data
+      ...raw
     };
   };
 
@@ -261,7 +317,7 @@ const Home = () => {
     }
   };
 
-  // Enhanced fallback formatting function with style-specific formatting
+  // Enhanced fallback formatting function with proper academic citation styles
   const formatCitationFallback = (citation, format = "in-text") => {
     try {
       const normalized = normalizeCitation(citation);
@@ -274,6 +330,8 @@ const Home = () => {
       const volume = normalized.volume || "";
       const issue = normalized.issue || "";
       const pages = normalized.page || "";
+      const doi = normalized.DOI || "";
+      const url = normalized.URL || normalized.file_link || normalized.straico_file_url || "";
       
       if (format === "in-text") {
         const firstAuthor = authors[0];
@@ -293,35 +351,200 @@ const Home = () => {
             return `(${authorName}, ${year})`;
         }
       } else {
-        // Full citation format for bibliography with proper formatting
-        const authorList = authors.map(a => 
-          `${a.family || "Unknown"}, ${a.given || ""}`.trim()
-        ).join(", ");
+        // Full citation format for bibliography with proper academic formatting
         
-        const styleFont = getCitationStyleFont(citationStyle);
+        // Format authors properly for each style
+        let authorList = "";
+        if (authors.length === 1) {
+          const author = authors[0];
+          const lastName = author.family || "Unknown";
+          const firstName = author.given || "";
+          const firstInitial = firstName ? firstName.charAt(0) + "." : "";
+          
+          switch (citationStyle) {
+            case "apa":
+            case "chicago":
+              authorList = `${lastName}, ${firstInitial}`;
+              break;
+            case "mla":
+              authorList = `${lastName}, ${firstName}`;
+              break;
+            default:
+              authorList = `${lastName}, ${firstInitial}`;
+          }
+        } else if (authors.length > 1) {
+          const firstAuthor = authors[0];
+          const firstLastName = firstAuthor.family || "Unknown";
+          const firstFirstName = firstAuthor.given || "";
+          const firstInitial = firstFirstName ? firstFirstName.charAt(0) + "." : "";
+          
+          if (authors.length === 2) {
+            const secondAuthor = authors[1];
+            const secondLastName = secondAuthor.family || "Unknown";
+            const secondFirstName = secondAuthor.given || "";
+            const secondInitial = secondFirstName ? secondFirstName.charAt(0) + "." : "";
+            
+            switch (citationStyle) {
+              case "apa":
+                authorList = `${firstLastName}, ${firstInitial}, & ${secondLastName}, ${secondInitial}`;
+                break;
+              case "mla":
+                authorList = `${firstLastName}, ${firstFirstName}, and ${secondFirstName} ${secondLastName}`;
+                break;
+              default:
+                authorList = `${firstLastName}, ${firstInitial}, & ${secondLastName}, ${secondInitial}`;
+            }
+          } else {
+            // 3 or more authors
+            switch (citationStyle) {
+              case "apa":
+                authorList = `${firstLastName}, ${firstInitial}, et al.`;
+                break;
+              case "mla":
+                authorList = `${firstLastName}, ${firstFirstName}, et al.`;
+                break;
+              default:
+                authorList = `${firstLastName}, ${firstInitial}, et al.`;
+            }
+          }
+        }
         
+        // Generate proper citation format for each style
         switch (citationStyle) {
+          case "apa":
+            // APA: Author, A. A. (Year). Title of work. *Title of Journal*, Volume(Issue), pages. DOI or URL
+            let apaResult = `${authorList} (${year}). ${title}.`;
+            if (journal) {
+              apaResult += ` *${journal}*`;
+              if (volume) {
+                apaResult += `, ${volume}`;
+                if (issue) apaResult += `(${issue})`;
+              }
+              if (pages) apaResult += `, ${pages}`;
+            }
+            apaResult += ".";
+            if (doi) {
+              apaResult += ` https://doi.org/${doi}`;
+            } else if (url) {
+              apaResult += ` ${url}`;
+            }
+            return apaResult;
+            
           case "mla":
-            // MLA: Author. "Title." *Journal*, Year.
-            return `${authorList}. "${title}." ${journal ? `*${journal}*, ` : ""}${year}.`;
+            // MLA: Author. "Title." *Journal*, vol. Volume, no. Issue, Year, pp. pages.
+            let mlaResult = `${authorList}. "${title}."`;
+            if (journal) {
+              mlaResult += ` *${journal}*`;
+              if (volume) mlaResult += `, vol. ${volume}`;
+              if (issue) mlaResult += `, no. ${issue}`;
+              mlaResult += `, ${year}`;
+              if (pages) mlaResult += `, pp. ${pages}`;
+            } else {
+              mlaResult += ` ${year}`;
+            }
+            mlaResult += ".";
+            return mlaResult;
+            
           case "ieee":
-            // IEEE: Author, "Title," *Journal*, Year.
-            return `${authorList}, "${title}," ${journal ? `*${journal}*, ` : ""}${year}.`;
-          case "nature":
-            // Nature: Author Title. *Journal* **volume**, pages (year).
-            return `${authorList} ${title}. ${journal ? `*${journal}* ` : ""}${volume ? `**${volume}**` : ""}${pages ? `, ${pages}` : ""} (${year}).`;
-          case "science":
-            // Science: Author, Title. *Journal* **volume**, pages (year).
-            return `${authorList}, ${title}. ${journal ? `*${journal}* ` : ""}${volume ? `**${volume}**` : ""}${pages ? `, ${pages}` : ""} (${year}).`;
+            // IEEE: A. Author, "Title," *Journal*, vol. Volume, no. Issue, pp. pages, Month Year.
+            let ieeeResult = `${authorList}, "${title},"`;
+            if (journal) {
+              ieeeResult += ` *${journal}*`;
+              if (volume) ieeeResult += `, vol. ${volume}`;
+              if (issue) ieeeResult += `, no. ${issue}`;
+              if (pages) ieeeResult += `, pp. ${pages}`;
+              ieeeResult += `, ${year}`;
+            } else {
+              ieeeResult += ` ${year}`;
+            }
+            ieeeResult += ".";
+            return ieeeResult;
+            
+          case "harvard":
+            // Harvard: Author, A. (Year) 'Title', *Journal*, Volume(Issue), pp. pages.
+            let harvardResult = `${authorList} (${year}) '${title}'`;
+            if (journal) {
+              harvardResult += `, *${journal}*`;
+              if (volume) {
+                harvardResult += `, ${volume}`;
+                if (issue) harvardResult += `(${issue})`;
+              }
+              if (pages) harvardResult += `, pp. ${pages}`;
+            }
+            harvardResult += ".";
+            return harvardResult;
+            
           case "vancouver":
-            // Vancouver: Author. Title. Journal. Year;volume(issue):pages.
-            return `${authorList}. ${title}. ${journal ? `${journal}. ` : ""}${year}${volume ? `;${volume}` : ""}${issue ? `(${issue})` : ""}${pages ? `:${pages}` : ""}.`;
+            // Vancouver: Author AA. Title. Journal. Year;Volume(Issue):pages.
+            let vancouverResult = `${authorList}. ${title}.`;
+            if (journal) {
+              vancouverResult += ` ${journal}.`;
+              vancouverResult += ` ${year}`;
+              if (volume) {
+                vancouverResult += `;${volume}`;
+                if (issue) vancouverResult += `(${issue})`;
+              }
+              if (pages) vancouverResult += `:${pages}`;
+            } else {
+              vancouverResult += ` ${year}`;
+            }
+            vancouverResult += ".";
+            return vancouverResult;
+            
           case "chicago":
-            // Chicago: Author. "Title." *Journal* volume, no. issue (Year): pages.
-            return `${authorList}. "${title}." ${journal ? `*${journal}* ` : ""}${volume ? `${volume}` : ""}${issue ? `, no. ${issue}` : ""} (${year})${pages ? `: ${pages}` : ""}.`;
-          default: // APA, Harvard
-            // APA: Author (Year). Title. *Journal*, volume(issue), pages.
-            return `${authorList} (${year}). ${title}. ${journal ? `*${journal}*` : ""}${volume ? `, ${volume}` : ""}${issue ? `(${issue})` : ""}${pages ? `, ${pages}` : ""}.`;
+            // Chicago: Author, First. "Title." *Journal* Volume, no. Issue (Year): pages.
+            let chicagoResult = `${authorList}. "${title}."`;
+            if (journal) {
+              chicagoResult += ` *${journal}*`;
+              if (volume) chicagoResult += ` ${volume}`;
+              if (issue) chicagoResult += `, no. ${issue}`;
+              chicagoResult += ` (${year})`;
+              if (pages) chicagoResult += `: ${pages}`;
+            } else {
+              chicagoResult += ` ${year}`;
+            }
+            chicagoResult += ".";
+            return chicagoResult;
+            
+          case "nature":
+            // Nature: Author, A. A. Title. *Journal* **volume**, pages (year).
+            let natureResult = `${authorList} ${title}.`;
+            if (journal) {
+              natureResult += ` *${journal}*`;
+              if (volume) natureResult += ` **${volume}**`;
+              if (pages) natureResult += `, ${pages}`;
+            }
+            natureResult += ` (${year}).`;
+            return natureResult;
+            
+          case "science":
+            // Science: A. Author, Title. *Journal* **volume**, pages (year).
+            let scienceResult = `${authorList}, ${title}.`;
+            if (journal) {
+              scienceResult += ` *${journal}*`;
+              if (volume) scienceResult += ` **${volume}**`;
+              if (pages) scienceResult += `, ${pages}`;
+            }
+            scienceResult += ` (${year}).`;
+            return scienceResult;
+            
+          default: // APA as default
+            let defaultResult = `${authorList} (${year}). ${title}.`;
+            if (journal) {
+              defaultResult += ` *${journal}*`;
+              if (volume) {
+                defaultResult += `, ${volume}`;
+                if (issue) defaultResult += `(${issue})`;
+              }
+              if (pages) defaultResult += `, ${pages}`;
+            }
+            defaultResult += ".";
+            if (doi) {
+              defaultResult += ` https://doi.org/${doi}`;
+            } else if (url) {
+              defaultResult += ` ${url}`;
+            }
+            return defaultResult;
         }
       }
     } catch (error) {
@@ -1215,32 +1438,51 @@ const Home = () => {
     }
   };
 
-  // Function to test formatting features
-  const testFormattingFeatures = async () => {
-    const testCitation = {
-      id: "test_formatting",
-      type: "article-journal",
-      author: [{ given: "Test", family: "Author" }],
-      title: "Test Article with Formatting",
-      issued: { "date-parts": [[2025]] },
-      "container-title": "Test Journal",
-      volume: "1",
-      issue: "1",
-      page: "1-10"
+  // Function to test formatting with actual PDF data
+  const testPDFCitationFormatting = () => {
+    // Sample data from your PDF
+    const samplePDFData = {
+      "id": 804,
+      "file_name": "Pyramid Scene Parsing Network",
+      "straico_file_url": "https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/899df281-2adf-4bf3-9e34-c62446cb4667",
+      "pdf_metadata": {
+        "Abstract": "Scene parsing is challenging for unrestricted open vocabulary and diverse scenes...",
+        "PublicationDate": "April 27 2017",
+        "Authors": "Hengshuang Zhao, Jianping Shi, Xiaojuan Qi, Xiaogang Wang, Jiaya Jia",
+        "PublicationYear": "2017",
+        "JournalName": "arXiv",
+        "Volume": "1",
+        "Issue": "1",
+        "DOI": "",
+        "Institution": "The Chinese University of Hong Kong"
+      },
+      "pdf_search_data": {
+        "Title": "Pyramid Scene Parsing Network",
+        "Authors": "Hengshuang Zhao, Jianping Shi, Xiaojuan Qi, Xiaogang Wang, Jiaya Jia",
+        "PublicationDate": "April 2017"
+      }
     };
 
-    console.log("Testing formatting features for each citation style:");
+    console.log("Testing PDF Citation Formatting:");
+    console.log("================================");
     
-    for (const style of citationStyles) {
-      const stylePreview = await previewCitationStyle(style.value);
+    // Test each citation style
+    citationStyles.forEach(style => {
       console.log(`\n${style.label} (${style.value}):`);
-      console.log(`- Font: ${stylePreview.formatting.font} ${stylePreview.formatting.size}pt`);
-      console.log(`- Journal titles: ${stylePreview.formatting.titleFormat}`);
-      console.log(`- Emphasis: ${stylePreview.formatting.emphasis}`);
-      console.log(`- Sample: ${stylePreview.inText}`);
-    }
+      console.log("----------------------------");
+      
+      // Test in-text citation
+      const inTextCitation = formatCitationFallback(samplePDFData, "in-text");
+      console.log(`In-text: ${inTextCitation}`);
+      
+      // Test full bibliography citation
+      const fullCitation = formatCitationFallback(samplePDFData, "full");
+      console.log(`Bibliography: ${fullCitation}`);
+      
+      console.log("");
+    });
     
-    setStatus("Formatting features tested - check console for details");
+    setStatus("PDF Citation formatting tested - check console for results");
   };
 
   // Function to get font family and formatting based on citation style
@@ -1425,6 +1667,31 @@ const Home = () => {
           handlePDFClick={handlePDFClick}
           isOfficeReady={isOfficeReady}
         />
+
+        {/* Debug Section for Testing Citation Styles */}
+        <div className="debug-section">
+          <h3>🔧 Debug & Testing</h3>
+          <div className="debug-buttons">
+            <button 
+              onClick={testCitationStyles}
+              className="btn btn-secondary btn-sm"
+            >
+              🧪 Test All Styles
+            </button>
+            <button 
+              onClick={testPDFCitationFormatting}
+              className="btn btn-primary btn-sm"
+            >
+              📄 Test PDF Citations
+            </button>
+            <button 
+              onClick={() => previewCitationStyle(citationStyle)}
+              className="btn btn-info btn-sm"
+            >
+              👁️ Preview Current Style
+            </button>
+          </div>
+        </div>
 
         {!isOfficeReady && <OfficeWarning />}
       </header>
