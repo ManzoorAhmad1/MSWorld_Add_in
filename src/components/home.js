@@ -716,46 +716,90 @@ const Home = () => {
                     .replace(/\s*\(Downloaded\)\s*/gi, '')
                     .replace(/\s*\(Viewed\)\s*/gi, '');
           
-          // Remove duplicate text patterns (improved algorithm)
-          // Split into sentences first to handle duplicates better
-          const sentences = text.split(/[.!?]\s+/);
-          const uniqueSentences = [];
+          // Advanced duplicate text removal algorithm
+          // First, handle obvious duplicated sequences within the text
+          let result = text;
           
-          for (let sentence of sentences) {
-            sentence = sentence.trim();
-            if (!sentence) continue;
+          // Method 1: Remove exact duplicated sequences (most common CSL issue)
+          // Split by periods and analyze each part
+          const parts = result.split('.');
+          const uniqueParts = [];
+          
+          for (let part of parts) {
+            part = part.trim();
+            if (!part) continue;
             
-            // Check if this sentence or a very similar one already exists
+            // Check if this part already exists or is very similar
             let isDuplicate = false;
-            for (let existing of uniqueSentences) {
-              // Calculate similarity - if more than 80% similar, consider duplicate
-              const similarity = calculateSimilarity(sentence, existing);
-              if (similarity > 0.8) {
+            for (let existing of uniqueParts) {
+              if (existing.trim() === part || 
+                  existing.includes(part) || 
+                  part.includes(existing.trim())) {
                 isDuplicate = true;
                 break;
               }
             }
             
             if (!isDuplicate) {
-              uniqueSentences.push(sentence);
+              uniqueParts.push(part);
             }
           }
           
-          // Join sentences back with periods
-          let result = uniqueSentences.join('. ');
+          result = uniqueParts.join('. ');
           if (result && !result.endsWith('.')) {
             result += '.';
           }
           
-          // Additional cleanup for common duplicate patterns
-          // Remove exact duplicate phrases separated by periods
-          result = result.replace(/([^.]+)\.\s*\1\s*/g, '$1. ');
+          // Method 2: Remove patterns where text repeats without periods
+          // Look for patterns like "TextATextA" or "Text1Text1"
+          const words = result.split(' ');
+          const filteredWords = [];
+          let skipNext = 0;
           
-          // Remove duplicated author-year patterns like "(2017). (2017)."
-          result = result.replace(/\((\d{4})\)\.\s*\1\s*/g, '($1). ');
+          for (let i = 0; i < words.length; i++) {
+            if (skipNext > 0) {
+              skipNext--;
+              continue;
+            }
+            
+            const currentWord = words[i];
+            
+            // Look ahead to see if we have a duplicate sequence
+            let duplicateFound = false;
+            for (let len = 1; len <= Math.min(10, words.length - i); len++) {
+              const sequence1 = words.slice(i, i + len).join(' ');
+              const sequence2 = words.slice(i + len, i + len * 2).join(' ');
+              
+              if (sequence1 === sequence2 && sequence1.length > 3) {
+                // Found duplicate sequence, add only once
+                filteredWords.push(...words.slice(i, i + len));
+                skipNext = len * 2 - 1; // Skip both sequences minus the current word
+                duplicateFound = true;
+                break;
+              }
+            }
+            
+            if (!duplicateFound) {
+              filteredWords.push(currentWord);
+            }
+          }
           
-          // Remove duplicated journal/volume patterns
-          result = result.replace(/(\w+),\s*(\d+)\1,\s*\2/g, '$1, $2');
+          result = filteredWords.join(' ');
+          
+          // Method 3: Regex-based cleanup for specific patterns
+          // Remove author-year duplicates like "(2023). 2023"
+          result = result.replace(/\((\d{4})\)\.\s*\1/g, '($1)');
+          
+          // Remove journal-volume duplicates like "Journal, 1Journal, 1"
+          result = result.replace(/([A-Za-z\s]+),\s*(\d+)\1,\s*\2/g, '$1, $2');
+          
+          // Remove title duplicates (common pattern: "Title. Title")
+          result = result.replace(/([^.]{10,})\.\s*\1/g, '$1');
+          
+          // Clean up any double periods or spaces
+          result = result.replace(/\.{2,}/g, '.')
+                        .replace(/\s{2,}/g, ' ')
+                        .trim();
           
           return result;
         };
@@ -1736,86 +1780,139 @@ const Home = () => {
 
   // Function to test duplicate text removal
   const testDuplicateRemoval = () => {
-    const problematicText = "Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1(1). https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/899df281-2adf-4bf3-9e34-c62446cb4667";
+    const problematicTexts = [
+      "Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1(1). https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/899df281-2adf-4bf3-9e34-c62446cb4667",
+      "mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1(1). https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/Creative-Thinking%20(1).pdf"
+    ];
     
     console.log("Testing Duplicate Text Removal:");
     console.log("===============================");
-    console.log("Original problematic text:");
-    console.log(problematicText);
-    console.log("");
     
-    // Test the cleanEntry function logic
-    const cleanEntry = (html) => {
-      // Replace <i>...</i> with *...*
-      let text = html.replace(/<i>(.*?)<\/i>/gi, '*$1*');
-      // Remove all other HTML tags
-      text = text.replace(/<[^>]+>/g, "");
-      // Decode HTML entities
-      text = text.replace(/&amp;/g, '&')
-                .replace(/&lt;/g, '<')
-                .replace(/&gt;/g, '>')
-                .replace(/&quot;/g, '"')
-                .replace(/&#38;/g, '&')
-                .replace(/&#39;/g, "'");
-      // Replace multiple spaces/newlines with single space
-      text = text.replace(/\s+/g, " ").trim();
+    problematicTexts.forEach((text, index) => {
+      console.log(`\nTest Case ${index + 1}:`);
+      console.log("Original problematic text:");
+      console.log(text);
+      console.log("");
       
-      // Remove common status indicators that shouldn't be in citations
-      text = text.replace(/\s*\(Unread\)\s*/gi, '')
-                .replace(/\s*\(Read\)\s*/gi, '')
-                .replace(/\s*\(Downloaded\)\s*/gi, '')
-                .replace(/\s*\(Viewed\)\s*/gi, '');
-      
-      // Remove duplicate text patterns (improved algorithm)
-      // Split into sentences first to handle duplicates better
-      const sentences = text.split(/[.!?]\s+/);
-      const uniqueSentences = [];
-      
-      for (let sentence of sentences) {
-        sentence = sentence.trim();
-        if (!sentence) continue;
+      // Test the cleanEntry function logic
+      const cleanEntry = (html) => {
+        // Replace <i>...</i> with *...*
+        let text = html.replace(/<i>(.*?)<\/i>/gi, '*$1*');
+        // Remove all other HTML tags
+        text = text.replace(/<[^>]+>/g, "");
+        // Decode HTML entities
+        text = text.replace(/&amp;/g, '&')
+                  .replace(/&lt;/g, '<')
+                  .replace(/&gt;/g, '>')
+                  .replace(/&quot;/g, '"')
+                  .replace(/&#38;/g, '&')
+                  .replace(/&#39;/g, "'");
+        // Replace multiple spaces/newlines with single space
+        text = text.replace(/\s+/g, " ").trim();
         
-        // Check if this sentence or a very similar one already exists
-        let isDuplicate = false;
-        for (let existing of uniqueSentences) {
-          // Calculate similarity - if more than 80% similar, consider duplicate
-          const similarity = calculateSimilarity(sentence, existing);
-          if (similarity > 0.8) {
-            isDuplicate = true;
-            break;
+        // Remove common status indicators that shouldn't be in citations
+        text = text.replace(/\s*\(Unread\)\s*/gi, '')
+                  .replace(/\s*\(Read\)\s*/gi, '')
+                  .replace(/\s*\(Downloaded\)\s*/gi, '')
+                  .replace(/\s*\(Viewed\)\s*/gi, '');
+        
+        // Advanced duplicate text removal algorithm
+        // First, handle obvious duplicated sequences within the text
+        let result = text;
+        
+        // Method 1: Remove exact duplicated sequences (most common CSL issue)
+        // Split by periods and analyze each part
+        const parts = result.split('.');
+        const uniqueParts = [];
+        
+        for (let part of parts) {
+          part = part.trim();
+          if (!part) continue;
+          
+          // Check if this part already exists or is very similar
+          let isDuplicate = false;
+          for (let existing of uniqueParts) {
+            if (existing.trim() === part || 
+                existing.includes(part) || 
+                part.includes(existing.trim())) {
+              isDuplicate = true;
+              break;
+            }
+          }
+          
+          if (!isDuplicate) {
+            uniqueParts.push(part);
           }
         }
         
-        if (!isDuplicate) {
-          uniqueSentences.push(sentence);
+        result = uniqueParts.join('. ');
+        if (result && !result.endsWith('.')) {
+          result += '.';
         }
-      }
+        
+        // Method 2: Remove patterns where text repeats without periods
+        // Look for patterns like "TextATextA" or "Text1Text1"
+        const words = result.split(' ');
+        const filteredWords = [];
+        let skipNext = 0;
+        
+        for (let i = 0; i < words.length; i++) {
+          if (skipNext > 0) {
+            skipNext--;
+            continue;
+          }
+          
+          const currentWord = words[i];
+          
+          // Look ahead to see if we have a duplicate sequence
+          let duplicateFound = false;
+          for (let len = 1; len <= Math.min(10, words.length - i); len++) {
+            const sequence1 = words.slice(i, i + len).join(' ');
+            const sequence2 = words.slice(i + len, i + len * 2).join(' ');
+            
+            if (sequence1 === sequence2 && sequence1.length > 3) {
+              // Found duplicate sequence, add only once
+              filteredWords.push(...words.slice(i, i + len));
+              skipNext = len * 2 - 1; // Skip both sequences minus the current word
+              duplicateFound = true;
+              break;
+            }
+          }
+          
+          if (!duplicateFound) {
+            filteredWords.push(currentWord);
+          }
+        }
+        
+        result = filteredWords.join(' ');
+        
+        // Method 3: Regex-based cleanup for specific patterns
+        // Remove author-year duplicates like "(2023). 2023"
+        result = result.replace(/\((\d{4})\)\.\s*\1/g, '($1)');
+        
+        // Remove journal-volume duplicates like "Journal, 1Journal, 1"
+        result = result.replace(/([A-Za-z\s]+),\s*(\d+)\1,\s*\2/g, '$1, $2');
+        
+        // Remove title duplicates (common pattern: "Title. Title")
+        result = result.replace(/([^.]{10,})\.\s*\1/g, '$1');
+        
+        // Clean up any double periods or spaces
+        result = result.replace(/\.{2,}/g, '.')
+                      .replace(/\s{2,}/g, ' ')
+                      .trim();
+        
+        return result;
+      };
       
-      // Join sentences back with periods
-      let result = uniqueSentences.join('. ');
-      if (result && !result.endsWith('.')) {
-        result += '.';
-      }
-      
-      // Additional cleanup for common duplicate patterns
-      // Remove exact duplicate phrases separated by periods
-      result = result.replace(/([^.]+)\.\s*\1\s*/g, '$1. ');
-      
-      // Remove duplicated author-year patterns like "(2017). (2017)."
-      result = result.replace(/\((\d{4})\)\.\s*\1\s*/g, '($1). ');
-      
-      // Remove duplicated journal/volume patterns
-      result = result.replace(/(\w+),\s*(\d+)\1,\s*\2/g, '$1, $2');
-      
-      return result;
-    };
+      const cleanedText = cleanEntry(text);
+      console.log("After cleanup:");
+      console.log(cleanedText);
+      console.log("");
+    });
     
-    const cleanedText = cleanEntry(problematicText);
-    console.log("After cleanup:");
-    console.log(cleanedText);
-    console.log("");
-    console.log("Expected result:");
-    console.log("Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. *arXiv*, 1(1). Retrieved from https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/899df281-2adf-4bf3-9e34-c62446cb4667");
+    console.log("Expected results:");
+    console.log("1. Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. *arXiv*, 1(1). Retrieved from https://...");
+    console.log("2. mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. *Sustainability Strategies*, 1(1). Retrieved from https://...");
     
     setStatus("Duplicate removal tested - check console for results");
   };
