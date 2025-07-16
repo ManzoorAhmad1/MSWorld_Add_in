@@ -1379,28 +1379,6 @@ const Home = () => {
           <span className="status-text">{status}</span>
         </div>
 
-        {/* Debug buttons with professional styling */}
-        <div className="debug-buttons">
-          <button 
-            onClick={fixExistingCitations}
-            className="debug-btn debug-btn-primary"
-          >
-            🔧 Fix Citations
-          </button>
-          <button 
-            onClick={testCitationStyles}
-            className="debug-btn debug-btn-success"
-          >
-            🧪 Test Styles
-          </button>
-          <button 
-            onClick={testFormattingFeatures}
-            className="debug-btn debug-btn-info"
-          >
-            🎨 Test Formatting
-          </button>
-        </div>
-
         <CitationSearch
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}

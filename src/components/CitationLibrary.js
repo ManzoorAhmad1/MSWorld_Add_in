@@ -19,45 +19,6 @@ const CitationLibrary = ({
     <div className="library-section">
       <h2 className="section-title">📖 Citation Library</h2>
 
-      <div className="library-header">
-        <div className="library-stats">
-          <div className="stat-item">
-            <span className="stat-number">{citations.length}</span>
-            <span className="stat-label">Total</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-number used">{usedCitations.length}</span>
-            <span className="stat-label">Used</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-number unused">{unusedCitations.length}</span>
-            <span className="stat-label">Unused</span>
-          </div>
-        </div>
-
-        <div className="library-actions">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleImportCitations}
-            accept=".json,.bib,.txt"
-            style={{ display: "none" }}
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="btn btn-secondary btn-sm"
-          >
-            📥 Import
-          </button>
-          <button
-            onClick={exportCitations}
-            disabled={citations.length === 0}
-            className="btn btn-secondary btn-sm"
-          >
-            📤 Export
-          </button>
-        </div>
-      </div>
 
       {citations.length === 0 ? (
         <div className="empty-state">

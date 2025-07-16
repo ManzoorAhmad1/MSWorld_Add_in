@@ -12,65 +12,6 @@ const CitationSearch = ({
 }) => {
   return (
     <div className="search-section">
-      <h2 className="section-title">🔍 Search Citations</h2>
-      
-      <div className="search-container">
-        <div className="search-input-group">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyPress={(e) => e.key === "Enter" && handleCitationSearch()}
-            placeholder="Search by title, author, DOI, or keywords..."
-            className="form-input search-input"
-            disabled={isSearching}
-          />
-          <button
-            onClick={handleCitationSearch}
-            disabled={isSearching || !searchQuery.trim()}
-            className="btn btn-primary search-btn"
-          >
-            {isSearching ? (
-              <>
-                <span className="spinner"></span>
-                Searching...
-              </>
-            ) : (
-              "Search"
-            )}
-          </button>
-        </div>
-
-        <div className="search-help">
-          <small>
-            💡 Try searching by title, author name, DOI (10.xxxx/xxxxx), or keywords
-          </small>
-        </div>
-      </div>
-
-      <div className="search-results">
-        {isSearching && (
-          <div className="loading-state">
-            <div className="spinner-large"></div>
-            <p>Searching academic databases...</p>
-          </div>
-        )}
-
-        {!isSearching && searchResults.length === 0 && searchQuery && (
-          <div className="empty-state">
-            <div className="empty-icon">📚</div>
-            <h3>No results found</h3>
-            <p>Try different keywords or check the spelling</p>
-          </div>
-        )}
-
-        {!isSearching && searchResults.length === 0 && !searchQuery && (
-          <div className="empty-state">
-            <div className="empty-icon">🔍</div>
-            <h3>Start your research</h3>
-            <p>Search for academic papers, books, and articles</p>
-          </div>
-        )}
 
         {searchResults.length > 0 && (
           <div className="results-grid">
@@ -127,7 +68,6 @@ const CitationSearch = ({
             ))}
           </div>
         )}
-      </div>
     </div>
   );
 };
