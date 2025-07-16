@@ -426,7 +426,7 @@ const Home = () => {
             if (doi) {
               apaResult += ` https://doi.org/${doi}`;
             } else if (url) {
-              apaResult += ` ${url}`;
+              apaResult += ` Retrieved from ${url}`;
             }
             return apaResult;
             
@@ -542,7 +542,7 @@ const Home = () => {
             if (doi) {
               defaultResult += ` https://doi.org/${doi}`;
             } else if (url) {
-              defaultResult += ` ${url}`;
+              defaultResult += ` Retrieved from ${url}`;
             }
             return defaultResult;
         }
@@ -700,9 +700,46 @@ const Home = () => {
           let text = html.replace(/<i>(.*?)<\/i>/gi, '*$1*');
           // Remove all other HTML tags
           text = text.replace(/<[^>]+>/g, "");
+          // Decode HTML entities
+          text = text.replace(/&amp;/g, '&')
+                    .replace(/&lt;/g, '<')
+                    .replace(/&gt;/g, '>')
+                    .replace(/&quot;/g, '"')
+                    .replace(/&#38;/g, '&')
+                    .replace(/&#39;/g, "'");
           // Replace multiple spaces/newlines with single space
           text = text.replace(/\s+/g, " ").trim();
-          return text;
+          
+          // Remove common status indicators that shouldn't be in citations
+          text = text.replace(/\s*\(Unread\)\s*/gi, '')
+                    .replace(/\s*\(Read\)\s*/gi, '')
+                    .replace(/\s*\(Downloaded\)\s*/gi, '')
+                    .replace(/\s*\(Viewed\)\s*/gi, '');
+          
+          // Remove duplicate text patterns (common CSL processing issue)
+          const words = text.split(' ');
+          const uniqueWords = [];
+          let lastAddedIndex = -1;
+          
+          for (let i = 0; i < words.length; i++) {
+            // Check if this word starts a duplicate sequence
+            let isDuplicate = false;
+            if (i > 0 && lastAddedIndex >= 0) {
+              // Look for patterns where text repeats
+              const remainingText = words.slice(i).join(' ');
+              const previousText = words.slice(0, i).join(' ');
+              if (previousText.includes(remainingText.substring(0, Math.min(50, remainingText.length)))) {
+                isDuplicate = true;
+              }
+            }
+            
+            if (!isDuplicate) {
+              uniqueWords.push(words[i]);
+              lastAddedIndex = uniqueWords.length - 1;
+            }
+          }
+          
+          return uniqueWords.join(' ');
         };
         return bibResult[1].map(cleanEntry).join("\n");
       } else {
@@ -1438,6 +1475,43 @@ const Home = () => {
     }
   };
 
+  // Function to test APA citation formatting specifically
+  const testAPACitationFormatting = () => {
+    const samplePDFData = {
+      "id": 804,
+      "file_name": "Pyramid Scene Parsing Network",
+      "straico_file_url": "https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/899df281-2adf-4bf3-9e34-c62446cb4667",
+      "pdf_metadata": {
+        "Authors": "Hengshuang Zhao, Jianping Shi, Xiaojuan Qi, Xiaogang Wang, Jiaya Jia",
+        "PublicationYear": "2017",
+        "JournalName": "arXiv",
+        "Volume": "1",
+        "Issue": "1",
+        "DOI": "",
+        "Institution": "The Chinese University of Hong Kong"
+      },
+      "pdf_search_data": {
+        "Title": "Pyramid Scene Parsing Network",
+        "Authors": "Hengshuang Zhao, Jianping Shi, Xiaojuan Qi, Xiaogang Wang, Jiaya Jia"
+      }
+    };
+
+    console.log("Testing APA Citation Formatting:");
+    console.log("================================");
+    
+    // Test APA specifically
+    const apaInText = formatCitationFallback(samplePDFData, "in-text");
+    const apaFull = formatCitationFallback(samplePDFData, "full");
+    
+    console.log("APA In-text:", apaInText);
+    console.log("APA Bibliography:", apaFull);
+    console.log("");
+    console.log("Expected APA Bibliography:");
+    console.log("Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. *arXiv*, 1(1). Retrieved from https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/899df281-2adf-4bf3-9e34-c62446cb4667");
+    
+    setStatus("APA Citation formatting tested - check console for results");
+  };
+
   // Function to test formatting with actual PDF data
   const testPDFCitationFormatting = () => {
     // Sample data from your PDF
@@ -1683,6 +1757,12 @@ const Home = () => {
               className="btn btn-primary btn-sm"
             >
               📄 Test PDF Citations
+            </button>
+            <button 
+              onClick={testAPACitationFormatting}
+              className="btn btn-success btn-sm"
+            >
+              📋 Test APA Format
             </button>
             <button 
               onClick={() => previewCitationStyle(citationStyle)}
