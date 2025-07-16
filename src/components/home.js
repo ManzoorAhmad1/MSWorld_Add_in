@@ -716,90 +716,54 @@ const Home = () => {
                     .replace(/\s*\(Downloaded\)\s*/gi, '')
                     .replace(/\s*\(Viewed\)\s*/gi, '');
           
-          // Super-enhanced duplicate text removal algorithm
+          // Ultra-simplified and targeted duplicate removal
           let result = text;
           
-          // Method 1: Remove the most common CSL duplicate pattern
-          // Pattern: "Text, 1Text, 1(1)" -> "Text, 1(1)"
-          // This handles cases like "Sustainability Strategies, 1mentioned, N. (2023)..."
-          result = result.replace(/([^,]+),\s*(\d+)[^,]*,\s*(\d+)\([^)]+\)/g, (match, prefix, num1, num2) => {
-            // If it looks like a duplicate volume pattern
-            if (num1 === num2) {
-              return `${prefix}, ${num1}`;
-            }
-            return match;
-          });
+          // Method 1: Handle the exact pattern we're seeing
+          // "Author (Year). Title. Journal, VolumeAuthor (Year). Title. Journal, Volume(Issue)"
+          // Split on author pattern and detect duplicates
+          const authorYearRegex = /([A-Z][a-z]+,\s*[A-Z]\.(?:[^(]*\([0-9]{4}\))[^.]*\.)/g;
+          const authorMatches = [...result.matchAll(authorYearRegex)];
           
-          // Method 2: Remove author-title-journal duplicates that appear mid-sentence
-          // Pattern: "Author (Year). Title. Journal, VolumeAuthor (Year). Title. Journal, Volume(Issue)"
-          const authorYearPattern = /([A-Z][^(]*\(\d{4}\)[^.]*\.[^.]*\.[^,]+,\s*\d+)([A-Z][^(]*\(\d{4}\)[^.]*\.[^.]*\.[^,]+,\s*\d+\(\d+\))/g;
-          result = result.replace(authorYearPattern, (match, first, second) => {
-            // Check if the second part starts similarly to the first
-            const firstWords = first.split(' ').slice(0, 5).join(' ');
-            const secondWords = second.split(' ').slice(0, 5).join(' ');
-            if (firstWords === secondWords || second.includes(firstWords)) {
-              return second; // Keep the more complete second part
-            }
-            return match;
-          });
-          
-          // Method 3: Advanced word-level duplicate detection
-          const words = result.split(' ');
-          const cleanedWords = [];
-          let i = 0;
-          
-          while (i < words.length) {
-            let longestMatch = 0;
-            let bestMatchStart = -1;
-            
-            // Look for the longest duplicate sequence starting from current position
-            for (let len = 3; len <= Math.min(15, words.length - i); len++) {
-              const sequence = words.slice(i, i + len);
-              const sequenceText = sequence.join(' ');
+          if (authorMatches.length >= 2) {
+            // Check if we have duplicate author citations
+            for (let i = 0; i < authorMatches.length - 1; i++) {
+              const current = authorMatches[i][1];
+              const next = authorMatches[i + 1][1];
               
-              // Look for this sequence later in the text
-              for (let j = i + len; j <= words.length - len; j++) {
-                const laterSequence = words.slice(j, j + len);
-                const laterSequenceText = laterSequence.join(' ');
+              // If the patterns are very similar, it's likely a duplicate
+              if (current.substring(0, 20) === next.substring(0, 20)) {
+                // Keep the longer, more complete version
+                const currentIndex = result.indexOf(current);
+                const nextIndex = result.indexOf(next);
                 
-                if (sequenceText === laterSequenceText && len > longestMatch) {
-                  longestMatch = len;
-                  bestMatchStart = j;
+                if (currentIndex !== -1 && nextIndex !== -1) {
+                  // Find the complete duplicate sections
+                  const beforeDup = result.substring(0, currentIndex);
+                  const afterSecond = result.substring(nextIndex + next.length);
+                  
+                  // Look for the complete second citation (which is usually more complete)
+                  const secondComplete = result.substring(nextIndex);
+                  const nextPeriod = secondComplete.indexOf('. http') !== -1 ? 
+                    secondComplete.indexOf('. http') : secondComplete.indexOf('.');
+                  
+                  if (nextPeriod !== -1) {
+                    const completeSecond = secondComplete.substring(0, nextPeriod + 1);
+                    result = beforeDup + completeSecond + afterSecond;
+                  }
                 }
               }
             }
-            
-            if (longestMatch > 0) {
-              // Found a duplicate, add the first occurrence and skip the duplicate
-              cleanedWords.push(...words.slice(i, i + longestMatch));
-              
-              // Remove the duplicate sequence from the words array
-              words.splice(bestMatchStart, longestMatch);
-              
-              i += longestMatch;
-            } else {
-              // No duplicate found, add the word and continue
-              cleanedWords.push(words[i]);
-              i++;
-            }
           }
           
-          result = cleanedWords.join(' ');
-          
-          // Method 4: Specific pattern fixes
-          // Fix "Journal, 1Journal, 1(1)" pattern
+          // Method 2: Simple pattern-based cleanup for remaining artifacts
+          // Remove patterns like "Journal, 1Journal, 1(1)"
           result = result.replace(/([A-Za-z\s]+),\s*(\d+)([A-Za-z\s]+),\s*\2\((\d+)\)/g, '$1, $2($4)');
           
-          // Fix author duplication: "Name, N. (Year). Title. Name, N. (Year)."
-          result = result.replace(/([A-Z][^(]+\(\d{4}\)[^.]*\.)\s*([A-Z][^(]+\(\d{4}\))/g, (match, first, second) => {
-            if (first.includes(second.split('(')[0])) {
-              return first;
-            }
-            return match;
-          });
+          // Remove patterns like "arXiv, 1Zhao" (journal followed by number then author)
+          result = result.replace(/([a-zA-Z]+),\s*(\d+)([A-Z][a-z]+)/g, '$1, $2. $3');
           
-          // Method 5: Clean up remaining artifacts
-          // Remove duplicate periods and spaces
+          // Method 3: Final cleanup
           result = result.replace(/\.{2,}/g, '.')
                         .replace(/\s{2,}/g, ' ')
                         .replace(/\s+\./g, '.')
@@ -1825,90 +1789,54 @@ const Home = () => {
                   .replace(/\s*\(Downloaded\)\s*/gi, '')
                   .replace(/\s*\(Viewed\)\s*/gi, '');
         
-        // Super-enhanced duplicate text removal algorithm
+        // Ultra-simplified and targeted duplicate removal
         let result = text;
         
-        // Method 1: Remove the most common CSL duplicate pattern
-        // Pattern: "Text, 1Text, 1(1)" -> "Text, 1(1)"
-        // This handles cases like "Sustainability Strategies, 1mentioned, N. (2023)..."
-        result = result.replace(/([^,]+),\s*(\d+)[^,]*,\s*(\d+)\([^)]+\)/g, (match, prefix, num1, num2) => {
-          // If it looks like a duplicate volume pattern
-          if (num1 === num2) {
-            return `${prefix}, ${num1}`;
-          }
-          return match;
-        });
+        // Method 1: Handle the exact pattern we're seeing
+        // "Author (Year). Title. Journal, VolumeAuthor (Year). Title. Journal, Volume(Issue)"
+        // Split on author pattern and detect duplicates
+        const authorYearRegex = /([A-Z][a-z]+,\s*[A-Z]\.(?:[^(]*\([0-9]{4}\))[^.]*\.)/g;
+        const authorMatches = [...result.matchAll(authorYearRegex)];
         
-        // Method 2: Remove author-title-journal duplicates that appear mid-sentence
-        // Pattern: "Author (Year). Title. Journal, VolumeAuthor (Year). Title. Journal, Volume(Issue)"
-        const authorYearPattern = /([A-Z][^(]*\(\d{4}\)[^.]*\.[^.]*\.[^,]+,\s*\d+)([A-Z][^(]*\(\d{4}\)[^.]*\.[^.]*\.[^,]+,\s*\d+\(\d+\))/g;
-        result = result.replace(authorYearPattern, (match, first, second) => {
-          // Check if the second part starts similarly to the first
-          const firstWords = first.split(' ').slice(0, 5).join(' ');
-          const secondWords = second.split(' ').slice(0, 5).join(' ');
-          if (firstWords === secondWords || second.includes(firstWords)) {
-            return second; // Keep the more complete second part
-          }
-          return match;
-        });
-        
-        // Method 3: Advanced word-level duplicate detection
-        const words = result.split(' ');
-        const cleanedWords = [];
-        let i = 0;
-        
-        while (i < words.length) {
-          let longestMatch = 0;
-          let bestMatchStart = -1;
-          
-          // Look for the longest duplicate sequence starting from current position
-          for (let len = 3; len <= Math.min(15, words.length - i); len++) {
-            const sequence = words.slice(i, i + len);
-            const sequenceText = sequence.join(' ');
+        if (authorMatches.length >= 2) {
+          // Check if we have duplicate author citations
+          for (let i = 0; i < authorMatches.length - 1; i++) {
+            const current = authorMatches[i][1];
+            const next = authorMatches[i + 1][1];
             
-            // Look for this sequence later in the text
-            for (let j = i + len; j <= words.length - len; j++) {
-              const laterSequence = words.slice(j, j + len);
-              const laterSequenceText = laterSequence.join(' ');
+            // If the patterns are very similar, it's likely a duplicate
+            if (current.substring(0, 20) === next.substring(0, 20)) {
+              // Keep the longer, more complete version
+              const currentIndex = result.indexOf(current);
+              const nextIndex = result.indexOf(next);
               
-              if (sequenceText === laterSequenceText && len > longestMatch) {
-                longestMatch = len;
-                bestMatchStart = j;
+              if (currentIndex !== -1 && nextIndex !== -1) {
+                // Find the complete duplicate sections
+                const beforeDup = result.substring(0, currentIndex);
+                const afterSecond = result.substring(nextIndex + next.length);
+                
+                // Look for the complete second citation (which is usually more complete)
+                const secondComplete = result.substring(nextIndex);
+                const nextPeriod = secondComplete.indexOf('. http') !== -1 ? 
+                  secondComplete.indexOf('. http') : secondComplete.indexOf('.');
+                
+                if (nextPeriod !== -1) {
+                  const completeSecond = secondComplete.substring(0, nextPeriod + 1);
+                  result = beforeDup + completeSecond + afterSecond;
+                }
               }
             }
           }
-          
-          if (longestMatch > 0) {
-            // Found a duplicate, add the first occurrence and skip the duplicate
-            cleanedWords.push(...words.slice(i, i + longestMatch));
-            
-            // Remove the duplicate sequence from the words array
-            words.splice(bestMatchStart, longestMatch);
-            
-            i += longestMatch;
-          } else {
-            // No duplicate found, add the word and continue
-            cleanedWords.push(words[i]);
-            i++;
-          }
         }
         
-        result = cleanedWords.join(' ');
-        
-        // Method 4: Specific pattern fixes
-        // Fix "Journal, 1Journal, 1(1)" pattern
+        // Method 2: Simple pattern-based cleanup for remaining artifacts
+        // Remove patterns like "Journal, 1Journal, 1(1)"
         result = result.replace(/([A-Za-z\s]+),\s*(\d+)([A-Za-z\s]+),\s*\2\((\d+)\)/g, '$1, $2($4)');
         
-        // Fix author duplication: "Name, N. (Year). Title. Name, N. (Year)."
-        result = result.replace(/([A-Z][^(]+\(\d{4}\)[^.]*\.)\s*([A-Z][^(]+\(\d{4}\))/g, (match, first, second) => {
-          if (first.includes(second.split('(')[0])) {
-            return first;
-          }
-          return match;
-        });
+        // Remove patterns like "arXiv, 1Zhao" (journal followed by number then author)
+        result = result.replace(/([a-zA-Z]+),\s*(\d+)([A-Z][a-z]+)/g, '$1, $2. $3');
         
-        // Method 5: Clean up remaining artifacts
-        // Remove duplicate periods and spaces
+        // Method 3: Final cleanup
         result = result.replace(/\.{2,}/g, '.')
                       .replace(/\s{2,}/g, ' ')
                       .replace(/\s+\./g, '.')
