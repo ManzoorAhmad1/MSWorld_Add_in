@@ -716,30 +716,48 @@ const Home = () => {
                     .replace(/\s*\(Downloaded\)\s*/gi, '')
                     .replace(/\s*\(Viewed\)\s*/gi, '');
           
-          // Remove duplicate text patterns (common CSL processing issue)
-          const words = text.split(' ');
-          const uniqueWords = [];
-          let lastAddedIndex = -1;
+          // Remove duplicate text patterns (improved algorithm)
+          // Split into sentences first to handle duplicates better
+          const sentences = text.split(/[.!?]\s+/);
+          const uniqueSentences = [];
           
-          for (let i = 0; i < words.length; i++) {
-            // Check if this word starts a duplicate sequence
+          for (let sentence of sentences) {
+            sentence = sentence.trim();
+            if (!sentence) continue;
+            
+            // Check if this sentence or a very similar one already exists
             let isDuplicate = false;
-            if (i > 0 && lastAddedIndex >= 0) {
-              // Look for patterns where text repeats
-              const remainingText = words.slice(i).join(' ');
-              const previousText = words.slice(0, i).join(' ');
-              if (previousText.includes(remainingText.substring(0, Math.min(50, remainingText.length)))) {
+            for (let existing of uniqueSentences) {
+              // Calculate similarity - if more than 80% similar, consider duplicate
+              const similarity = calculateSimilarity(sentence, existing);
+              if (similarity > 0.8) {
                 isDuplicate = true;
+                break;
               }
             }
             
             if (!isDuplicate) {
-              uniqueWords.push(words[i]);
-              lastAddedIndex = uniqueWords.length - 1;
+              uniqueSentences.push(sentence);
             }
           }
           
-          return uniqueWords.join(' ');
+          // Join sentences back with periods
+          let result = uniqueSentences.join('. ');
+          if (result && !result.endsWith('.')) {
+            result += '.';
+          }
+          
+          // Additional cleanup for common duplicate patterns
+          // Remove exact duplicate phrases separated by periods
+          result = result.replace(/([^.]+)\.\s*\1\s*/g, '$1. ');
+          
+          // Remove duplicated author-year patterns like "(2017). (2017)."
+          result = result.replace(/\((\d{4})\)\.\s*\1\s*/g, '($1). ');
+          
+          // Remove duplicated journal/volume patterns
+          result = result.replace(/(\w+),\s*(\d+)\1,\s*\2/g, '$1, $2');
+          
+          return result;
         };
         return bibResult[1].map(cleanEntry).join("\n");
       } else {
@@ -1681,6 +1699,127 @@ const Home = () => {
     }
   };
 
+  // Helper function to calculate text similarity (Levenshtein distance based)
+  const calculateSimilarity = (str1, str2) => {
+    if (str1 === str2) return 1;
+    
+    const len1 = str1.length;
+    const len2 = str2.length;
+    
+    if (len1 === 0) return len2 === 0 ? 1 : 0;
+    if (len2 === 0) return 0;
+    
+    // Create a matrix for dynamic programming
+    const matrix = Array(len1 + 1).fill().map(() => Array(len2 + 1).fill(0));
+    
+    // Initialize first row and column
+    for (let i = 0; i <= len1; i++) matrix[i][0] = i;
+    for (let j = 0; j <= len2; j++) matrix[0][j] = j;
+    
+    // Fill the matrix
+    for (let i = 1; i <= len1; i++) {
+      for (let j = 1; j <= len2; j++) {
+        const cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j] + 1,     // deletion
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j - 1] + cost // substitution
+        );
+      }
+    }
+    
+    // Calculate similarity as percentage
+    const maxLen = Math.max(len1, len2);
+    const distance = matrix[len1][len2];
+    return (maxLen - distance) / maxLen;
+  };
+
+  // Function to test duplicate text removal
+  const testDuplicateRemoval = () => {
+    const problematicText = "Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1(1). https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/899df281-2adf-4bf3-9e34-c62446cb4667";
+    
+    console.log("Testing Duplicate Text Removal:");
+    console.log("===============================");
+    console.log("Original problematic text:");
+    console.log(problematicText);
+    console.log("");
+    
+    // Test the cleanEntry function logic
+    const cleanEntry = (html) => {
+      // Replace <i>...</i> with *...*
+      let text = html.replace(/<i>(.*?)<\/i>/gi, '*$1*');
+      // Remove all other HTML tags
+      text = text.replace(/<[^>]+>/g, "");
+      // Decode HTML entities
+      text = text.replace(/&amp;/g, '&')
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&quot;/g, '"')
+                .replace(/&#38;/g, '&')
+                .replace(/&#39;/g, "'");
+      // Replace multiple spaces/newlines with single space
+      text = text.replace(/\s+/g, " ").trim();
+      
+      // Remove common status indicators that shouldn't be in citations
+      text = text.replace(/\s*\(Unread\)\s*/gi, '')
+                .replace(/\s*\(Read\)\s*/gi, '')
+                .replace(/\s*\(Downloaded\)\s*/gi, '')
+                .replace(/\s*\(Viewed\)\s*/gi, '');
+      
+      // Remove duplicate text patterns (improved algorithm)
+      // Split into sentences first to handle duplicates better
+      const sentences = text.split(/[.!?]\s+/);
+      const uniqueSentences = [];
+      
+      for (let sentence of sentences) {
+        sentence = sentence.trim();
+        if (!sentence) continue;
+        
+        // Check if this sentence or a very similar one already exists
+        let isDuplicate = false;
+        for (let existing of uniqueSentences) {
+          // Calculate similarity - if more than 80% similar, consider duplicate
+          const similarity = calculateSimilarity(sentence, existing);
+          if (similarity > 0.8) {
+            isDuplicate = true;
+            break;
+          }
+        }
+        
+        if (!isDuplicate) {
+          uniqueSentences.push(sentence);
+        }
+      }
+      
+      // Join sentences back with periods
+      let result = uniqueSentences.join('. ');
+      if (result && !result.endsWith('.')) {
+        result += '.';
+      }
+      
+      // Additional cleanup for common duplicate patterns
+      // Remove exact duplicate phrases separated by periods
+      result = result.replace(/([^.]+)\.\s*\1\s*/g, '$1. ');
+      
+      // Remove duplicated author-year patterns like "(2017). (2017)."
+      result = result.replace(/\((\d{4})\)\.\s*\1\s*/g, '($1). ');
+      
+      // Remove duplicated journal/volume patterns
+      result = result.replace(/(\w+),\s*(\d+)\1,\s*\2/g, '$1, $2');
+      
+      return result;
+    };
+    
+    const cleanedText = cleanEntry(problematicText);
+    console.log("After cleanup:");
+    console.log(cleanedText);
+    console.log("");
+    console.log("Expected result:");
+    console.log("Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. *arXiv*, 1(1). Retrieved from https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/899df281-2adf-4bf3-9e34-c62446cb4667");
+    
+    setStatus("Duplicate removal tested - check console for results");
+  };
+
   return (
     <div className="App">
       <header className="App-header">
@@ -1734,6 +1873,8 @@ const Home = () => {
           generateBibliography={generateBibliography}
           isOfficeReady={isOfficeReady}
           citations={citations}
+          testAPACitationFormatting={testAPACitationFormatting}
+          testDuplicateRemoval={testDuplicateRemoval}
         />
 
         <ResearchDocuments
@@ -1741,37 +1882,6 @@ const Home = () => {
           handlePDFClick={handlePDFClick}
           isOfficeReady={isOfficeReady}
         />
-
-        {/* Debug Section for Testing Citation Styles */}
-        <div className="debug-section">
-          <h3>🔧 Debug & Testing</h3>
-          <div className="debug-buttons">
-            <button 
-              onClick={testCitationStyles}
-              className="btn btn-secondary btn-sm"
-            >
-              🧪 Test All Styles
-            </button>
-            <button 
-              onClick={testPDFCitationFormatting}
-              className="btn btn-primary btn-sm"
-            >
-              📄 Test PDF Citations
-            </button>
-            <button 
-              onClick={testAPACitationFormatting}
-              className="btn btn-success btn-sm"
-            >
-              📋 Test APA Format
-            </button>
-            <button 
-              onClick={() => previewCitationStyle(citationStyle)}
-              className="btn btn-info btn-sm"
-            >
-              👁️ Preview Current Style
-            </button>
-          </div>
-        </div>
 
         {!isOfficeReady && <OfficeWarning />}
       </header>
