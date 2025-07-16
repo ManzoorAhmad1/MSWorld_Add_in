@@ -6,11 +6,13 @@ import ResearchDocuments from "../components/ResearchDocuments";
 import OfficeWarning from "../components/OfficeWarning";
 import CSL from "citeproc";
 import apaStyle from "../csl-locales/apa.csl";
+import mlaStyle from "../csl-locales/mla.csl";
 import ieeeStyle from "../csl-styes/ieee.csl";
 import harvardStyle from "../csl-styes/harvard-limerick.csl";
 import vancouverStyle from "../csl-styes/vancouver.csl";
 import natureStyle from "../csl-styes/nature.csl";
 import scienceStyle from "../csl-styes/science.csl";
+import chicagoStyle from "../csl-styes/chicago-author-date.csl";
 import enLocale from "../csl-styes/localesen-US.xml";
 import React, { useState, useEffect, useRef } from "react";
 import { fetchUserFilesDocs } from "../api";
@@ -163,6 +165,8 @@ const Home = () => {
       switch (styleName) {
         case "apa":
           return apaStyle || fallbackAPA;
+        case "mla":
+          return mlaStyle || fallbackAPA;
         case "ieee":
           return ieeeStyle || fallbackAPA;
         case "harvard":
@@ -173,11 +177,86 @@ const Home = () => {
           return natureStyle || fallbackAPA;
         case "science":
           return scienceStyle || fallbackAPA;
+        case "chicago":
+          return chicagoStyle || fallbackAPA;
         default:
           return fallbackAPA;
       }
     } catch (error) {
       console.warn(`Failed to load style ${styleName}, using fallback`, error);
+      return fallbackAPA;
+    }
+  };
+
+  // If the CSL files are not loading as text, try importing them differently
+  // You might need to fetch them or handle them as raw text
+  const loadCSLStyle = async (styleName) => {
+    try {
+      let stylePath = '';
+      switch (styleName) {
+        case 'apa':
+          stylePath = '/src/csl-locales/apa.csl';
+          break;
+        case 'mla':
+          stylePath = '/src/csl-locales/mla.csl';
+          break;
+        case 'ieee':
+          stylePath = '/src/csl-styes/ieee.csl';
+          break;
+        case 'harvard':
+          stylePath = '/src/csl-styes/harvard-limerick.csl';
+          break;
+        case 'vancouver':
+          stylePath = '/src/csl-styes/vancouver.csl';
+          break;
+        case 'chicago':
+          stylePath = '/src/csl-styes/chicago-author-date.csl';
+          break;
+        case 'nature':
+          stylePath = '/src/csl-styes/nature.csl';
+          break;
+        case 'science':
+          stylePath = '/src/csl-styes/science.csl';
+          break;
+        default:
+          return fallbackAPA;
+      }
+      
+      const response = await fetch(stylePath);
+      if (response.ok) {
+        return await response.text();
+      } else {
+        console.warn(`Failed to load style ${styleName}`);
+        return fallbackAPA;
+      }
+    } catch (error) {
+      console.error(`Error loading style ${styleName}:`, error);
+      return fallbackAPA;
+    }
+  };
+
+  // Enhanced CSL style loading with multiple fallback methods
+  const getCSLStyleWithFallbacks = async (styleName) => {
+    try {
+      // Method 1: Try imported styles first
+      let style = getCSLStyle(styleName);
+      if (style && style !== fallbackAPA) {
+        console.log(`Loaded ${styleName} via import`);
+        return style;
+      }
+
+      // Method 2: Try async loading
+      style = await loadCSLStyle(styleName);
+      if (style && style !== fallbackAPA) {
+        console.log(`Loaded ${styleName} via fetch`);
+        return style;
+      }
+
+      // Method 3: Use fallback
+      console.warn(`Using fallback APA for ${styleName}`);
+      return fallbackAPA;
+    } catch (error) {
+      console.error(`All loading methods failed for ${styleName}:`, error);
       return fallbackAPA;
     }
   };
@@ -191,17 +270,42 @@ const Home = () => {
       const authors = normalized.author || [{ given: "Unknown", family: "Author" }];
       const year = normalized.issued?.["date-parts"]?.[0]?.[0] || "n.d.";
       const title = normalized.title || "Untitled";
+      const journal = normalized["container-title"] || "";
       
       if (format === "in-text") {
         const firstAuthor = authors[0];
         const authorName = firstAuthor.family || firstAuthor.given || "Unknown";
-        return `(${authorName}, ${year})`;
+        
+        // Different styles for in-text citations
+        switch (citationStyle) {
+          case "ieee":
+            return `[${Math.floor(Math.random() * 100) + 1}]`; // IEEE uses numbers
+          case "vancouver":
+            return `(${Math.floor(Math.random() * 100) + 1})`;
+          case "nature":
+            return `${Math.floor(Math.random() * 100) + 1}`;
+          case "mla":
+            return `(${authorName})`;
+          default: // APA, Harvard, Chicago, Science
+            return `(${authorName}, ${year})`;
+        }
       } else {
-        // Full citation format
+        // Full citation format for bibliography
         const authorList = authors.map(a => 
           `${a.family || "Unknown"}, ${a.given || ""}`.trim()
         ).join(", ");
-        return `${authorList} (${year}). ${title}.`;
+        
+        switch (citationStyle) {
+          case "mla":
+            return `${authorList}. "${title}." ${journal ? `*${journal}*, ` : ""}${year}.`;
+          case "ieee":
+            return `${authorList}, "${title}," ${journal ? `*${journal}*, ` : ""}${year}.`;
+          case "nature":
+          case "science":
+            return `${authorList} ${title}. ${journal ? `*${journal}* ` : ""}(${year}).`;
+          default: // APA, Harvard, Chicago, Vancouver
+            return `${authorList} (${year}). ${title}. ${journal ? `*${journal}*.` : ""}`;
+        }
       }
     } catch (error) {
       console.error("Fallback formatting failed:", error);
@@ -210,8 +314,10 @@ const Home = () => {
   };
 
   // Enhanced formatCitationCiteproc function with better error handling
-  const formatCitationCiteproc = (citation, styleName = "apa", format = "in-text") => {
+  const formatCitationCiteproc = async (citation, styleName = "apa", format = "in-text") => {
     try {
+      console.log(`Formatting citation with style: ${styleName}, format: ${format}`);
+      
       // Validate and normalize citation
       if (!citation || typeof citation !== 'object') {
         console.error("Invalid citation object:", citation);
@@ -226,6 +332,14 @@ const Home = () => {
         return formatCitationFallback(citation, format);
       }
 
+      // Get CSL style with validation
+      const styleXML = await getCSLStyleWithFallbacks(styleName);
+      console.log(`Using style XML for ${styleName}:`, styleXML ? "Loaded" : "Not loaded");
+      
+      if (!styleXML || styleXML === fallbackAPA) {
+        console.warn(`Style ${styleName} not available, using fallback`);
+      }
+
       // Create system object for citeproc
       const sys = {
         retrieveLocale: () => {
@@ -237,7 +351,7 @@ const Home = () => {
           }
         },
         retrieveItem: (id) => {
-          if (id === normalizedCitation.id) {
+          if (String(id) === String(normalizedCitation.id)) {
             return normalizedCitation;
           }
           // Try to find in citations array
@@ -245,24 +359,16 @@ const Home = () => {
           if (found) {
             return normalizeCitation(found);
           }
-          // Return fallback item
-          return {
-            id: String(id),
-            type: "article-journal",
-            author: [{ given: "Unknown", family: "Author" }],
-            title: "Untitled",
-            issued: { "date-parts": [[2025]] }
-          };
+          // Return the current citation as fallback
+          return normalizedCitation;
         },
       };
 
-      // Get CSL style
-      const styleXML = getCSLStyle(styleName);
-      
       // Initialize CSL engine with error handling
       let citeproc;
       try {
         citeproc = new CSL.Engine(sys, styleXML, "en-US");
+        console.log("CSL Engine initialized successfully");
       } catch (engineError) {
         console.error("CSL Engine initialization failed:", engineError);
         return formatCitationFallback(normalizedCitation, format);
@@ -273,20 +379,29 @@ const Home = () => {
         citeproc.updateItems([normalizedCitation.id]);
         
         let result;
-        if (format === "in-text") {
-          result = citeproc.makeCitationCluster([{ id: normalizedCitation.id }]);
-        } else {
+        if (format === "footnote") {
+          // For footnotes, create a citation cluster
           result = citeproc.makeCitationCluster([{ 
-            id: normalizedCitation.id, 
-            locator: "footnote" 
+            id: normalizedCitation.id,
+            locator: "",
+            label: ""
+          }]);
+        } else {
+          // For in-text citations
+          result = citeproc.makeCitationCluster([{ 
+            id: normalizedCitation.id 
           }]);
         }
         
+        console.log("Citation formatting result:", result);
+        
         // Extract formatted text from result
         if (result && result[0] && result[0][1]) {
-          return result[0][1];
+          const formattedText = result[0][1];
+          // Clean up any HTML tags that might remain
+          return formattedText.replace(/<[^>]+>/g, '');
         } else if (result && typeof result === 'string') {
-          return result;
+          return result.replace(/<[^>]+>/g, '');
         } else {
           console.warn("Unexpected result format:", result);
           return formatCitationFallback(normalizedCitation, format);
@@ -302,7 +417,7 @@ const Home = () => {
   };
 
   // Enhanced bibliography formatting with fallback
-  const formatBibliographyCiteproc = (citationsArr, styleName = "apa") => {
+  const formatBibliographyCiteproc = async (citationsArr, styleName = "apa") => {
     try {
       if (!citationsArr || citationsArr.length === 0) {
         return "";
@@ -314,15 +429,20 @@ const Home = () => {
         return "";
       }
 
+      console.log(`Generating bibliography with style: ${styleName}`);
+
       const sys = {
         retrieveLocale: () => enLocale || fallbackLocale,
         retrieveItem: (id) => normalizedCitations.find((c) => String(c.id) === String(id)),
       };
 
-      const styleXML = getCSLStyle(styleName);
+      // Load the CSL style
+      const styleXML = await getCSLStyleWithFallbacks(styleName);
+      
       let citeproc;
       try {
         citeproc = new CSL.Engine(sys, styleXML, "en-US");
+        console.log("Bibliography CSL Engine initialized successfully");
       } catch (error) {
         console.error("Bibliography CSL Engine failed:", error);
         // Fallback to simple bibliography
@@ -332,8 +452,9 @@ const Home = () => {
       const ids = normalizedCitations.map((c) => c.id);
       citeproc.updateItems(ids);
       const bibResult = citeproc.makeBibliography();
+      
       if (bibResult && bibResult[1]) {
-        // Improved HTML stripping: preserve <i> for journal titles as *italic*, remove other tags
+        // Clean up HTML tags and format properly
         const cleanEntry = (html) => {
           // Replace <i>...</i> with *...*
           let text = html.replace(/<i>(.*?)<\/i>/gi, '*$1*');
@@ -361,9 +482,11 @@ const Home = () => {
   // These styles are loaded from CSL files and used by citeproc
   const citationStyles = [
     { value: "apa", label: "APA (American Psychological Association)" },
+    { value: "mla", label: "MLA (Modern Language Association)" },
     { value: "ieee", label: "IEEE" },
     { value: "harvard", label: "Harvard" },
     { value: "vancouver", label: "Vancouver" },
+    { value: "chicago", label: "Chicago Author-Date" },
     { value: "nature", label: "Nature" },
     { value: "science", label: "Science" },
   ];
@@ -569,7 +692,7 @@ const Home = () => {
         return;
       }
       
-      const formatted = formatCitationCiteproc(
+      let formatted = await formatCitationCiteproc(
         normalizedCitation,
         citationStyle,
         citationFormat
@@ -618,7 +741,7 @@ const Home = () => {
       );
       setCitations(updated);
       saveCitations(updated);
-      setStatus("Citation inserted successfully");
+      setStatus(`Citation inserted successfully with ${citationStyle.toUpperCase()} style`);
     } catch (error) {
       console.error("Insert citation failed:", error);
       setStatus(`Insert failed: ${error.message}`);
@@ -638,68 +761,62 @@ const Home = () => {
     }
 
     try {
-      const bibRaw = formatBibliographyCiteproc(used, citationStyle);
-      if (citationStyle === "apa" && isOfficeReady) {
-        // Parse each bibliography entry for <i>...</i> and apply italics in Word
-        const bibEntries = bibRaw.split("\n");
-        await Word.run(async (context) => {
-          const body = context.document.body;
-          body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
-          const title = body.insertParagraph(bibliographyTitle, Word.InsertLocation.end);
-          title.style = "Heading 1";
-          title.font.bold = true;
-          title.font.size = 16;
+      const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
+      
+      await Word.run(async (context) => {
+        const body = context.document.body;
+        body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
+        const title = body.insertParagraph(bibliographyTitle, Word.InsertLocation.end);
+        title.style = "Heading 1";
+        title.font.bold = true;
+        title.font.size = 16;
+        
+        // Handle italics for journal titles if needed
+        if (bibRaw.includes('*')) {
+          const bibEntries = bibRaw.split("\n");
           for (let entry of bibEntries) {
-            // Find <i>...</i> regions
-            let parts = [];
-            let lastIndex = 0;
-            const regex = /\*(.*?)\*/g; // Markdown italics from cleanEntry
-            let match;
-            let para = body.insertParagraph("", Word.InsertLocation.end);
-            para.font.name = "Times New Roman";
-            para.font.size = 12;
-            para.leftIndent = 36;
-            para.firstLineIndent = -36;
-            let cursor = 0;
-            while ((match = regex.exec(entry)) !== null) {
-              // Add text before italic
-              if (match.index > cursor) {
-                const before = entry.substring(cursor, match.index);
-                para.insertText(before, Word.InsertLocation.end).font.italic = false;
+            if (entry.trim()) {
+              let para = body.insertParagraph("", Word.InsertLocation.end);
+              para.font.name = "Times New Roman";
+              para.font.size = 12;
+              para.leftIndent = 36;
+              para.firstLineIndent = -36;
+              
+              // Handle italics
+              const regex = /\*(.*?)\*/g;
+              let cursor = 0;
+              let match;
+              
+              while ((match = regex.exec(entry)) !== null) {
+                // Add text before italic
+                if (match.index > cursor) {
+                  const before = entry.substring(cursor, match.index);
+                  para.insertText(before, Word.InsertLocation.end).font.italic = false;
+                }
+                // Add italic text
+                para.insertText(match[1], Word.InsertLocation.end).font.italic = true;
+                cursor = regex.lastIndex;
               }
-              // Add italic text
-              para.insertText(match[1], Word.InsertLocation.end).font.italic = true;
-              cursor = regex.lastIndex;
-            }
-            // Add remaining text
-            if (cursor < entry.length) {
-              const after = entry.substring(cursor);
-              para.insertText(after, Word.InsertLocation.end).font.italic = false;
+              // Add remaining text
+              if (cursor < entry.length) {
+                const after = entry.substring(cursor);
+                para.insertText(after, Word.InsertLocation.end).font.italic = false;
+              }
             }
           }
-          await context.sync();
-        });
-        setBibliography(bibRaw);
-        setStatus("Bibliography inserted with APA italics");
-      } else {
-        // Default: insert as plain text
-        await Word.run(async (context) => {
-          const body = context.document.body;
-          body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
-          const title = body.insertParagraph(bibliographyTitle, Word.InsertLocation.end);
-          title.style = "Heading 1";
-          title.font.bold = true;
-          title.font.size = 16;
+        } else {
           const content = body.insertParagraph(bibRaw, Word.InsertLocation.end);
           content.font.name = "Times New Roman";
           content.font.size = 12;
           content.leftIndent = 36;
           content.firstLineIndent = -36;
-          await context.sync();
-        });
-        setBibliography(bibRaw);
-        setStatus("Bibliography inserted");
-      }
+        }
+        
+        await context.sync();
+      });
+      
+      setBibliography(bibRaw);
+      setStatus(`Bibliography inserted with ${citationStyle.toUpperCase()} style`);
     } catch (e) {
       console.error("Bibliography error:", e);
       setStatus("Error generating bibliography");
@@ -899,6 +1016,71 @@ const Home = () => {
     });
   };
 
+  // Debug function to test citation style loading
+  const testCitationStyles = async () => {
+    console.log("Testing citation styles...");
+    for (const style of citationStyles) {
+      try {
+        const styleXML = await getCSLStyleWithFallbacks(style.value);
+        console.log(`${style.label} (${style.value}):`, styleXML ? "✓ Loaded" : "✗ Failed");
+        
+        // Test with a sample citation
+        const sampleCitation = {
+          id: "test_citation",
+          type: "article-journal",
+          author: [{ given: "John", family: "Doe" }],
+          title: "Test Article",
+          issued: { "date-parts": [[2025]] },
+          "container-title": "Test Journal"
+        };
+        
+        const formatted = await formatCitationCiteproc(sampleCitation, style.value, "in-text");
+        console.log(`${style.value} formatting result:`, formatted);
+      } catch (error) {
+        console.error(`Error testing ${style.value}:`, error);
+      }
+    }
+    setStatus("Citation styles tested - check console for results");
+  };
+
+  // Function to preview citation style formatting
+  const previewCitationStyle = async (styleName) => {
+    const sampleCitation = {
+      id: "preview_citation",
+      type: "article-journal",
+      author: [
+        { given: "Jane", family: "Smith" },
+        { given: "John", family: "Doe" }
+      ],
+      title: "Sample Research Article",
+      issued: { "date-parts": [[2024]] },
+      "container-title": "Journal of Academic Research",
+      volume: "10",
+      issue: "2",
+      page: "123-145"
+    };
+
+    try {
+      const inTextFormatted = await formatCitationCiteproc(sampleCitation, styleName, "in-text");
+      const fullFormatted = await formatBibliographyCiteproc([sampleCitation], styleName);
+      
+      console.log(`Preview for ${styleName}:`);
+      console.log(`In-text: ${inTextFormatted}`);
+      console.log(`Bibliography: ${fullFormatted}`);
+      
+      return {
+        inText: inTextFormatted,
+        bibliography: fullFormatted
+      };
+    } catch (error) {
+      console.error(`Preview failed for ${styleName}:`, error);
+      return {
+        inText: formatCitationFallback(sampleCitation, "in-text"),
+        bibliography: formatCitationFallback(sampleCitation, "full")
+      };
+    }
+  };
+
   return (
     <div className="App">
       <header className="App-header">
@@ -927,6 +1109,22 @@ const Home = () => {
           }}
         >
           Fix Existing Citations
+        </button>
+
+        {/* Debug button to test citation styles */}
+        <button 
+          onClick={testCitationStyles}
+          style={{
+            margin: "10px 0",
+            padding: "5px 10px",
+            backgroundColor: "#28a745",
+            color: "white",
+            border: "none",
+            borderRadius: "3px",
+            cursor: "pointer"
+          }}
+        >
+          Test Citation Styles
         </button>
 
         <CitationSearch
@@ -961,6 +1159,7 @@ const Home = () => {
           setCitationFormat={setCitationFormat}
           bibliographyTitle={bibliographyTitle}
           setBibliographyTitle={setBibliographyTitle}
+          previewCitationStyle={previewCitationStyle}
         />
 
         <BibliographySection
