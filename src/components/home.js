@@ -716,90 +716,99 @@ const Home = () => {
                     .replace(/\s*\(Downloaded\)\s*/gi, '')
                     .replace(/\s*\(Viewed\)\s*/gi, '');
           
-          // Advanced duplicate text removal algorithm
-          // First, handle obvious duplicated sequences within the text
+          // Super-enhanced duplicate text removal algorithm
           let result = text;
           
-          // Method 1: Remove exact duplicated sequences (most common CSL issue)
-          // Split by periods and analyze each part
-          const parts = result.split('.');
-          const uniqueParts = [];
+          // Method 1: Remove the most common CSL duplicate pattern
+          // Pattern: "Text, 1Text, 1(1)" -> "Text, 1(1)"
+          // This handles cases like "Sustainability Strategies, 1mentioned, N. (2023)..."
+          result = result.replace(/([^,]+),\s*(\d+)[^,]*,\s*(\d+)\([^)]+\)/g, (match, prefix, num1, num2) => {
+            // If it looks like a duplicate volume pattern
+            if (num1 === num2) {
+              return `${prefix}, ${num1}`;
+            }
+            return match;
+          });
           
-          for (let part of parts) {
-            part = part.trim();
-            if (!part) continue;
+          // Method 2: Remove author-title-journal duplicates that appear mid-sentence
+          // Pattern: "Author (Year). Title. Journal, VolumeAuthor (Year). Title. Journal, Volume(Issue)"
+          const authorYearPattern = /([A-Z][^(]*\(\d{4}\)[^.]*\.[^.]*\.[^,]+,\s*\d+)([A-Z][^(]*\(\d{4}\)[^.]*\.[^.]*\.[^,]+,\s*\d+\(\d+\))/g;
+          result = result.replace(authorYearPattern, (match, first, second) => {
+            // Check if the second part starts similarly to the first
+            const firstWords = first.split(' ').slice(0, 5).join(' ');
+            const secondWords = second.split(' ').slice(0, 5).join(' ');
+            if (firstWords === secondWords || second.includes(firstWords)) {
+              return second; // Keep the more complete second part
+            }
+            return match;
+          });
+          
+          // Method 3: Advanced word-level duplicate detection
+          const words = result.split(' ');
+          const cleanedWords = [];
+          let i = 0;
+          
+          while (i < words.length) {
+            let longestMatch = 0;
+            let bestMatchStart = -1;
             
-            // Check if this part already exists or is very similar
-            let isDuplicate = false;
-            for (let existing of uniqueParts) {
-              if (existing.trim() === part || 
-                  existing.includes(part) || 
-                  part.includes(existing.trim())) {
-                isDuplicate = true;
-                break;
+            // Look for the longest duplicate sequence starting from current position
+            for (let len = 3; len <= Math.min(15, words.length - i); len++) {
+              const sequence = words.slice(i, i + len);
+              const sequenceText = sequence.join(' ');
+              
+              // Look for this sequence later in the text
+              for (let j = i + len; j <= words.length - len; j++) {
+                const laterSequence = words.slice(j, j + len);
+                const laterSequenceText = laterSequence.join(' ');
+                
+                if (sequenceText === laterSequenceText && len > longestMatch) {
+                  longestMatch = len;
+                  bestMatchStart = j;
+                }
               }
             }
             
-            if (!isDuplicate) {
-              uniqueParts.push(part);
+            if (longestMatch > 0) {
+              // Found a duplicate, add the first occurrence and skip the duplicate
+              cleanedWords.push(...words.slice(i, i + longestMatch));
+              
+              // Remove the duplicate sequence from the words array
+              words.splice(bestMatchStart, longestMatch);
+              
+              i += longestMatch;
+            } else {
+              // No duplicate found, add the word and continue
+              cleanedWords.push(words[i]);
+              i++;
             }
           }
           
-          result = uniqueParts.join('. ');
+          result = cleanedWords.join(' ');
+          
+          // Method 4: Specific pattern fixes
+          // Fix "Journal, 1Journal, 1(1)" pattern
+          result = result.replace(/([A-Za-z\s]+),\s*(\d+)([A-Za-z\s]+),\s*\2\((\d+)\)/g, '$1, $2($4)');
+          
+          // Fix author duplication: "Name, N. (Year). Title. Name, N. (Year)."
+          result = result.replace(/([A-Z][^(]+\(\d{4}\)[^.]*\.)\s*([A-Z][^(]+\(\d{4}\))/g, (match, first, second) => {
+            if (first.includes(second.split('(')[0])) {
+              return first;
+            }
+            return match;
+          });
+          
+          // Method 5: Clean up remaining artifacts
+          // Remove duplicate periods and spaces
+          result = result.replace(/\.{2,}/g, '.')
+                        .replace(/\s{2,}/g, ' ')
+                        .replace(/\s+\./g, '.')
+                        .trim();
+          
+          // Ensure proper ending
           if (result && !result.endsWith('.')) {
             result += '.';
           }
-          
-          // Method 2: Remove patterns where text repeats without periods
-          // Look for patterns like "TextATextA" or "Text1Text1"
-          const words = result.split(' ');
-          const filteredWords = [];
-          let skipNext = 0;
-          
-          for (let i = 0; i < words.length; i++) {
-            if (skipNext > 0) {
-              skipNext--;
-              continue;
-            }
-            
-            const currentWord = words[i];
-            
-            // Look ahead to see if we have a duplicate sequence
-            let duplicateFound = false;
-            for (let len = 1; len <= Math.min(10, words.length - i); len++) {
-              const sequence1 = words.slice(i, i + len).join(' ');
-              const sequence2 = words.slice(i + len, i + len * 2).join(' ');
-              
-              if (sequence1 === sequence2 && sequence1.length > 3) {
-                // Found duplicate sequence, add only once
-                filteredWords.push(...words.slice(i, i + len));
-                skipNext = len * 2 - 1; // Skip both sequences minus the current word
-                duplicateFound = true;
-                break;
-              }
-            }
-            
-            if (!duplicateFound) {
-              filteredWords.push(currentWord);
-            }
-          }
-          
-          result = filteredWords.join(' ');
-          
-          // Method 3: Regex-based cleanup for specific patterns
-          // Remove author-year duplicates like "(2023). 2023"
-          result = result.replace(/\((\d{4})\)\.\s*\1/g, '($1)');
-          
-          // Remove journal-volume duplicates like "Journal, 1Journal, 1"
-          result = result.replace(/([A-Za-z\s]+),\s*(\d+)\1,\s*\2/g, '$1, $2');
-          
-          // Remove title duplicates (common pattern: "Title. Title")
-          result = result.replace(/([^.]{10,})\.\s*\1/g, '$1');
-          
-          // Clean up any double periods or spaces
-          result = result.replace(/\.{2,}/g, '.')
-                        .replace(/\s{2,}/g, ' ')
-                        .trim();
           
           return result;
         };
@@ -1816,90 +1825,99 @@ const Home = () => {
                   .replace(/\s*\(Downloaded\)\s*/gi, '')
                   .replace(/\s*\(Viewed\)\s*/gi, '');
         
-        // Advanced duplicate text removal algorithm
-        // First, handle obvious duplicated sequences within the text
+        // Super-enhanced duplicate text removal algorithm
         let result = text;
         
-        // Method 1: Remove exact duplicated sequences (most common CSL issue)
-        // Split by periods and analyze each part
-        const parts = result.split('.');
-        const uniqueParts = [];
+        // Method 1: Remove the most common CSL duplicate pattern
+        // Pattern: "Text, 1Text, 1(1)" -> "Text, 1(1)"
+        // This handles cases like "Sustainability Strategies, 1mentioned, N. (2023)..."
+        result = result.replace(/([^,]+),\s*(\d+)[^,]*,\s*(\d+)\([^)]+\)/g, (match, prefix, num1, num2) => {
+          // If it looks like a duplicate volume pattern
+          if (num1 === num2) {
+            return `${prefix}, ${num1}`;
+          }
+          return match;
+        });
         
-        for (let part of parts) {
-          part = part.trim();
-          if (!part) continue;
+        // Method 2: Remove author-title-journal duplicates that appear mid-sentence
+        // Pattern: "Author (Year). Title. Journal, VolumeAuthor (Year). Title. Journal, Volume(Issue)"
+        const authorYearPattern = /([A-Z][^(]*\(\d{4}\)[^.]*\.[^.]*\.[^,]+,\s*\d+)([A-Z][^(]*\(\d{4}\)[^.]*\.[^.]*\.[^,]+,\s*\d+\(\d+\))/g;
+        result = result.replace(authorYearPattern, (match, first, second) => {
+          // Check if the second part starts similarly to the first
+          const firstWords = first.split(' ').slice(0, 5).join(' ');
+          const secondWords = second.split(' ').slice(0, 5).join(' ');
+          if (firstWords === secondWords || second.includes(firstWords)) {
+            return second; // Keep the more complete second part
+          }
+          return match;
+        });
+        
+        // Method 3: Advanced word-level duplicate detection
+        const words = result.split(' ');
+        const cleanedWords = [];
+        let i = 0;
+        
+        while (i < words.length) {
+          let longestMatch = 0;
+          let bestMatchStart = -1;
           
-          // Check if this part already exists or is very similar
-          let isDuplicate = false;
-          for (let existing of uniqueParts) {
-            if (existing.trim() === part || 
-                existing.includes(part) || 
-                part.includes(existing.trim())) {
-              isDuplicate = true;
-              break;
+          // Look for the longest duplicate sequence starting from current position
+          for (let len = 3; len <= Math.min(15, words.length - i); len++) {
+            const sequence = words.slice(i, i + len);
+            const sequenceText = sequence.join(' ');
+            
+            // Look for this sequence later in the text
+            for (let j = i + len; j <= words.length - len; j++) {
+              const laterSequence = words.slice(j, j + len);
+              const laterSequenceText = laterSequence.join(' ');
+              
+              if (sequenceText === laterSequenceText && len > longestMatch) {
+                longestMatch = len;
+                bestMatchStart = j;
+              }
             }
           }
           
-          if (!isDuplicate) {
-            uniqueParts.push(part);
+          if (longestMatch > 0) {
+            // Found a duplicate, add the first occurrence and skip the duplicate
+            cleanedWords.push(...words.slice(i, i + longestMatch));
+            
+            // Remove the duplicate sequence from the words array
+            words.splice(bestMatchStart, longestMatch);
+            
+            i += longestMatch;
+          } else {
+            // No duplicate found, add the word and continue
+            cleanedWords.push(words[i]);
+            i++;
           }
         }
         
-        result = uniqueParts.join('. ');
+        result = cleanedWords.join(' ');
+        
+        // Method 4: Specific pattern fixes
+        // Fix "Journal, 1Journal, 1(1)" pattern
+        result = result.replace(/([A-Za-z\s]+),\s*(\d+)([A-Za-z\s]+),\s*\2\((\d+)\)/g, '$1, $2($4)');
+        
+        // Fix author duplication: "Name, N. (Year). Title. Name, N. (Year)."
+        result = result.replace(/([A-Z][^(]+\(\d{4}\)[^.]*\.)\s*([A-Z][^(]+\(\d{4}\))/g, (match, first, second) => {
+          if (first.includes(second.split('(')[0])) {
+            return first;
+          }
+          return match;
+        });
+        
+        // Method 5: Clean up remaining artifacts
+        // Remove duplicate periods and spaces
+        result = result.replace(/\.{2,}/g, '.')
+                      .replace(/\s{2,}/g, ' ')
+                      .replace(/\s+\./g, '.')
+                      .trim();
+        
+        // Ensure proper ending
         if (result && !result.endsWith('.')) {
           result += '.';
         }
-        
-        // Method 2: Remove patterns where text repeats without periods
-        // Look for patterns like "TextATextA" or "Text1Text1"
-        const words = result.split(' ');
-        const filteredWords = [];
-        let skipNext = 0;
-        
-        for (let i = 0; i < words.length; i++) {
-          if (skipNext > 0) {
-            skipNext--;
-            continue;
-          }
-          
-          const currentWord = words[i];
-          
-          // Look ahead to see if we have a duplicate sequence
-          let duplicateFound = false;
-          for (let len = 1; len <= Math.min(10, words.length - i); len++) {
-            const sequence1 = words.slice(i, i + len).join(' ');
-            const sequence2 = words.slice(i + len, i + len * 2).join(' ');
-            
-            if (sequence1 === sequence2 && sequence1.length > 3) {
-              // Found duplicate sequence, add only once
-              filteredWords.push(...words.slice(i, i + len));
-              skipNext = len * 2 - 1; // Skip both sequences minus the current word
-              duplicateFound = true;
-              break;
-            }
-          }
-          
-          if (!duplicateFound) {
-            filteredWords.push(currentWord);
-          }
-        }
-        
-        result = filteredWords.join(' ');
-        
-        // Method 3: Regex-based cleanup for specific patterns
-        // Remove author-year duplicates like "(2023). 2023"
-        result = result.replace(/\((\d{4})\)\.\s*\1/g, '($1)');
-        
-        // Remove journal-volume duplicates like "Journal, 1Journal, 1"
-        result = result.replace(/([A-Za-z\s]+),\s*(\d+)\1,\s*\2/g, '$1, $2');
-        
-        // Remove title duplicates (common pattern: "Title. Title")
-        result = result.replace(/([^.]{10,})\.\s*\1/g, '$1');
-        
-        // Clean up any double periods or spaces
-        result = result.replace(/\.{2,}/g, '.')
-                      .replace(/\s{2,}/g, ' ')
-                      .trim();
         
         return result;
       };
