@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Mail, Eye, EyeOff } from "lucide-react";
+import { Mail, Eye, EyeOff, X } from "lucide-react";
 import { signin } from "./api";
 
 export default function LoginPopup({setShowLoginPopup}) {
@@ -10,6 +10,18 @@ export default function LoginPopup({setShowLoginPopup}) {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Handle escape key press
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        setShowLoginPopup(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [setShowLoginPopup]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -52,6 +64,11 @@ export default function LoginPopup({setShowLoginPopup}) {
         fontFamily:
           '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          setShowLoginPopup(false);
+        }
+      }}
     >
       {/* Left Panel - Brand */}
       <div className="login-popup-left-panel">
@@ -76,9 +93,17 @@ export default function LoginPopup({setShowLoginPopup}) {
         <div className="login-popup-form-container">
           <div className="login-popup-form-bg">
             <div className="login-popup-form-title-row">
+              <button
+                type="button"
+                onClick={() => setShowLoginPopup(false)}
+                className="login-popup-close-btn"
+                aria-label="Close login popup"
+              >
+                <X size={20} />
+              </button>
               <h2 className="login-popup-form-title">Welcome Back</h2>
             </div>
-            <div className="login-popup-form-fields">
+            <form onSubmit={handleSubmit} className="login-popup-form-fields">
               {/* Email Input */}
               <div className="login-popup-input-row">
                 <div className="login-popup-input-icon">
@@ -90,6 +115,9 @@ export default function LoginPopup({setShowLoginPopup}) {
                   onChange={(e) => setEmail(e.target.value)}
                   className="login-popup-input"
                   placeholder="Enter your email"
+                  required
+                  autoComplete="email"
+                  aria-label="Email address"
                 />
               </div>
               {/* Password Input */}
@@ -100,11 +128,15 @@ export default function LoginPopup({setShowLoginPopup}) {
                   onChange={(e) => setPassword(e.target.value)}
                   className="login-popup-input"
                   placeholder="••••••••••"
+                  required
+                  autoComplete="current-password"
+                  aria-label="Password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="login-popup-password-toggle"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
@@ -117,7 +149,7 @@ export default function LoginPopup({setShowLoginPopup}) {
               )}
               {/* Login Button */}
               <button
-                onClick={handleSubmit}
+                type="submit"
                 className="login-popup-login-btn"
                 disabled={loading}
               >
@@ -134,8 +166,7 @@ export default function LoginPopup({setShowLoginPopup}) {
                   'Login'
                 )}
               </button>
-           
-            </div>
+            </form>
           </div>
         </div>
       </div>
