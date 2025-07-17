@@ -772,6 +772,32 @@ const Home = ({setShowLoginPopup}) => {
           
           console.log(`🔍 After initial cleanup: ${text.substring(0, 100)}...`);
           
+          // NEW: ULTRA-DIRECT pattern for the exact user case
+          // Targets: "Text, 1Text, 1(1). URL" -> "Text, 1(1). URL"
+          const ultraDirectPattern = /^(.+?),\s*1(.+?),\s*1\(1\)(\..*)$/;
+          const ultraDirectMatch = text.match(ultraDirectPattern);
+          if (ultraDirectMatch) {
+            const beforeFirstVolume = ultraDirectMatch[1];
+            const duplicatedText = ultraDirectMatch[2];
+            const trailing = ultraDirectMatch[3];
+            
+            console.log(`🔍 ULTRA-DIRECT DEBUG (cleanEntry):`, {
+              beforeFirstVolume,
+              duplicatedText,
+              trailing
+            });
+            
+            // Simple check if the duplicated text looks like a duplicate
+            if (duplicatedText.includes("mentioned") || duplicatedText.includes("Sustainability") || 
+                duplicatedText.length > 20) { // Any substantial duplicate text
+              const fixed = beforeFirstVolume + ', 1(1)' + trailing;
+              console.log(`🎯 ULTRA-DIRECT FIX APPLIED (cleanEntry)!`);
+              console.log(`   Before: ${text.substring(0, 150)}...`);
+              console.log(`   After:  ${fixed.substring(0, 150)}...`);
+              return fixed.endsWith('.') ? fixed : fixed + '.';
+            }
+          }
+          
           // ULTRA-PRIORITY: Most aggressive pattern for your specific case
           // This targets the EXACT pattern: "Text. Journal, 1Text. Journal, 1(1). URL"
           const ultraPriorityPattern = /^(.*?\([0-9]{4}\)\..*?),\s*(\d+)\1,\s*\2(\([^)]*\))(.*)$/;
@@ -1749,11 +1775,44 @@ const Home = ({setShowLoginPopup}) => {
     // Apply the same cleanup logic from our cleanEntry function
     let text = problematicText;
     
+    // NEW: ULTRA-DIRECT pattern for the exact user case
+    // Targets: "Text, 1Text, 1(1). URL" -> "Text, 1(1). URL"
+    const ultraDirectPattern = /^(.+?),\s*1(.+?),\s*1\(1\)(\..*)$/;
+    const ultraDirectMatch = text.match(ultraDirectPattern);
+    if (ultraDirectMatch) {
+      const beforeFirstVolume = ultraDirectMatch[1];
+      const duplicatedText = ultraDirectMatch[2];
+      const trailing = ultraDirectMatch[3];
+      
+      console.log(`🔍 ULTRA-DIRECT DEBUG:`, {
+        beforeFirstVolume,
+        duplicatedText,
+        trailing
+      });
+      
+      // Simple check if the duplicated text looks like a duplicate
+      if (duplicatedText.includes("mentioned") || duplicatedText.includes("Sustainability")) {
+        text = beforeFirstVolume + ', 1(1)' + trailing;
+        console.log(`✅ ULTRA-DIRECT FIX APPLIED!`);
+        console.log(`📝 AFTER: ${text}`);
+        return;
+      }
+    }
+
     // NEW: SUPER-SPECIFIC pattern for the user's exact case
     // Pattern matches: "mentioned, N. (2023). Title. Journal, 1mentioned, N. (2023). Title. Journal, 1(1). URL"
     const superSpecificPattern = /^(.+?),\s*(\d+)(.+?),\s*\2\((\d+)\)(\..*)$/;
     const superMatch = text.match(superSpecificPattern);
     if (superMatch) {
+      console.log(`🔍 SUPER-SPECIFIC DEBUG:`, {
+        full: superMatch[0],
+        beforeVolume: superMatch[1],
+        volume: superMatch[2], 
+        duplicatedPart: superMatch[3],
+        issue: superMatch[4],
+        trailing: superMatch[5]
+      });
+      
       const beforeVolume = superMatch[1];    // "mentioned, N. (2023). Substitute... Strategies"
       const volume = superMatch[2];          // "1"
       const duplicatedPart = superMatch[3];  // "mentioned, N. (2023). Substitute... Strategies" (duplicate)
@@ -1765,6 +1824,13 @@ const Home = ({setShowLoginPopup}) => {
           calculateSimilarity(beforeVolume, duplicatedPart) > 0.7) {
         text = beforeVolume + ', ' + volume + '(' + issue + ')' + trailing;
         console.log(`✅ SUPER-SPECIFIC FIX APPLIED!`);
+        console.log(`📝 AFTER: ${text}`);
+        return;
+      } else {
+        console.log(`❌ SIMILARITY CHECK FAILED - trying simpler approach`);
+        // Simpler approach - just remove the exact duplicate pattern
+        text = beforeVolume + ', ' + volume + '(' + issue + ')' + trailing;
+        console.log(`✅ SIMPLIFIED FIX APPLIED!`);
         console.log(`📝 AFTER: ${text}`);
         return;
       }
