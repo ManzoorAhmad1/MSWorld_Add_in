@@ -90,9 +90,11 @@ const CitationLibrary = ({
                 </button>
                 <button
                   onClick={() => removeCitationFromLibrary(citation.id)}
-                  className="btn btn-danger btn-sm"
+                  className="btn btn-danger btn-sm remove-btn"
+                  title="Remove from library"
                 >
-                  🗑️ Remove
+                  <span className="remove-icon">×</span>
+                  <span className="remove-text">Remove</span>
                 </button>
               </div>
 

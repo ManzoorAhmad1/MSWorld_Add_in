@@ -9,7 +9,13 @@ const CitationSearch = ({
   addCitationToLibrary,
   getCitationTitle,
   getCitationAuthors,
+  citations, // Add citations prop to check if already added
 }) => {
+  
+  // Helper function to check if citation is already in library
+  const isCitationInLibrary = (citationId) => {
+    return citations.some(citation => String(citation.id) === String(citationId));
+  };
   return (
     <div className="search-section">
 
@@ -57,12 +63,21 @@ const CitationSearch = ({
                 )}
 
                 <div className="citation-card-actions">
-                  <button
-                    onClick={() => addCitationToLibrary(result)}
-                    className="btn btn-success btn-sm"
-                  >
-                    ➕ Add to Library
-                  </button>
+                  {isCitationInLibrary(result.id) ? (
+                    <button
+                      disabled
+                      className="btn btn-success btn-sm btn-disabled"
+                    >
+                      ✅ Already Added
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => addCitationToLibrary(result)}
+                      className="btn btn-success btn-sm"
+                    >
+                      ➕ Add to Library
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

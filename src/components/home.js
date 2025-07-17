@@ -17,7 +17,7 @@ import enLocale from "../csl-styes/localesen-US.xml";
 import React, { useState, useEffect, useRef } from "react";
 import { fetchUserFilesDocs } from "../api";
 
-const Home = () => {
+const Home = ({setShowLoginPopup}) => {
   // Fallback CSL styles (minimal working styles)
   const fallbackAPA = `<?xml version="1.0" encoding="utf-8"?>
 <style xmlns="http://purl.org/net/xbiblio/csl" class="in-text" version="1.0">
@@ -1926,11 +1926,43 @@ const Home = () => {
     setStatus("Duplicate removal tested - check console for results");
   };
 
+  // Logout function to clear user data
+  const handleLogout = () => {
+    try {
+      // Clear all user-related data from localStorage
+      localStorage.removeItem("user");
+          setShowLoginPopup(true);
+      localStorage.removeItem("token");
+      // Reset state
+      setToken("");
+      setCitations([]);
+      setSearchResults([]);
+      setRecentCitations([]);
+      
+      
+      setStatus("Logged out successfully");
+    } catch (error) {
+      console.error("Logout error:", error);
+      setStatus("Error during logout");
+    }
+  };
+
   return (
     <div className="App">
       <header className="App-header">
-        <h1>📚 ResearchCollab</h1>
-        <p>Professional Citation Management for Microsoft Word</p>
+        <div className="app-header-top">
+          <div className="app-title-section">
+            <h1>📚 ResearchCollab</h1>
+            <p>Professional Citation Management for Microsoft Word</p>
+          </div>
+          <button 
+            onClick={handleLogout}
+            className="logout-btn"
+            title="Logout"
+          >
+            🚪 Logout
+          </button>
+        </div>
         <div className="status-indicator">
           <span
             className={`status-dot ${
@@ -1949,6 +1981,7 @@ const Home = () => {
           addCitationToLibrary={addCitationToLibrary}
           getCitationTitle={getCitationTitle}
           getCitationAuthors={getCitationAuthors}
+          citations={citations}
         />
 
         <CitationLibrary

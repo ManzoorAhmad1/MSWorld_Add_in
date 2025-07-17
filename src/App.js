@@ -55,7 +55,7 @@ function App() {
       {showLoginPopup  ? (
         <LoginPopup setShowLoginPopup={setShowLoginPopup}/>
       ) : token ? (
-        <Home />
+        <Home setShowLoginPopup={setShowLoginPopup}/>
       ) : (
         <LoginPage setShowLoginPopup={setShowLoginPopup} />
       )}
