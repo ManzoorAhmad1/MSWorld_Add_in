@@ -5,15 +5,16 @@ import BibliographySection from "../components/BibliographySection";
 import ResearchDocuments from "../components/ResearchDocuments";
 import OfficeWarning from "../components/OfficeWarning";
 import CSL from "citeproc";
-import apaStyle from "../csl-locales/apa.csl";
-import mlaStyle from "../csl-locales/mla.csl";
-import ieeeStyle from "../csl-styes/ieee.csl";
-import harvardStyle from "../csl-styes/harvard-limerick.csl";
-import vancouverStyle from "../csl-styes/vancouver.csl";
-import natureStyle from "../csl-styes/nature.csl";
-import scienceStyle from "../csl-styes/science.csl";
-import chicagoStyle from "../csl-styes/chicago-author-date.csl";
-import enLocale from "../csl-styes/localesen-US.xml";
+// Import CSL styles as text using webpack asset/source configuration
+import apaStyle from "../csl-styles/apa.csl";
+import mlaStyle from "../csl-styles/mla.csl";
+import ieeeStyle from "../csl-styles/ieee.csl";
+import harvardStyle from "../csl-styles/harvard-limerick.csl";
+import vancouverStyle from "../csl-styles/vancouver.csl";
+import natureStyle from "../csl-styles/nature.csl";
+import scienceStyle from "../csl-styles/science.csl";
+import chicagoStyle from "../csl-styles/chicago-author-date.csl";
+import enLocale from "../csl-styles/localesen-US.xml";
 import React, { useState, useEffect, useRef } from "react";
 import { fetchUserFilesDocs } from "../api";
 
@@ -218,61 +219,74 @@ const Home = ({setShowLoginPopup}) => {
   // Enhanced getCSLStyle function with fallbacks
   const getCSLStyle = (styleName) => {
     try {
+      console.log(`Loading CSL style: ${styleName}`);
+      let style;
       switch (styleName) {
         case "apa":
-          return apaStyle || fallbackAPA;
+          style = apaStyle;
+          break;
         case "mla":
-          return mlaStyle || fallbackAPA;
+          style = mlaStyle;
+          break;
         case "ieee":
-          return ieeeStyle || fallbackAPA;
+          style = ieeeStyle;
+          break;
         case "harvard":
-          return harvardStyle || fallbackAPA;
+          style = harvardStyle;
+          break;
         case "vancouver":
-          return vancouverStyle || fallbackAPA;
+          style = vancouverStyle;
+          break;
         case "nature":
-          return natureStyle || fallbackAPA;
+          style = natureStyle;
+          break;
         case "science":
-          return scienceStyle || fallbackAPA;
+          style = scienceStyle;
+          break;
         case "chicago":
-          return chicagoStyle || fallbackAPA;
+          style = chicagoStyle;
+          break;
         default:
-          return fallbackAPA;
+          style = apaStyle;
+          break;
       }
+      
+      console.log(`Style ${styleName} loaded:`, style ? 'Success' : 'Failed - using fallback');
+      return style || fallbackAPA;
     } catch (error) {
       console.warn(`Failed to load style ${styleName}, using fallback`, error);
       return fallbackAPA;
     }
   };
 
-  // If the CSL files are not loading as text, try importing them differently
-  // You might need to fetch them or handle them as raw text
+  // Alternative method to load CSL styles via fetch
   const loadCSLStyle = async (styleName) => {
     try {
       let stylePath = '';
       switch (styleName) {
         case 'apa':
-          stylePath = '/src/csl-locales/apa.csl';
+          stylePath = '/src/csl-styles/apa.csl';
           break;
         case 'mla':
-          stylePath = '/src/csl-locales/mla.csl';
+          stylePath = '/src/csl-styles/mla.csl';
           break;
         case 'ieee':
-          stylePath = '/src/csl-styes/ieee.csl';
+          stylePath = '/src/csl-styles/ieee.csl';
           break;
         case 'harvard':
-          stylePath = '/src/csl-styes/harvard-limerick.csl';
+          stylePath = '/src/csl-styles/harvard-limerick.csl';
           break;
         case 'vancouver':
-          stylePath = '/src/csl-styes/vancouver.csl';
+          stylePath = '/src/csl-styles/vancouver.csl';
           break;
         case 'chicago':
-          stylePath = '/src/csl-styes/chicago-author-date.csl';
+          stylePath = '/src/csl-styles/chicago-author-date.csl';
           break;
         case 'nature':
-          stylePath = '/src/csl-styes/nature.csl';
+          stylePath = '/src/csl-styles/nature.csl';
           break;
         case 'science':
-          stylePath = '/src/csl-styes/science.csl';
+          stylePath = '/src/csl-styles/science.csl';
           break;
         default:
           return fallbackAPA;
@@ -293,26 +307,33 @@ const Home = ({setShowLoginPopup}) => {
 
   // Enhanced CSL style loading with multiple fallback methods
   const getCSLStyleWithFallbacks = async (styleName) => {
+    console.log(`🔄 Loading CSL style: ${styleName}`);
+    
     try {
       // Method 1: Try imported styles first
       let style = getCSLStyle(styleName);
-      if (style && style !== fallbackAPA) {
-        console.log(`Loaded ${styleName} via import`);
+      if (style && style !== fallbackAPA && style.includes('<?xml')) {
+        console.log(`✅ Loaded ${styleName} via import (${style.length} chars)`);
         return style;
+      } else {
+        console.log(`⚠️ Import failed for ${styleName} - style:`, style ? `${style.substring(0, 50)}...` : 'null');
       }
 
       // Method 2: Try async loading
+      console.log(`🔄 Trying async load for ${styleName}`);
       style = await loadCSLStyle(styleName);
-      if (style && style !== fallbackAPA) {
-        console.log(`Loaded ${styleName} via fetch`);
+      if (style && style !== fallbackAPA && style.includes('<?xml')) {
+        console.log(`✅ Loaded ${styleName} via async fetch (${style.length} chars)`);
         return style;
+      } else {
+        console.log(`⚠️ Async load failed for ${styleName}`);
       }
 
       // Method 3: Use fallback
-      console.warn(`Using fallback APA for ${styleName}`);
+      console.warn(`⚠️ Using fallback APA for ${styleName}`);
       return fallbackAPA;
     } catch (error) {
-      console.error(`All loading methods failed for ${styleName}:`, error);
+      console.error(`❌ All loading methods failed for ${styleName}:`, error);
       return fallbackAPA;
     }
   };
@@ -1929,6 +1950,50 @@ const Home = ({setShowLoginPopup}) => {
     return (maxLen - distance) / maxLen;
   };
 
+  // Function to test if CSL styles are loading correctly
+  const testCSLStyleLoading = () => {
+    console.log("🔍 Testing CSL Style Loading:");
+    console.log("============================");
+    
+    const styles = {
+      "apa": apaStyle,
+      "mla": mlaStyle,
+      "ieee": ieeeStyle,
+      "harvard": harvardStyle,
+      "vancouver": vancouverStyle,
+      "nature": natureStyle,
+      "science": scienceStyle,
+      "chicago": chicagoStyle
+    };
+    
+    const locale = enLocale;
+    
+    console.log("📄 Locale file:", locale ? "✅ Loaded" : "❌ Failed");
+    if (locale) {
+      console.log("📄 Locale preview:", locale.substring(0, 100) + "...");
+    }
+    
+    console.log("\n📚 CSL Style Files:");
+    Object.entries(styles).forEach(([name, style]) => {
+      const status = style ? "✅ Loaded" : "❌ Failed";
+      const preview = style ? style.substring(0, 100).replace(/\n/g, ' ') + "..." : "N/A";
+      console.log(`📝 ${name.toUpperCase()}: ${status}`);
+      if (style) {
+        console.log(`   Preview: ${preview}`);
+      }
+    });
+    
+    // Test getCSLStyle function
+    console.log("\n🔧 Testing getCSLStyle function:");
+    citationStyles.forEach(({value, label}) => {
+      const result = getCSLStyle(value);
+      const status = result && result !== fallbackAPA ? "✅ Success" : "⚠️ Using Fallback";
+      console.log(`📝 ${label} (${value}): ${status}`);
+    });
+    
+    setStatus("CSL Style loading test completed - check browser console for results");
+  };
+
   // Function to test duplicate text removal
   const testDuplicateRemoval = () => {
     const problematicTexts = [
@@ -2100,10 +2165,13 @@ const Home = ({setShowLoginPopup}) => {
           testDuplicateRemoval={testDuplicateRemoval}
         />
         
-        {/* Button for quick testing of the duplicate removal fix */}
-        <div style={{marginTop: '10px'}}>
+        {/* Buttons for testing and debugging */}
+        <div style={{marginTop: '10px', display: 'flex', gap: '10px', flexWrap: 'wrap'}}>
+          <button onClick={testCSLStyleLoading} className="btn-secondary">
+            🔍 Test CSL Loading
+          </button>
           <button onClick={testDuplicateRemoval} className="btn-secondary">
-            Test Duplicate Reference Fix
+            🧪 Test Duplicate Fix
           </button>
         </div>
 
