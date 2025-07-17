@@ -1983,12 +1983,6 @@ const Home = () => {
           testDuplicateRemoval={testDuplicateRemoval}
         />
 
-        <ResearchDocuments
-          mockPDFs={mockPDFs}
-          handlePDFClick={handlePDFClick}
-          isOfficeReady={isOfficeReady}
-        />
-
         {!isOfficeReady && <OfficeWarning />}
       </header>
     </div>

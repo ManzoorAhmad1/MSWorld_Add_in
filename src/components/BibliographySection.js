@@ -39,55 +39,6 @@ const BibliographySection = ({
         </button>
       </div>
       
-      {/* Debug Section */}
-      <div className="debug-section" style={{ 
-        marginTop: "20px", 
-        padding: "12px", 
-        background: "#fef3c7", 
-        borderRadius: "8px", 
-        border: "1px solid #fbbf24" 
-      }}>
-        <h4 style={{ fontSize: "0.9rem", margin: "0 0 8px 0", color: "#92400e" }}>🔧 Debug Tools</h4>
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          {testAPACitationFormatting && (
-            <button 
-              onClick={testAPACitationFormatting}
-              className="btn-debug"
-              style={{ 
-                padding: "6px 12px", 
-                fontSize: "0.8rem", 
-                background: "#3b82f6", 
-                color: "white", 
-                border: "none", 
-                borderRadius: "4px",
-                cursor: "pointer"
-              }}
-            >
-              📋 Test APA Format
-            </button>
-          )}
-          {testDuplicateRemoval && (
-            <button 
-              onClick={testDuplicateRemoval}
-              className="btn-debug"
-              style={{ 
-                padding: "6px 12px", 
-                fontSize: "0.8rem", 
-                background: "#10b981", 
-                color: "white", 
-                border: "none", 
-                borderRadius: "4px",
-                cursor: "pointer"
-              }}
-            >
-              🔍 Test Duplicate Fix
-            </button>
-          )}
-        </div>
-        <div style={{ fontSize: "0.75rem", color: "#92400e", marginTop: "4px" }}>
-          Check browser console for test results
-        </div>
-      </div>
     </div>
   );
 };
