@@ -789,26 +789,25 @@ const Home = ({setShowLoginPopup}) => {
           }
           
           // NEW: SUPER-SPECIFIC pattern for the user's exact case
-          // Pattern: "Author (Year). Title. Journal, VolumeAuthor (Year). Title. Journal, Volume(Issue). URL"
-          const superSpecificPattern = /^([^,]+,\s*[A-Z]\.\s*\([0-9]{4}\)\.[^,]+,\s*)(\d+)(\1\2\([^)]+\)\..*)$/;
+          // Pattern matches: "mentioned, N. (2023). Title. Journal, 1mentioned, N. (2023). Title. Journal, 1(1). URL"
+          const superSpecificPattern = /^(.+?),\s*(\d+)(.+?),\s*\2\((\d+)\)(\..*)$/;
           const superMatch = text.match(superSpecificPattern);
           if (superMatch) {
-            const citationPart = superMatch[1]; // "mentioned, N. (2023). Substitute... Strategies, "
-            const volume = superMatch[2];        // "1"
-            const duplicatedPart = superMatch[3]; // "mentioned, N. (2023)... 1(1). URL"
+            const beforeVolume = superMatch[1];    // "mentioned, N. (2023). Substitute... Strategies"
+            const volume = superMatch[2];          // "1"
+            const duplicatedPart = superMatch[3];  // "mentioned, N. (2023). Substitute... Strategies" (duplicate)
+            const issue = superMatch[4];           // "1" (from (1))
+            const trailing = superMatch[5];        // ". https://..."
             
-            // Extract issue and URL from the duplicated part
-            const issueMatch = duplicatedPart.match(/\(([^)]+)\)/);
-            const urlMatch = duplicatedPart.match(/(https?:\/\/[^\s]+.*?)$/);
-            
-            const issue = issueMatch ? `(${issueMatch[1]})` : '';
-            const url = urlMatch ? ` ${urlMatch[1]}` : '';
-            
-            const fixed = citationPart + volume + issue + url;
-            console.log(`🎯 SUPER-SPECIFIC FIX APPLIED!`);
-            console.log(`   Before: ${text.substring(0, 150)}...`);
-            console.log(`   After:  ${fixed.substring(0, 150)}...`);
-            return fixed.endsWith('.') ? fixed : fixed + '.';
+            // Check if duplicatedPart is actually a duplicate by comparing with beforeVolume
+            if (duplicatedPart.includes(beforeVolume.substring(beforeVolume.lastIndexOf('.') + 1).trim()) || 
+                calculateSimilarity(beforeVolume, duplicatedPart) > 0.7) {
+              const fixed = beforeVolume + ', ' + volume + '(' + issue + ')' + trailing;
+              console.log(`🎯 SUPER-SPECIFIC FIX APPLIED!`);
+              console.log(`   Before: ${text.substring(0, 150)}...`);
+              console.log(`   After:  ${fixed.substring(0, 150)}...`);
+              return fixed.endsWith('.') ? fixed : fixed + '.';
+            }
           }
           
           // PRIORITY FIX 1: Exact Zhao pattern
@@ -1751,24 +1750,24 @@ const Home = ({setShowLoginPopup}) => {
     let text = problematicText;
     
     // NEW: SUPER-SPECIFIC pattern for the user's exact case
-    const superSpecificPattern = /^([^,]+,\s*[A-Z]\.\s*\([0-9]{4}\)\.[^,]+,\s*)(\d+)(\1\2\([^)]+\)\..*)$/;
+    // Pattern matches: "mentioned, N. (2023). Title. Journal, 1mentioned, N. (2023). Title. Journal, 1(1). URL"
+    const superSpecificPattern = /^(.+?),\s*(\d+)(.+?),\s*\2\((\d+)\)(\..*)$/;
     const superMatch = text.match(superSpecificPattern);
     if (superMatch) {
-      const citationPart = superMatch[1]; // "mentioned, N. (2023). Substitute... Strategies, "
-      const volume = superMatch[2];        // "1"
-      const duplicatedPart = superMatch[3]; // "mentioned, N. (2023)... 1(1). URL"
+      const beforeVolume = superMatch[1];    // "mentioned, N. (2023). Substitute... Strategies"
+      const volume = superMatch[2];          // "1"
+      const duplicatedPart = superMatch[3];  // "mentioned, N. (2023). Substitute... Strategies" (duplicate)
+      const issue = superMatch[4];           // "1" (from (1))
+      const trailing = superMatch[5];        // ". https://..."
       
-      // Extract issue and URL from the duplicated part
-      const issueMatch = duplicatedPart.match(/\(([^)]+)\)/);
-      const urlMatch = duplicatedPart.match(/(https?:\/\/[^\s]+.*?)$/);
-      
-      const issue = issueMatch ? `(${issueMatch[1]})` : '';
-      const url = urlMatch ? ` ${urlMatch[1]}` : '';
-      
-      text = citationPart + volume + issue + url;
-      console.log(`✅ SUPER-SPECIFIC FIX APPLIED!`);
-      console.log(`📝 AFTER: ${text}`);
-      return;
+      // Check if duplicatedPart is actually a duplicate by comparing with beforeVolume
+      if (duplicatedPart.includes(beforeVolume.substring(beforeVolume.lastIndexOf('.') + 1).trim()) || 
+          calculateSimilarity(beforeVolume, duplicatedPart) > 0.7) {
+        text = beforeVolume + ', ' + volume + '(' + issue + ')' + trailing;
+        console.log(`✅ SUPER-SPECIFIC FIX APPLIED!`);
+        console.log(`📝 AFTER: ${text}`);
+        return;
+      }
     }
     
     // ULTRA-PRIORITY: Most aggressive pattern for the specific case
