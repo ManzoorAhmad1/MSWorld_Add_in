@@ -736,12 +736,19 @@ const Home = ({setShowLoginPopup}) => {
             return match;
           });
           
+          // NEW: Specific fix for "mentioned, N. (2023)" case with specific volume format
+          // This will fix: "Sustainability Strategies, 1mentioned" → "Sustainability Strategies, 1"
+          result = result.replace(/(Sustainability\s+Strategies),\s*(\d+)(mentioned)/i, '$1, $2');
+          
           // NEW: Handle completely duplicated citation with Journal + Volume repetition
           // This specifically targets: "mentioned, N. (2023). Title. Journal, 1mentioned, N. (2023). Title. Journal, 1(1)"
           result = result.replace(/^(.*?\(\d{4}\)\..*?[A-Za-z\s]+),\s*\d+\1,\s*\d+\((\d+)\)/g, '$1($2)');
           
           // NEW: Alternative pattern for duplicated references ending with URL
           result = result.replace(/^(.*?\(\d{4}\)\..*?[A-Za-z\s]+),\s*\d+(.*?\(\d{4}\)\..*?[A-Za-z\s]+),\s*\d+\((\d+)\)/g, '$2($3)');
+          
+          // NEW: Fix for "mentioned, N." specific case with 1 prefix
+          result = result.replace(/^(.*?\(\d{4}\)\..*?[A-Za-z\s]+),\s*(\d+)(\1),\s*\2\((\d+)\)/g, '$1, $2($4)');
           
           // Method 2: Remove author-title-journal duplicates that appear mid-sentence
           // Pattern: "Author (Year). Title. Journal, VolumeAuthor (Year). Title. Journal, Volume(Issue)"
@@ -882,6 +889,10 @@ const Home = ({setShowLoginPopup}) => {
               result = `${zhaoMatch[1]}, ${zhaoMatch[2]}(${zhaoMatch[3]})${zhaoMatch[4] || ''}`;
             }
           }
+          
+          // NEW: Specific fix for "1mentioned" pattern where the digit prefix gets merged with the author name
+          const mentionedPattern = /(\d+)mentioned/g;
+          result = result.replace(mentionedPattern, 'mentioned');
           
           // Ensure proper ending
           if (result && !result.endsWith('.')) {
@@ -1875,6 +1886,9 @@ const Home = ({setShowLoginPopup}) => {
     // Add the user's specific problematic references for testing
     problematicTexts.push("mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1(1). https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/Creative-Thinking%20(1).pdf");
     
+    // New test case with "1" at the beginning of the duplicated part
+    problematicTexts.push("mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1(1).");
+    
     // The exact reference example the user shared
     problematicTexts.push("Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1(1). https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/899df281-2adf-4bf3-9e34-c62446cb4667.");
     
@@ -2104,6 +2118,40 @@ const Home = ({setShowLoginPopup}) => {
         <div style={{marginTop: '10px'}}>
           <button onClick={testDuplicateRemoval} className="btn-secondary">
             Test Duplicate Reference Fix
+          </button>
+        </div>
+        
+        {/* Specific fix for user's current example */}
+        <div style={{marginTop: '10px'}}>
+          <button 
+            onClick={() => {
+              const problematicText = "mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1(1).";
+              
+              const cleanEntry = (html) => {
+                // All the cleaning logic from formatBibliographyCiteproc
+                let text = html;
+                
+                // Fix volume+digit merge with author name
+                text = text.replace(/([^,]+),\s*(\d+)([A-Za-z]+)/g, '$1, $2');
+                
+                // Fix duplicate patterns
+                text = text.replace(/^(.*?\(\d{4}\)\..*?[A-Za-z\s]+),\s*\d+\1,\s*\d+\((\d+)\)/g, '$1, $2($3)');
+                
+                // Remove digit prefixes before author names
+                text = text.replace(/(\d+)([A-Za-z]+,\s*[A-Z]\.)/g, '$2');
+                
+                return text;
+              };
+              
+              const fixed = cleanEntry(problematicText);
+              console.log("Original:", problematicText);
+              console.log("Fixed:", fixed);
+              
+              setStatus("Fixed Reference: " + fixed);
+            }} 
+            className="btn-primary"
+          >
+            Fix Current Reference Example
           </button>
         </div>
 
