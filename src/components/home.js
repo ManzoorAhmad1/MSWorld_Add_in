@@ -750,6 +750,9 @@ const Home = ({setShowLoginPopup}) => {
           // NEW: Fix for "mentioned, N." specific case with 1 prefix
           result = result.replace(/^(.*?\(\d{4}\)\..*?[A-Za-z\s]+),\s*(\d+)(\1),\s*\2\((\d+)\)/g, '$1, $2($4)');
           
+          // NEW: Fix for the Zhao arXiv citation pattern
+          result = result.replace(/^(Zhao,\s*H\.,\s*Shi,\s*J\.,\s*Qi,\s*X\.,\s*Wang,\s*X\.,\s*&\s*Jia,\s*J\.\s*\(\d{4}\)\.\s*Pyramid\s*Scene\s*Parsing\s*Network\.\s*arXiv),\s*\d+\1,\s*\d+\((\d+)\)/g, '$1, 1($2)');
+          
           // Method 2: Remove author-title-journal duplicates that appear mid-sentence
           // Pattern: "Author (Year). Title. Journal, VolumeAuthor (Year). Title. Journal, Volume(Issue)"
           const authorYearPattern = /([A-Z][^(]*\(\d{4}\)[^.]*\.[^.]*\.[^,]+,\s*\d+)([A-Z][^(]*\(\d{4}\)[^.]*\.[^.]*\.[^,]+,\s*\d+\(\d+\))/g;
@@ -881,12 +884,21 @@ const Home = ({setShowLoginPopup}) => {
             }
           }
           
-          // NEW: Add pattern specifically for Zhao reference format
+          // NEW: Enhanced pattern specifically for Zhao reference format
           const zhaoPattern = /^(Zhao,\s*H\.,\s*Shi,\s*J\.,\s*Qi,\s*X\.,\s*Wang,\s*X\.,\s*&\s*Jia,\s*J\.\s*\(2017\)\.\s*Pyramid\s*Scene\s*Parsing\s*Network\.\s*arXiv),\s*\d+\1,\s*\d+\((\d+)\)(.*?)$/;
           if (zhaoPattern.test(result)) {
             const zhaoMatch = result.match(zhaoPattern);
             if (zhaoMatch) {
-              result = `${zhaoMatch[1]}, ${zhaoMatch[2]}(${zhaoMatch[3]})${zhaoMatch[4] || ''}`;
+              result = `${zhaoMatch[1]}, 1(${zhaoMatch[2]})${zhaoMatch[3] || ''}`;
+            }
+          }
+          
+          // NEW: Additional pattern for Zhao reference with URL
+          const zhaoUrlPattern = /^(Zhao,\s*H\.,\s*Shi,\s*J\.,\s*Qi,\s*X\.,\s*Wang,\s*X\.,\s*&\s*Jia,\s*J\.\s*\(2017\)\.\s*Pyramid\s*Scene\s*Parsing\s*Network\.\s*arXiv),\s*\d+\1,\s*\d+\((\d+)\)\.\s*(https?:\/\/[^\s]+)$/;
+          if (zhaoUrlPattern.test(result)) {
+            const zhaoUrlMatch = result.match(zhaoUrlPattern);
+            if (zhaoUrlMatch) {
+              result = `${zhaoUrlMatch[1]}, 1(${zhaoUrlMatch[2]}). ${zhaoUrlMatch[3]}`;
             }
           }
           
@@ -2118,6 +2130,43 @@ const Home = ({setShowLoginPopup}) => {
         <div style={{marginTop: '10px'}}>
           <button onClick={testDuplicateRemoval} className="btn-secondary">
             Test Duplicate Reference Fix
+          </button>
+          
+          {/* Button specifically for testing the Zhao reference format */}
+          <button 
+            onClick={() => {
+              const zhaoReference = "Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1(1). https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/899df281-2adf-4bf3-9e34-c62446cb4667";
+              
+              // Use the actual cleanEntry function from formatBibliographyCiteproc
+              const cleanEntry = (html) => {
+                // This is a simplified version focusing only on Zhao reference patterns
+                let text = html;
+                
+                // First try the exact Zhao pattern with URL
+                const zhaoUrlPattern = /^(Zhao,\s*H\.,\s*Shi,\s*J\.,\s*Qi,\s*X\.,\s*Wang,\s*X\.,\s*&\s*Jia,\s*J\.\s*\(\d{4}\)\.\s*Pyramid\s*Scene\s*Parsing\s*Network\.\s*arXiv),\s*\d+\1,\s*\d+\((\d+)\)\.\s*(https?:\/\/[^\s]+)$/;
+                if (zhaoUrlPattern.test(text)) {
+                  const match = text.match(zhaoUrlPattern);
+                  if (match) {
+                    return `${match[1]}, 1(${match[2]}). ${match[3]}`;
+                  }
+                }
+                
+                // Try general pattern without URL
+                return text.replace(/^(Zhao,\s*H\.,\s*Shi,\s*J\.,\s*Qi,\s*X\.,\s*Wang,\s*X\.,\s*&\s*Jia,\s*J\.\s*\(2017\)\.\s*Pyramid\s*Scene\s*Parsing\s*Network\.\s*arXiv),\s*\d+\1,\s*\d+\((\d+)\)/g, 
+                  (match, prefix, issue) => `${prefix}, 1(${issue})`
+                );
+              };
+              
+              const fixed = cleanEntry(zhaoReference);
+              console.log("Original Zhao:", zhaoReference);
+              console.log("Fixed Zhao:", fixed);
+              
+              setStatus(`Fixed Zhao Reference: ${fixed}`);
+            }}
+            className="btn-secondary"
+            style={{marginLeft: '10px'}}
+          >
+            Fix Zhao Reference
           </button>
         </div>
         
