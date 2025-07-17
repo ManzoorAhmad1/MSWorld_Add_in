@@ -716,6 +716,12 @@ const Home = ({setShowLoginPopup}) => {
                     .replace(/\s*\(Downloaded\)\s*/gi, '')
                     .replace(/\s*\(Viewed\)\s*/gi, '');
           
+          // NEW: Fix complete duplicated author + title pattern before other algorithms
+          // This tackles the specific issue with doubled references like:
+          // "mentioned, N. (2023). Title. Journal, 1mentioned, N. (2023). Title. Journal, 1(1)"
+          const authorYearTitlePattern = /^([^(]+\(\d{4}\)[^,]+),\s*([^(]+)(\1),\s*\2\(([^)]+)\)/;
+          text = text.replace(authorYearTitlePattern, '$1, $2($4)');
+          
           // Super-enhanced duplicate text removal algorithm
           let result = text;
           
@@ -729,6 +735,13 @@ const Home = ({setShowLoginPopup}) => {
             }
             return match;
           });
+          
+          // NEW: Handle completely duplicated citation with Journal + Volume repetition
+          // This specifically targets: "mentioned, N. (2023). Title. Journal, 1mentioned, N. (2023). Title. Journal, 1(1)"
+          result = result.replace(/^(.*?\(\d{4}\)\..*?[A-Za-z\s]+),\s*\d+\1,\s*\d+\((\d+)\)/g, '$1($2)');
+          
+          // NEW: Alternative pattern for duplicated references ending with URL
+          result = result.replace(/^(.*?\(\d{4}\)\..*?[A-Za-z\s]+),\s*\d+(.*?\(\d{4}\)\..*?[A-Za-z\s]+),\s*\d+\((\d+)\)/g, '$2($3)');
           
           // Method 2: Remove author-title-journal duplicates that appear mid-sentence
           // Pattern: "Author (Year). Title. Journal, VolumeAuthor (Year). Title. Journal, Volume(Issue)"
@@ -748,12 +761,29 @@ const Home = ({setShowLoginPopup}) => {
           const cleanedWords = [];
           let i = 0;
           
+          // NEW: Check for complete duplication pattern 
+          // (this helps with cases where the entire reference is duplicated)
+          const fullText = words.join(' ');
+          const halfLength = Math.floor(words.length / 2);
+          
+          // If we have an even number of words, check if the first half equals the second half
+          if (words.length % 2 === 0 && halfLength >= 5) {
+            const firstHalf = words.slice(0, halfLength).join(' ');
+            const secondHalf = words.slice(halfLength).join(' ');
+            
+            // If there's significant similarity, keep only the second half (usually more complete)
+            if (firstHalf === secondHalf || calculateSimilarity(firstHalf, secondHalf) > 0.8) {
+              return secondHalf;
+            }
+          }
+          
           while (i < words.length) {
             let longestMatch = 0;
             let bestMatchStart = -1;
             
             // Look for the longest duplicate sequence starting from current position
-            for (let len = 3; len <= Math.min(15, words.length - i); len++) {
+            // Increased minimum sequence length from 3 to 5 for better accuracy
+            for (let len = 5; len <= Math.min(20, words.length - i); len++) {
               const sequence = words.slice(i, i + len);
               const sequenceText = sequence.join(' ');
               
@@ -804,6 +834,25 @@ const Home = ({setShowLoginPopup}) => {
                         .replace(/\s{2,}/g, ' ')
                         .replace(/\s+\./g, '.')
                         .trim();
+          
+          // NEW: Final check for duplicate reference pattern in APA style
+          // This is a last resort catch-all for the specific pattern we're seeing
+          const finalDuplicateCheck = /^([^,]+,\s*[A-Z]\.\s*\(\d{4}\)\.\s*[^.]+\.[^,]+),\s*\d+\1,\s*\d+/;
+          if (finalDuplicateCheck.test(result)) {
+            const match = result.match(finalDuplicateCheck);
+            if (match) {
+              // Extract the URL part from the end if it exists
+              const urlMatch = result.match(/https?:\/\/[^\s]+/);
+              const url = urlMatch ? ` ${urlMatch[0]}` : '';
+              
+              // Get everything after the duplication point
+              const secondHalfMatch = result.match(/^[^,]+,\s*[A-Z]\.\s*\(\d{4}\)\.\s*[^.]+\.[^,]+,\s*\d+([^,]+,\s*[A-Z]\.\s*\(\d{4}\)\.\s*[^.]+\.[^,]+,\s*\d+\([^)]+\).*?)$/);
+              
+              if (secondHalfMatch) {
+                result = secondHalfMatch[1] + url;
+              }
+            }
+          }
           
           // Ensure proper ending
           if (result && !result.endsWith('.')) {
@@ -1794,6 +1843,9 @@ const Home = ({setShowLoginPopup}) => {
       "mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1(1). https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/Creative-Thinking%20(1).pdf"
     ];
     
+    // Add the user's specific problematic reference for testing
+    problematicTexts.push("mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1(1). https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/Creative-Thinking%20(1).pdf");
+    
     console.log("Testing Duplicate Text Removal:");
     console.log("===============================");
     
@@ -2015,6 +2067,13 @@ const Home = ({setShowLoginPopup}) => {
           testAPACitationFormatting={testAPACitationFormatting}
           testDuplicateRemoval={testDuplicateRemoval}
         />
+        
+        {/* Button for quick testing of the duplicate removal fix */}
+        <div style={{marginTop: '10px'}}>
+          <button onClick={testDuplicateRemoval} className="btn-secondary">
+            Test Duplicate Reference Fix
+          </button>
+        </div>
 
         {!isOfficeReady && <OfficeWarning />}
       </header>
