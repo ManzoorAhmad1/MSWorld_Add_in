@@ -32,7 +32,7 @@ module.exports = {
       },
       {
         test: /\.(csl|xml)$/i,
-        type: "asset/source",
+        use: 'raw-loader',
       },
     ],
   },
