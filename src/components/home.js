@@ -788,6 +788,29 @@ const Home = ({setShowLoginPopup}) => {
             return fixed.endsWith('.') ? fixed : fixed + '.';
           }
           
+          // NEW: SUPER-SPECIFIC pattern for the user's exact case
+          // Pattern: "Author (Year). Title. Journal, VolumeAuthor (Year). Title. Journal, Volume(Issue). URL"
+          const superSpecificPattern = /^([^,]+,\s*[A-Z]\.\s*\([0-9]{4}\)\.[^,]+,\s*)(\d+)(\1\2\([^)]+\)\..*)$/;
+          const superMatch = text.match(superSpecificPattern);
+          if (superMatch) {
+            const citationPart = superMatch[1]; // "mentioned, N. (2023). Substitute... Strategies, "
+            const volume = superMatch[2];        // "1"
+            const duplicatedPart = superMatch[3]; // "mentioned, N. (2023)... 1(1). URL"
+            
+            // Extract issue and URL from the duplicated part
+            const issueMatch = duplicatedPart.match(/\(([^)]+)\)/);
+            const urlMatch = duplicatedPart.match(/(https?:\/\/[^\s]+.*?)$/);
+            
+            const issue = issueMatch ? `(${issueMatch[1]})` : '';
+            const url = urlMatch ? ` ${urlMatch[1]}` : '';
+            
+            const fixed = citationPart + volume + issue + url;
+            console.log(`🎯 SUPER-SPECIFIC FIX APPLIED!`);
+            console.log(`   Before: ${text.substring(0, 150)}...`);
+            console.log(`   After:  ${fixed.substring(0, 150)}...`);
+            return fixed.endsWith('.') ? fixed : fixed + '.';
+          }
+          
           // PRIORITY FIX 1: Exact Zhao pattern
           const zhaoSpecificPattern = /^(Zhao,\s*H\.,\s*Shi,\s*J\.,\s*Qi,\s*X\.,\s*Wang,\s*X\.,\s*&\s*Jia,\s*J\.\s*\([0-9]{4}\)\.\s*Pyramid\s*Scene\s*Parsing\s*Network\.\s*arXiv),\s*(\d+)\1,\s*\2(\([^)]*\))(.*)$/;
           const zhaoMatch = text.match(zhaoSpecificPattern);
@@ -1716,6 +1739,80 @@ const Home = ({setShowLoginPopup}) => {
     });
   };
 
+  // Test the EXACT duplication pattern the user reported
+  const testExactDuplication = () => {
+    console.log('🧪 Testing EXACT user duplication pattern...');
+    
+    const problematicText = "mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1(1). https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/Creative-Thinking%20(1).pdf.";
+    
+    console.log(`📝 BEFORE: ${problematicText}`);
+    
+    // Apply the same cleanup logic from our cleanEntry function
+    let text = problematicText;
+    
+    // NEW: SUPER-SPECIFIC pattern for the user's exact case
+    const superSpecificPattern = /^([^,]+,\s*[A-Z]\.\s*\([0-9]{4}\)\.[^,]+,\s*)(\d+)(\1\2\([^)]+\)\..*)$/;
+    const superMatch = text.match(superSpecificPattern);
+    if (superMatch) {
+      const citationPart = superMatch[1]; // "mentioned, N. (2023). Substitute... Strategies, "
+      const volume = superMatch[2];        // "1"
+      const duplicatedPart = superMatch[3]; // "mentioned, N. (2023)... 1(1). URL"
+      
+      // Extract issue and URL from the duplicated part
+      const issueMatch = duplicatedPart.match(/\(([^)]+)\)/);
+      const urlMatch = duplicatedPart.match(/(https?:\/\/[^\s]+.*?)$/);
+      
+      const issue = issueMatch ? `(${issueMatch[1]})` : '';
+      const url = urlMatch ? ` ${urlMatch[1]}` : '';
+      
+      text = citationPart + volume + issue + url;
+      console.log(`✅ SUPER-SPECIFIC FIX APPLIED!`);
+      console.log(`📝 AFTER: ${text}`);
+      return;
+    }
+    
+    // ULTRA-PRIORITY: Most aggressive pattern for the specific case
+    const ultraPriorityPattern = /^(.*?\([0-9]{4}\)\..*?),\s*(\d+)\1,\s*\2(\([^)]*\))(.*)$/;
+    const ultraMatch = text.match(ultraPriorityPattern);
+    if (ultraMatch) {
+      const citation = ultraMatch[1];
+      const volume = ultraMatch[2];
+      const issue = ultraMatch[3];
+      const trailing = ultraMatch[4];
+      text = citation + ', ' + volume + issue + trailing;
+      console.log(`✅ ULTRA-PRIORITY FIX APPLIED!`);
+      console.log(`📝 AFTER: ${text}`);
+      return;
+    }
+    
+    // If ultra-priority didn't catch it, try the flexible pattern
+    const flexiblePattern = /^(.*?),\s*(\d+)(.*?),\s*\2(\([^)]*\))(.*)$/;
+    const flexMatch = text.match(flexiblePattern);
+    if (flexMatch) {
+      const firstPart = flexMatch[1];
+      const volume = flexMatch[2];
+      const middlePart = flexMatch[3];
+      const issue = flexMatch[4];
+      const trailing = flexMatch[5];
+      
+      // Check if the middle part contains a significant portion of the first part
+      const firstWords = firstPart.split(' ').slice(-10).join(' '); // Last 10 words
+      if (middlePart.includes(firstWords.substring(0, 30))) {
+        text = firstPart + ', ' + volume + issue + trailing;
+        console.log(`✅ FLEXIBLE PATTERN FIX APPLIED!`);
+        console.log(`📝 AFTER: ${text}`);
+        return;
+      }
+    }
+    
+    console.log(`❌ NO PATTERN MATCHED - this indicates our regex needs adjustment`);
+    console.log(`📝 Let me debug the patterns:`);
+    console.log(`   Text length: ${text.length}`);
+    console.log(`   Contains "(2023)": ${text.includes('(2023)')}`);
+    console.log(`   Contains "mentioned": ${text.includes('mentioned')}`);
+    console.log(`   Text sample: ${text.substring(0, 200)}`);
+  };
+
   // Debug function to test citation style loading
   const testCitationStyles = async () => {
     console.log("Testing citation styles...");
@@ -2256,6 +2353,9 @@ const Home = ({setShowLoginPopup}) => {
           </button>
           <button onClick={testDuplicateRemoval} className="btn-secondary">
             🧪 Test Duplicate Fix
+          </button>
+          <button onClick={testExactDuplication} className="btn-secondary">
+            🎯 Test Exact Pattern
           </button>
         </div>
 
