@@ -32,18 +32,23 @@ const CitationLibrary = ({
             <div
               key={citation.id}
               className={`citation-card ${citation.used ? "used" : "unused"}`}
+              style={{
+                opacity: citation.used ? 0.7 : 1,
+                background: citation.used ? 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)' : '#ffffff'
+              }}
             >
               <div className="citation-card-header">
                 <h4 className="citation-title">
                   {getCitationTitle(citation)}
-                </h4>
-                <div className="citation-status">
-                  {citation.used ? (
-                    <span className="status-badge used">✓ Used</span>
-                  ) : (
-                    <span className="status-badge unused">○ Unused</span>
-                  )}
-                </div>
+                </h4>              <div className="citation-status">
+                {citation.used ? (
+                  <span className="status-badge used">
+                    ✓ Used {citation.inTextCitations ? `(${citation.inTextCitations.length}x)` : ''}
+                  </span>
+                ) : (
+                  <span className="status-badge unused">○ Unused</span>
+                )}
+              </div>
               </div>
 
               <div className="citation-authors">
@@ -83,10 +88,15 @@ const CitationLibrary = ({
               <div className="citation-card-actions">
                 <button
                   onClick={() => insertCitation(citation)}
-                  disabled={!isOfficeReady}
-                  className="btn btn-primary btn-sm"
+                  disabled={!isOfficeReady || citation.used}
+                  className={`btn btn-sm ${citation.used ? 'btn-disabled' : 'btn-primary'}`}
+                  title={citation.used ? "Already inserted in document" : "Insert citation into document"}
                 >
-                  📝 Insert
+                  {citation.used ? (
+                    <>🔒 Inserted</>
+                  ) : (
+                    <>📝 Insert</>
+                  )}
                 </button>
                 <button
                   onClick={() => removeCitationFromLibrary(citation.id)}
