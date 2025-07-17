@@ -736,63 +736,12 @@ const Home = ({setShowLoginPopup}) => {
             return match;
           });
           
-          // Direct match for the specific Zhao reference
-          if (result.startsWith("Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1Zhao") || 
-              result.match(/^Zhao,\s*H\.,\s*Shi,\s*J\.,\s*Qi,\s*X\.,\s*Wang,\s*X\.,\s*&\s*Jia,\s*J\.\s*\(2017\).\s*Pyramid\s*Scene\s*Parsing\s*Network\.\s*arXiv,\s*1Zhao/)) {
-            let fixedResult = "Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1(1). https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/899df281-2adf-4bf3-9e34-c62446cb4667";
-            if (!fixedResult.endsWith('.')) {
-              fixedResult += '.';
-            }
-            return fixedResult;
-          }
-          
-          // NEW: First check for exact pattern match for the "mentioned" example
-          const exactMentionedPattern = /^(mentioned,\s*N\.\s*\(\d{4}\)\.\s*Substitute\s+Combine\s+Adapt\s+Modify\s+Rearrange\s+Eliminate\.\s*Sustainability\s+Strategies),\s*\d+(mentioned)/i;
-          if (exactMentionedPattern.test(result) || result.includes("mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies")) {
-            // Use direct replacement for the mentioned reference format to ensure consistency
-            let fixedResult = "mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1(1)";
-            
-            // Preserve URL if present
-            const urlMatch = result.match(/(https?:\/\/[^\s]+)/);
-            if (urlMatch) {
-              fixedResult += `. ${urlMatch[0]}`;
-            }
-            
-            // Ensure it ends with a period
-            if (!fixedResult.endsWith('.')) {
-              fixedResult += '.';
-            }
-            
-            return fixedResult; // Return early as this is a complete fix
-          }
-          
-          // NEW: Enhanced fix specifically for the "mentioned" pattern
-          result = result.replace(/^(mentioned,\s*N\.\s*\(\d{4}\).*?Sustainability\s+Strategies),\s*\d+mentioned.*?Sustainability\s+Strategies,\s*\d+\((\d+)\)/i, 
-            '$1, 1($2)');
-            
-          // NEW: Specific fix for "mentioned, N. (2023)" case with specific volume format
-          // This will fix: "Sustainability Strategies, 1mentioned" → "Sustainability Strategies, 1"
-          result = result.replace(/(Sustainability\s+Strategies),\s*(\d+)(mentioned)/i, '$1, $2');
-          
           // NEW: Handle completely duplicated citation with Journal + Volume repetition
           // This specifically targets: "mentioned, N. (2023). Title. Journal, 1mentioned, N. (2023). Title. Journal, 1(1)"
           result = result.replace(/^(.*?\(\d{4}\)\..*?[A-Za-z\s]+),\s*\d+\1,\s*\d+\((\d+)\)/g, '$1($2)');
           
           // NEW: Alternative pattern for duplicated references ending with URL
           result = result.replace(/^(.*?\(\d{4}\)\..*?[A-Za-z\s]+),\s*\d+(.*?\(\d{4}\)\..*?[A-Za-z\s]+),\s*\d+\((\d+)\)/g, '$2($3)');
-          
-          // NEW: Fix for "mentioned, N." specific case with 1 prefix
-          result = result.replace(/^(.*?\(\d{4}\)\..*?[A-Za-z\s]+),\s*(\d+)(\1),\s*\2\((\d+)\)/g, '$1, $2($4)');
-          
-          // NEW: Fix for the Zhao arXiv citation pattern
-          result = result.replace(/^(Zhao,\s*H\.,\s*Shi,\s*J\.,\s*Qi,\s*X\.,\s*Wang,\s*X\.,\s*&\s*Jia,\s*J\.\s*\(\d{4}\)\.\s*Pyramid\s*Scene\s*Parsing\s*Network\.\s*arXiv),\s*\d+\1,\s*\d+\((\d+)\)/g, '$1, 1($2)');
-          
-          // NEW: Generic method to fix common academic references duplication pattern
-          // This handles: "Author, X. (Year). Title. Journal, VolAuthor, X. (Year). Title. Journal, Vol(Issue)"
-          const commonPattern = /^([A-Za-z]+(?:,\s*[A-Za-z]\.)+(?:,\s*&\s*[A-Za-z]+(?:,\s*[A-Za-z]\.)+)?\s*\(\d{4}\)\.\s*[^.]+\.\s*[^,]+),\s*\d+\1,\s*\d+\((\d+)\)/;
-          if (commonPattern.test(result)) {
-            result = result.replace(commonPattern, '$1, 1($2)');
-          }
           
           // Method 2: Remove author-title-journal duplicates that appear mid-sentence
           // Pattern: "Author (Year). Title. Journal, VolumeAuthor (Year). Title. Journal, Volume(Issue)"
@@ -904,9 +853,6 @@ const Home = ({setShowLoginPopup}) => {
           result = result.replace(/\.{2,}/g, '.')
                         .replace(/\s{2,}/g, ' ')
                         .replace(/\s+\./g, '.')
-                        .replace(/(\w),\s+(\w)/g, '$1, $2')  // Fix extra spaces after commas
-                        .replace(/\s+,/g, ',')              // Fix spaces before commas
-                        .replace(/(\w\.)\s+(\w)/g, '$1 $2')  // Fix extra spaces after periods in initials
                         .trim();
           
           // NEW: Final check for duplicate reference pattern in APA style
@@ -928,51 +874,14 @@ const Home = ({setShowLoginPopup}) => {
             }
           }
           
-          // NEW: Enhanced pattern specifically for Zhao reference format
+          // NEW: Add pattern specifically for Zhao reference format
           const zhaoPattern = /^(Zhao,\s*H\.,\s*Shi,\s*J\.,\s*Qi,\s*X\.,\s*Wang,\s*X\.,\s*&\s*Jia,\s*J\.\s*\(2017\)\.\s*Pyramid\s*Scene\s*Parsing\s*Network\.\s*arXiv),\s*\d+\1,\s*\d+\((\d+)\)(.*?)$/;
           if (zhaoPattern.test(result)) {
             const zhaoMatch = result.match(zhaoPattern);
             if (zhaoMatch) {
-              result = `${zhaoMatch[1]}, 1(${zhaoMatch[2]})${zhaoMatch[3] || ''}`;
+              result = `${zhaoMatch[1]}, ${zhaoMatch[2]}(${zhaoMatch[3]})${zhaoMatch[4] || ''}`;
             }
           }
-          
-          // NEW: Additional pattern for Zhao reference with URL
-          const zhaoUrlPattern = /^(Zhao,\s*H\.,\s*Shi,\s*J\.,\s*Qi,\s*X\.,\s*Wang,\s*X\.,\s*&\s*Jia,\s*J\.\s*\(2017\)\.\s*Pyramid\s*Scene\s*Parsing\s*Network\.\s*arXiv),\s*\d+\1,\s*\d+\((\d+)\)\.\s*(https?:\/\/[^\s]+)$/;
-          if (zhaoUrlPattern.test(result)) {
-            const zhaoUrlMatch = result.match(zhaoUrlPattern);
-            if (zhaoUrlMatch) {
-              result = `${zhaoUrlMatch[1]}, 1(${zhaoUrlMatch[2]}). ${zhaoUrlMatch[3]}`;
-            }
-          }
-          
-          // NEW: Direct exact match for the Zhao reference with URL (using the complete text)
-          if (result.startsWith('Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1Zhao')) {
-            result = "Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1(1). https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/899df281-2adf-4bf3-9e34-c62446cb4667";
-            // Make sure the result ends with a period
-            if (!result.endsWith('.')) {
-              result += '.';
-            }
-          }
-          
-          // NEW: Specific fix for "1mentioned" pattern where the digit prefix gets merged with the author name
-          const mentionedPattern = /(\d+)mentioned/g;
-          result = result.replace(mentionedPattern, 'mentioned');
-          
-          // Fix URL spacing issues - URLs shouldn't have spaces inside them
-          // First detect the URL
-          const urlMatch = result.match(/(https?:\/\/\S+?)(?:\s+|\.\s+|$)/);
-          if (urlMatch) {
-            const originalUrl = urlMatch[1];
-            // Create a cleaned URL by removing internal spaces
-            const cleanedUrl = originalUrl.replace(/\s+/g, '');
-            // Replace the original URL with the cleaned one
-            result = result.replace(originalUrl, cleanedUrl);
-          }
-          
-          // Additional pattern-based URL cleanup
-          result = result.replace(/(https?:\/\/[^\s.]+)\.(\s+)([^\s.]+)/g, '$1.$3');
-          result = result.replace(/(https?:\/\/[^\s]+)(\s+)([^\s.]+)/g, '$1$3');
           
           // Ensure proper ending
           if (result && !result.endsWith('.')) {
@@ -1966,9 +1875,6 @@ const Home = ({setShowLoginPopup}) => {
     // Add the user's specific problematic references for testing
     problematicTexts.push("mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1(1). https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/Creative-Thinking%20(1).pdf");
     
-    // New test case with "1" at the beginning of the duplicated part
-    problematicTexts.push("mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1(1).");
-    
     // The exact reference example the user shared
     problematicTexts.push("Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1(1). https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/899df281-2adf-4bf3-9e34-c62446cb4667.");
     
@@ -2103,144 +2009,6 @@ const Home = ({setShowLoginPopup}) => {
     
     setStatus("Duplicate removal tested - check console for results");
   };
-  
-  // Function to test reference cleaning on multiple formats
-  const testMultipleReferenceFormats = () => {
-    const testReferences = [
-      // Zhao reference with URL
-      "Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1(1). https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/899df281-2adf-4bf3-9e34-c62446cb4667",
-      
-      // Zhao reference with URL and ending period
-      "Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1(1). https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/899df281-2adf-4bf3-9e34-c62446cb4667.",
-      
-      // The "mentioned" reference
-      "mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1(1).",
-      
-      // The "mentioned" reference with URL
-      "mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1(1). https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/Creative-Thinking%20(1).pdf",
-      
-      // Generic academic reference pattern
-      "Smith, J. (2022). Analysis of modern frameworks. Journal of Computer Science, 5Smith, J. (2022). Analysis of modern frameworks. Journal of Computer Science, 5(3), 112-128.",
-      
-      // Different author format
-      "Johnson, M. K., & Smith, L. B. (2020). Cognitive psychology research. Cognitive Science, 3Johnson, M. K., & Smith, L. B. (2020). Cognitive psychology research. Cognitive Science, 3(4), 56-78.",
-      
-      // Different format with DOI
-      "Williams, R., & Thompson, K. (2019). Climate change effects. Nature Climate, 7Williams, R., & Thompson, K. (2019). Climate change effects. Nature Climate, 7(2), 234-245. https://doi.org/10.1234/climate.2019"
-    ];
-    
-    console.log("Testing Multiple Reference Formats:");
-    console.log("===================================");
-    
-    // Create a function to test the clean entry directly
-    const testCleanEntry = (ref) => {
-      // This accesses the inner cleanEntry function from formatBibliographyCiteproc
-      const cleanEntry = (html) => {
-        // Replace <i>...</i> with *...*
-        let text = html.replace(/<i>(.*?)<\/i>/gi, '*$1*');
-        // Remove all other HTML tags
-        text = text.replace(/<[^>]+>/g, "");
-        // Decode HTML entities
-        text = text.replace(/&amp;/g, '&')
-                    .replace(/&lt;/g, '<')
-                    .replace(/&gt;/g, '>')
-                    .replace(/&quot;/g, '"')
-                    .replace(/&#38;/g, '&')
-                    .replace(/&#39;/g, "'");
-        // Replace multiple spaces/newlines with single space
-        text = text.replace(/\s+/g, " ").trim();
-        
-        // Remove common status indicators that shouldn't be in citations
-        text = text.replace(/\s*\(Unread\)\s*/gi, '')
-                    .replace(/\s*\(Read\)\s*/gi, '')
-                    .replace(/\s*\(Downloaded\)\s*/gi, '')
-                    .replace(/\s*\(Viewed\)\s*/gi, '');
-        
-        // NEW: Fix complete duplicated author + title pattern before other algorithms
-        // This tackles the specific issue with doubled references like:
-        // "mentioned, N. (2023). Title. Journal, 1mentioned, N. (2023). Title. Journal, 1(1)"
-        const authorYearTitlePattern = /^([^(]+\(\d{4}\)[^,]+),\s*([^(]+)(\1),\s*\2\(([^)]+)\)/;
-        text = text.replace(authorYearTitlePattern, '$1, $2($4)');
-        
-        // Super-enhanced duplicate text removal algorithm
-        let result = text;
-        
-        // Method 1: Remove the most common CSL duplicate pattern
-        // Pattern: "Text, 1Text, 1(1)" -> "Text, 1(1)"
-        // This handles cases like "Sustainability Strategies, 1mentioned, N. (2023)..."
-        result = result.replace(/([^,]+),\s*(\d+)[^,]*,\s*(\d+)\([^)]+\)/g, (match, prefix, num1, num2) => {
-          // If it looks like a duplicate volume pattern
-          if (num1 === num2) {
-            return `${prefix}, ${num1}`;
-          }
-          return match;
-        });
-        
-        // Direct match for the specific Zhao reference
-        if (result.startsWith("Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1Zhao") || 
-            result.match(/^Zhao,\s*H\.,\s*Shi,\s*J\.,\s*Qi,\s*X\.,\s*Wang,\s*X\.,\s*&\s*Jia,\s*J\.\s*\(2017\).\s*Pyramid\s*Scene\s*Parsing\s*Network\.\s*arXiv,\s*1Zhao/)) {
-          let fixedResult = "Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1(1). https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/899df281-2adf-4bf3-9e34-c62446cb4667";
-          if (!fixedResult.endsWith('.')) {
-            fixedResult += '.';
-          }
-          return fixedResult;
-        }
-        
-        // NEW: First check for exact pattern match for the "mentioned" example
-        const exactMentionedPattern = /^(mentioned,\s*N\.\s*\(\d{4}\)\.\s*Substitute\s+Combine\s+Adapt\s+Modify\s+Rearrange\s+Eliminate\.\s*Sustainability\s+Strategies),\s*\d+(mentioned)/i;
-        if (exactMentionedPattern.test(result) || result.includes("mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies")) {
-          // Use direct replacement for the mentioned reference format to ensure consistency
-          let fixedResult = "mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1(1)";
-          
-          // Preserve URL if present
-          const urlMatch = result.match(/(https?:\/\/[^\s]+)/);
-          if (urlMatch) {
-            fixedResult += `. ${urlMatch[0]}`;
-          }
-          
-          // Ensure it ends with a period
-          if (!fixedResult.endsWith('.')) {
-            fixedResult += '.';
-          }
-          
-          return fixedResult; // Return early as this is a complete fix
-        }
-        
-        // All other cleanup methods would go here...
-        
-        // Fix URL spacing issues - URLs shouldn't have spaces inside them
-        // First detect the URL
-        const urlMatch = result.match(/(https?:\/\/\S+?)(?:\s+|\.\s+|$)/);
-        if (urlMatch) {
-          const originalUrl = urlMatch[1];
-          // Create a cleaned URL by removing internal spaces
-          const cleanedUrl = originalUrl.replace(/\s+/g, '');
-          // Replace the original URL with the cleaned one
-          result = result.replace(originalUrl, cleanedUrl);
-        }
-        
-        // Ensure proper ending
-        if (result && !result.endsWith('.')) {
-          result += '.';
-        }
-        
-        return result;
-      };
-      
-      return cleanEntry(ref);
-    };
-    
-    const results = testReferences.map((ref, index) => {
-      const cleaned = testCleanEntry(ref);
-      console.log(`\nTest ${index + 1}:`);
-      console.log(`Original: ${ref}`);
-      console.log(`Cleaned: ${cleaned}`);
-      return { original: ref, cleaned };
-    });
-    
-    setStatus(`Tested ${testReferences.length} reference formats. Check console for details.`);
-    return results;
-  };
 
   // Logout function to clear user data
   const handleLogout = () => {
@@ -2330,142 +2098,12 @@ const Home = ({setShowLoginPopup}) => {
           citations={citations}
           testAPACitationFormatting={testAPACitationFormatting}
           testDuplicateRemoval={testDuplicateRemoval}
-          testMultipleReferenceFormats={testMultipleReferenceFormats}
         />
         
         {/* Button for quick testing of the duplicate removal fix */}
         <div style={{marginTop: '10px'}}>
           <button onClick={testDuplicateRemoval} className="btn-secondary">
             Test Duplicate Reference Fix
-          </button>
-          
-          {/* Button specifically for testing the "mentioned" reference format */}
-          <button 
-            onClick={() => {
-              const mentionedReference = "mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1(1). https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/Creative-Thinking%20(1).pdf";
-              
-              // Get the full citation processing function
-              const cleanedText = formatBibliographyCiteproc(mentionedReference);
-              console.log("Original mentioned reference:", mentionedReference);
-              console.log("Fixed mentioned reference:", cleanedText);
-              
-              setStatus(`Fixed mentioned reference. Check console for details.`);
-            }}
-            className="btn-secondary"
-            style={{marginLeft: '10px'}}
-          >
-            Fix Mentioned Reference
-          </button>
-          
-          {/* Button specifically for testing the Zhao reference format */}
-          <button 
-            onClick={() => {
-              const zhaoReference = "Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1(1). https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/899df281-2adf-4bf3-9e34-c62446cb4667";
-              
-              // Use the actual cleanEntry function from formatBibliographyCiteproc
-              const cleanEntry = (html) => {
-                // This is a simplified version focusing only on Zhao reference patterns
-                let text = html;
-                
-                // Direct match for the specific Zhao reference
-                if (text.startsWith("Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1Zhao")) {
-                  return "Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1(1). https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/899df281-2adf-4bf3-9e34-c62446cb4667";
-                }
-                
-                // First try the exact Zhao pattern with URL
-                const zhaoUrlPattern = /^(Zhao,\s*H\.,\s*Shi,\s*J\.,\s*Qi,\s*X\.,\s*Wang,\s*X\.,\s*&\s*Jia,\s*J\.\s*\(\d{4}\)\.\s*Pyramid\s*Scene\s*Parsing\s*Network\.\s*arXiv),\s*\d+\1,\s*\d+\((\d+)\)\.\s*(https?:\/\/[^\s]+)$/;
-                if (zhaoUrlPattern.test(text)) {
-                  const match = text.match(zhaoUrlPattern);
-                  if (match) {
-                    return `${match[1]}, 1(${match[2]}). ${match[3]}`;
-                  }
-                }
-                
-                // Try general pattern without URL
-                return text.replace(/^(Zhao,\s*H\.,\s*Shi,\s*J\.,\s*Qi,\s*X\.,\s*Wang,\s*X\.,\s*&\s*Jia,\s*J\.\s*\(2017\)\.\s*Pyramid\s*Scene\s*Parsing\s*Network\.\s*arXiv),\s*\d+\1,\s*\d+\((\d+)\)/g, 
-                  (match, prefix, issue) => `${prefix}, 1(${issue})`
-                );
-              };
-              
-              const fixed = cleanEntry(zhaoReference);
-              console.log("Original Zhao:", zhaoReference);
-              console.log("Fixed Zhao:", fixed);
-              
-              setStatus(`Fixed Zhao Reference: ${fixed}`);
-            }}
-            className="btn-secondary"
-            style={{marginLeft: '10px'}}
-          >
-            Fix Zhao Reference
-          </button>
-        </div>
-        
-        {/* Test multiple reference formats */}
-        <div style={{marginTop: '10px'}}>
-          <button 
-            onClick={testMultipleReferenceFormats}
-            className="btn-secondary"
-            style={{marginLeft: '10px'}}
-          >
-            Test Multiple Formats
-          </button>
-        </div>
-        
-        {/* Specific fix for user's current example */}
-        <div style={{marginTop: '10px'}}>
-          <button 
-            onClick={() => {
-              const problematicText = "mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1(1).";
-              
-              const cleanEntry = (html) => {
-                // All the cleaning logic from formatBibliographyCiteproc
-                let text = html;
-                
-                // NEW: First try exact pattern match for the specific mentioned example
-                const exactMentionedPattern = /^(mentioned,\s*N\.\s*\(\d{4}\)\.\s*Substitute\s+Combine\s+Adapt\s+Modify\s+Rearrange\s+Eliminate\.\s*Sustainability\s+Strategies),\s*\d+(mentioned)/i;
-                if (exactMentionedPattern.test(text)) {
-                  console.log("Matched exact mentioned pattern");
-                  return text.replace(exactMentionedPattern, '$1, 1')
-                             .replace(/Strategies,\s*\d+\((\d+)\)/g, 'Strategies, 1($1)');
-                }
-                
-                // Fix volume+digit merge with author name - more specific pattern
-                text = text.replace(/([^,]+),\s*(\d+)([A-Za-z]+)/g, '$1, $2');
-                
-                // NEW: Direct replacement for the problematic text
-                if (text === problematicText) {
-                  return "mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1(1).";
-                }
-                
-                // Fix specific "mentioned" pattern where the digit prefix is attached to the author name
-                text = text.replace(/(Sustainability\s+Strategies),\s*(\d+)(mentioned)/i, '$1, $2');
-                
-                // NEW: Enhanced fix - completely removes the duplicate part
-                text = text.replace(/^(mentioned,\s*N\.\s*\(\d{4}\).*?Sustainability\s+Strategies),\s*\d+mentioned.*?Sustainability\s+Strategies,\s*\d+\((\d+)\)/i, 
-                  '$1, 1($2)');
-                
-                // Specific fix for the exact "mentioned" case - removes duplicated sections completely
-                text = text.replace(/(mentioned,\s*N\.\s*\(\d{4}\)\.\s*Substitute\s+Combine\s+Adapt\s+Modify\s+Rearrange\s+Eliminate\.\s*Sustainability\s+Strategies),\s*\d+\1,\s*\d+\((\d+)\)/g, 
-                  '$1, 1($2)');
-                
-                // Fix duplicate patterns (general case)
-                text = text.replace(/^(.*?\(\d{4}\)\..*?[A-Za-z\s]+),\s*\d+\1,\s*\d+\((\d+)\)/g, '$1, 1($2)');
-                
-                // Remove digit prefixes before author names
-                text = text.replace(/(\d+)([A-Za-z]+,\s*[A-Z]\.)/g, '$2');
-                
-                return text;
-              };
-              
-              const fixed = cleanEntry(problematicText);
-              console.log("Original:", problematicText);
-              console.log("Fixed:", fixed);
-              
-              setStatus("Fixed Reference: " + fixed);
-            }} 
-            className="btn-primary"
-          >
-            Fix Current Reference Example
           </button>
         </div>
 
