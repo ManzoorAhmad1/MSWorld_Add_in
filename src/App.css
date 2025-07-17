@@ -988,7 +988,8 @@
   bottom: 0;
   z-index: 1000;
   display: flex;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .login-popup-left-panel {
@@ -998,6 +999,7 @@
   justify-content: center;
   padding: 40px;
   background: inherit;
+  min-height: 100vh;
 }
 
 .login-popup-brand-center {
@@ -1066,20 +1068,26 @@
   padding: 40px;
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(10px);
+  min-height: 100vh;
 }
 
 .login-popup-form-container {
   width: 100%;
-  max-width: 400px;
+  max-width: 380px;
+  box-sizing: border-box;
+  margin: 0 auto;
 }
 
 .login-popup-form-bg {
   background: rgba(255, 255, 255, 0.95);
   border-radius: 20px;
-  padding: 40px;
+  padding: 32px;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.2);
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 auto;
 }
 
 .login-popup-form-title-row {
@@ -1121,7 +1129,8 @@
 .login-popup-form-fields {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
+  width: 100%;
 }
 
 .login-popup-input-row {
@@ -1139,14 +1148,15 @@
 
 .login-popup-input {
   width: 100%;
-  padding: 16px 48px 16px 48px;
+  padding: 14px 48px 14px 48px;
   border: 2px solid #e2e8f0;
   border-radius: 12px;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 400;
   background: #ffffff;
   transition: all 0.2s ease;
   outline: none;
+  box-sizing: border-box;
 }
 
 .login-popup-input:focus {
@@ -1215,12 +1225,14 @@
 @media (max-width: 768px) {
   .login-popup-root {
     flex-direction: column;
+    overflow-y: auto;
   }
   
   .login-popup-left-panel {
     flex: 0 0 auto;
     padding: 30px 20px;
-    min-height: 40vh;
+    min-height: auto;
+    max-height: 40vh;
   }
   
   .login-popup-brand-row {
@@ -1240,10 +1252,16 @@
     flex: 1;
     padding: 20px;
     background: rgba(255, 255, 255, 0.1);
+    min-height: 60vh;
+    display: flex;
+    align-items: flex-start;
+    padding-top: 40px;
   }
   
   .login-popup-form-bg {
     padding: 30px;
+    width: 100%;
+    max-width: none;
   }
   
   .login-popup-form-title {
@@ -1253,9 +1271,15 @@
 
 /* Mobile Responsive (480px and below) */
 @media (max-width: 480px) {
+  .login-popup-root {
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  
   .login-popup-left-panel {
     padding: 20px 16px;
-    min-height: 35vh;
+    min-height: auto;
+    max-height: 35vh;
   }
   
   .login-popup-logo-outer {
@@ -1282,26 +1306,46 @@
   }
   
   .login-popup-right-panel {
-    padding: 16px;
+    padding: 16px 0px;
+    min-height: 65vh;
+    align-items: flex-start;
+    padding-top: 20px;
+  }
+  
+  .login-popup-form-container {
+    width: 100%;
+    max-width: 100%;
+    padding: 0 16px;
+    box-sizing: border-box;
   }
   
   .login-popup-form-bg {
-    padding: 24px;
+    padding: 20px;
     border-radius: 16px;
+    width: 100%;
+    box-sizing: border-box;
   }
   
   .login-popup-form-title {
-    font-size: 1.375rem;
+    font-size: 1.25rem;
+  }
+  
+  .login-popup-form-title-row {
+    margin-bottom: 24px;
   }
   
   .login-popup-input {
-    padding: 14px 44px 14px 44px;
-    font-size: 0.95rem;
+    padding: 12px 44px 12px 44px;
+    font-size: 0.9rem;
   }
   
   .login-popup-login-btn {
-    padding: 14px 20px;
-    font-size: 0.95rem;
+    padding: 12px 20px;
+    font-size: 0.9rem;
+  }
+  
+  .login-popup-form-fields {
+    gap: 16px;
   }
 }
 
@@ -1309,7 +1353,8 @@
 @media (max-width: 320px) {
   .login-popup-left-panel {
     padding: 16px 12px;
-    min-height: 30vh;
+    min-height: auto;
+    max-height: 30vh;
   }
   
   .login-popup-title {
@@ -1321,80 +1366,137 @@
   }
   
   .login-popup-right-panel {
-    padding: 12px;
+    padding: 12px 0px;
+    min-height: 70vh;
+    padding-top: 16px;
+  }
+  
+  .login-popup-form-container {
+    max-width: 100%;
+    padding: 0 12px;
+    box-sizing: border-box;
   }
   
   .login-popup-form-bg {
-    padding: 20px;
+    padding: 16px;
   }
   
   .login-popup-form-title {
-    font-size: 1.25rem;
-  }
-  
-  .login-popup-input {
-    padding: 12px 40px 12px 40px;
-    font-size: 0.9rem;
-  }
-  
-  .login-popup-login-btn {
-    padding: 12px 16px;
-    font-size: 0.9rem;
-  }
-  
-  .login-popup-form-fields {
-    gap: 16px;
-  }
-}
-
-/* Landscape Mobile */
-@media (max-height: 600px) and (orientation: landscape) {
-  .login-popup-left-panel {
-    min-height: auto;
-    padding: 20px;
-  }
-  
-  .login-popup-brand-row {
-    margin-bottom: 16px;
-  }
-  
-  .login-popup-title {
-    font-size: 1.5rem;
-  }
-  
-  .login-popup-subtitle {
-    font-size: 0.9rem;
-  }
-  
-  .login-popup-form-bg {
-    padding: 24px;
+    font-size: 1.125rem;
   }
   
   .login-popup-form-title-row {
     margin-bottom: 20px;
   }
+  
+  .login-popup-input {
+    padding: 10px 40px 10px 40px;
+    font-size: 0.85rem;
+  }
+  
+  .login-popup-login-btn {
+    padding: 10px 16px;
+    font-size: 0.85rem;
+  }
+  
+  .login-popup-form-fields {
+    gap: 14px;
+  }
 }
 
-/* Extra Large Screens */
-@media (min-width: 1200px) {
+/* Extra Small Screens */
+@media (max-width: 360px) {
+  .login-popup-root {
+    overflow-y: auto;
+    padding: 0;
+  }
+  
   .login-popup-left-panel {
-    padding: 60px;
+    padding: 12px 8px;
+    min-height: auto;
+    max-height: 25vh;
+  }
+  
+  .login-popup-brand-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .login-popup-logo-outer {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .login-popup-logo-inner {
+    width: 26px;
+    height: 26px;
+  }
+  
+  .login-popup-logo-dot {
+    width: 12px;
+    height: 12px;
   }
   
   .login-popup-title {
-    font-size: 3rem;
+    font-size: 1.375rem;
   }
   
   .login-popup-subtitle {
-    font-size: 1.25rem;
+    font-size: 0.8rem;
+    padding: 0;
   }
   
   .login-popup-right-panel {
-    padding: 60px;
+    padding: 8px 0px;
+    min-height: 75vh;
+    padding-top: 12px;
+  }
+  
+  .login-popup-form-container {
+    max-width: 100%;
+    padding: 0 8px;
+    box-sizing: border-box;
   }
   
   .login-popup-form-bg {
-    padding: 50px;
-    max-width: 450px;
+    padding: 14px;
+    border-radius: 12px;
+  }
+  
+  .login-popup-form-title {
+    font-size: 1rem;
+  }
+  
+  .login-popup-form-title-row {
+    margin-bottom: 18px;
+  }
+  
+  .login-popup-input {
+    padding: 9px 36px 9px 36px;
+    font-size: 0.8rem;
+  }
+  
+  .login-popup-input-icon {
+    left: 10px;
+  }
+  
+  .login-popup-password-toggle {
+    right: 10px;
+  }
+  
+  .login-popup-login-btn {
+    padding: 9px 14px;
+    font-size: 0.8rem;
+  }
+  
+  .login-popup-form-fields {
+    gap: 12px;
+  }
+  
+  .login-popup-close-btn {
+    width: 28px;
+    height: 28px;
+    top: -4px;
+    right: -4px;
   }
 }
