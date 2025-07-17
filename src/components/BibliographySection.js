@@ -5,7 +5,8 @@ const BibliographySection = ({
   isOfficeReady,
   citations,
   testAPACitationFormatting,
-  testDuplicateRemoval
+  testDuplicateRemoval,
+  testMultipleReferenceFormats
 }) => {
   const usedCitations = citations.filter(c => c.used);
   
