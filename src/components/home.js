@@ -690,33 +690,66 @@ const Home = ({setShowLoginPopup}) => {
         return "";
       }
 
-      console.log(`Generating bibliography with style: ${styleName}`);
+      // PRE-PROCESS citations to prevent duplicates BEFORE CSL processing
+      console.log(`🔄 Pre-processing ${normalizedCitations.length} citations to prevent duplicates...`);
+      const preprocessedCitations = normalizedCitations.map(citation => {
+        if (!citation.title) return citation;
+        
+        let title = citation.title;
+        
+        // Check if title already contains duplication pattern
+        const titleDupePattern = /^(.*?),\s*(\d+)\1,\s*\2(\([^)]*\))(.*)$/;
+        const titleMatch = title.match(titleDupePattern);
+        if (titleMatch) {
+          const cleanTitle = titleMatch[1];
+          const volume = titleMatch[2];
+          const issue = titleMatch[3];
+          const trailing = titleMatch[4];
+          title = cleanTitle + ', ' + volume + issue + trailing;
+          console.log(`🎯 PRE-PROCESSED TITLE DUPLICATE: ${title.substring(0, 100)}...`);
+        }
+        
+        return { ...citation, title };
+      });
+
+      console.log(`🔄 Generating bibliography with style: ${styleName}`);
+      console.log(`📊 Processing ${preprocessedCitations.length} citations`);
+
+      // PRIORITY: Check if CSL styles are loading properly
+      const styleXML = await getCSLStyleWithFallbacks(styleName);
+      console.log(`📄 Style XML loaded:`, styleXML ? `${styleXML.length} chars` : 'Failed');
+      
+      // If CSL style failed to load properly, use fallback formatting
+      if (!styleXML || styleXML === fallbackAPA || !styleXML.includes('<?xml')) {
+        console.warn(`⚠️ CSL style ${styleName} not loaded properly, using enhanced fallback`);
+        return preprocessedCitations.map(c => formatCitationFallback(c, "full")).join("\n\n");
+      }
 
       const sys = {
         retrieveLocale: () => enLocale || fallbackLocale,
-        retrieveItem: (id) => normalizedCitations.find((c) => String(c.id) === String(id)),
+        retrieveItem: (id) => preprocessedCitations.find((c) => String(c.id) === String(id)),
       };
 
-      // Load the CSL style
-      const styleXML = await getCSLStyleWithFallbacks(styleName);
-      
       let citeproc;
       try {
         citeproc = new CSL.Engine(sys, styleXML, "en-US");
-        console.log("Bibliography CSL Engine initialized successfully");
+        console.log("✅ Bibliography CSL Engine initialized successfully");
       } catch (error) {
-        console.error("Bibliography CSL Engine failed:", error);
-        // Fallback to simple bibliography
-        return normalizedCitations.map(c => formatCitationFallback(c, "full")).join("\n\n");
+        console.error("❌ Bibliography CSL Engine failed:", error);
+        console.log("🔄 Falling back to manual formatting");
+        // Fallback to enhanced manual bibliography
+        return preprocessedCitations.map(c => formatCitationFallback(c, "full")).join("\n\n");
       }
 
-      const ids = normalizedCitations.map((c) => c.id);
+      const ids = preprocessedCitations.map((c) => c.id);
       citeproc.updateItems(ids);
       const bibResult = citeproc.makeBibliography();
       
       if (bibResult && bibResult[1]) {
-        // Clean up HTML tags and format properly
+        // Enhanced cleanup function with multiple aggressive duplicate removal patterns
         const cleanEntry = (html) => {
+          console.log(`🧹 Cleaning entry: ${html.substring(0, 100)}...`);
+          
           // Replace <i>...</i> with *...*
           let text = html.replace(/<i>(.*?)<\/i>/gi, '*$1*');
           // Remove all other HTML tags
@@ -737,21 +770,72 @@ const Home = ({setShowLoginPopup}) => {
                     .replace(/\s*\(Downloaded\)\s*/gi, '')
                     .replace(/\s*\(Viewed\)\s*/gi, '');
           
-          // PRIORITY FIX: Handle the exact duplication pattern you reported
-          // Pattern: "Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1(1). https://..."
-          // This regex looks for: [Citation], [number][Same Citation], [number]([issue])[rest]
-          const priorityDuplicationPattern = /^(.*?),\s*(\d+)(.*?),\s*\2(\([^)]*\))(.*)$/;
-          const priorityMatch = text.match(priorityDuplicationPattern);
-          if (priorityMatch) {
-            const firstPart = priorityMatch[1];  // "Zhao, H., ... arXiv"
-            const volume = priorityMatch[2];     // "1"
-            const middlePart = priorityMatch[3]; // "Zhao, H., ... arXiv" (duplicate)
-            const issue = priorityMatch[4];      // "(1)"
-            const trailing = priorityMatch[5];   // ". https://..."
+          console.log(`🔍 After initial cleanup: ${text.substring(0, 100)}...`);
+          
+          // ULTRA-PRIORITY: Most aggressive pattern for your specific case
+          // This targets the EXACT pattern: "Text. Journal, 1Text. Journal, 1(1). URL"
+          const ultraPriorityPattern = /^(.*?\([0-9]{4}\)\..*?),\s*(\d+)\1,\s*\2(\([^)]*\))(.*)$/;
+          const ultraMatch = text.match(ultraPriorityPattern);
+          if (ultraMatch) {
+            const citation = ultraMatch[1];
+            const volume = ultraMatch[2];
+            const issue = ultraMatch[3];
+            const trailing = ultraMatch[4];
+            const fixed = citation + ', ' + volume + issue + trailing;
+            console.log(`🎯 ULTRA-PRIORITY FIX APPLIED!`);
+            console.log(`   Before: ${text.substring(0, 150)}...`);
+            console.log(`   After:  ${fixed.substring(0, 150)}...`);
+            return fixed.endsWith('.') ? fixed : fixed + '.';
+          }
+          
+          // PRIORITY FIX 1: Exact Zhao pattern
+          const zhaoSpecificPattern = /^(Zhao,\s*H\.,\s*Shi,\s*J\.,\s*Qi,\s*X\.,\s*Wang,\s*X\.,\s*&\s*Jia,\s*J\.\s*\([0-9]{4}\)\.\s*Pyramid\s*Scene\s*Parsing\s*Network\.\s*arXiv),\s*(\d+)\1,\s*\2(\([^)]*\))(.*)$/;
+          const zhaoMatch = text.match(zhaoSpecificPattern);
+          if (zhaoMatch) {
+            const citation = zhaoMatch[1];
+            const volume = zhaoMatch[2];
+            const issue = zhaoMatch[3];
+            const trailing = zhaoMatch[4];
+            const fixed = citation + ', ' + volume + issue + trailing;
+            console.log(`🎯 ZHAO-SPECIFIC FIX APPLIED!`);
+            console.log(`   Before: ${text.substring(0, 150)}...`);
+            console.log(`   After:  ${fixed.substring(0, 150)}...`);
+            return fixed.endsWith('.') ? fixed : fixed + '.';
+          }
+          
+          // PRIORITY FIX 2: Generic author-year duplication
+          const genericDuplicationPattern = /^(.*?\([0-9]{4}\)\..*?[A-Za-z\s]+),\s*(\d+)\1,\s*\2(\([^)]*\))(.*)$/;
+          const genericMatch = text.match(genericDuplicationPattern);
+          if (genericMatch) {
+            const citation = genericMatch[1];
+            const volume = genericMatch[2];
+            const issue = genericMatch[3];
+            const trailing = genericMatch[4];
+            const fixed = citation + ', ' + volume + issue + trailing;
+            console.log(`🎯 GENERIC DUPLICATION FIX APPLIED!`);
+            console.log(`   Before: ${text.substring(0, 150)}...`);
+            console.log(`   After:  ${fixed.substring(0, 150)}...`);
+            return fixed.endsWith('.') ? fixed : fixed + '.';
+          }
+          
+          // PRIORITY FIX 3: Handle cases where duplication pattern might vary
+          const flexiblePattern = /^(.*?),\s*(\d+)(.*?),\s*\2(\([^)]*\))(.*)$/;
+          const flexMatch = text.match(flexiblePattern);
+          if (flexMatch) {
+            const firstPart = flexMatch[1];
+            const volume = flexMatch[2];
+            const middlePart = flexMatch[3];
+            const issue = flexMatch[4];
+            const trailing = flexMatch[5];
             
-            // Check if the middle part is very similar to or contains the first part
-            if (middlePart.includes(firstPart.substring(0, 20)) || calculateSimilarity(firstPart, middlePart) > 0.7) {
-              text = firstPart + ', ' + volume + issue + trailing;
+            // Check if the middle part contains a significant portion of the first part
+            const firstWords = firstPart.split(' ').slice(-10).join(' '); // Last 10 words
+            if (middlePart.includes(firstWords.substring(0, 30))) {
+              const fixed = firstPart + ', ' + volume + issue + trailing;
+              console.log(`🎯 FLEXIBLE PATTERN FIX APPLIED!`);
+              console.log(`   Before: ${text.substring(0, 150)}...`);
+              console.log(`   After:  ${fixed.substring(0, 150)}...`);
+              return fixed.endsWith('.') ? fixed : fixed + '.';
             }
           }
           
