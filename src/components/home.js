@@ -1533,13 +1533,15 @@ const Home = ({ setShowLoginPopup }) => {
 
     try {
       const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
-      console.log(bibRaw,'bibRaw')
+      console.log("📚 Final bibliography for insertion:", bibRaw);
+      
       const styleFont = getCitationStyleFont(citationStyle);
-      console.log(styleFont,'styleFont')
+      console.log("🎨 Style font config:", styleFont);
+      
       await Word.run(async (context) => {
         const body = context.document.body;
         body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
-
+        
         // Insert bibliography title
         const title = body.insertParagraph(
           bibliographyTitle,
@@ -1550,45 +1552,52 @@ const Home = ({ setShowLoginPopup }) => {
         title.font.size = 16;
         title.font.name = styleFont.family;
 
-        // Process bibliography entries with proper formatting
-        if (bibRaw.includes("*")) {
-          console.log("Special formatting detected in bibliography");
-          const bibEntries = bibRaw.split("\n");
-          for (let entry of bibEntries) {
-            if (entry.trim()) {
-              let para = body.insertParagraph("", Word.InsertLocation.end);
-              para.font.name = styleFont.family;
-              para.font.size = styleFont.size;
-              para.leftIndent = 36;
-              para.firstLineIndent = -36;
+        // FIXED: Process each bibliography entry individually to prevent duplication
+        const bibEntries = bibRaw.split("\n").filter(entry => entry.trim());
+        console.log(`📋 Processing ${bibEntries.length} bibliography entries`);
+        
+        for (let i = 0; i < bibEntries.length; i++) {
+          const entry = bibEntries[i].trim();
+          if (!entry) continue;
+          
+          console.log(`📝 Processing entry ${i + 1}: ${entry.substring(0, 50)}...`);
+          
+          // Create paragraph for each entry
+          const para = body.insertParagraph("", Word.InsertLocation.end);
+          para.font.name = styleFont.family;
+          para.font.size = styleFont.size;
+          para.leftIndent = 36;
+          para.firstLineIndent = -36;
 
-              // Parse and apply formatting for italics, bold, etc.
-              await parseAndFormatText(para, entry, citationStyle);
-            }
+          // Check if entry contains special formatting (italics, etc.)
+          if (entry.includes("*") || entry.includes("**") || entry.includes("___")) {
+            console.log("✨ Applying special formatting to entry");
+            await parseAndFormatText(para, entry, citationStyle);
+          } else {
+            console.log("📄 Adding plain text entry");
+            // For plain text, just insert the content directly
+            const range = para.insertText(entry, Word.InsertLocation.end);
+            range.font.name = styleFont.family;
+            range.font.size = styleFont.size;
           }
-        } else {
-          console.log("No special formatting detected in bibliography");
-          // Fallback for entries without special formatting
-          const content = body.insertParagraph(bibRaw, Word.InsertLocation.end);
-          content.font.name = styleFont.family;
-          content.font.size = styleFont.size;
-          content.leftIndent = 36;
-          content.firstLineIndent = -36;
-          console.log(content,'content')
+          
+          // Add spacing between entries if there are multiple
+          if (bibEntries.length > 1 && i < bibEntries.length - 1) {
+            body.insertParagraph("", Word.InsertLocation.end);
+          }
         }
 
         await context.sync();
+        console.log("✅ Bibliography successfully inserted into Word document");
       });
-      console.log("Bibliography inserted:", bibRaw);
+      
       setBibliography(bibRaw);
       setStatus(
-        `Bibliography inserted with ${citationStyle.toUpperCase()} style using ${
-          styleFont.family
-        } font with proper formatting`
+        `✅ Bibliography inserted: ${used.length} citation${used.length !== 1 ? 's' : ''} in ${citationStyle.toUpperCase()} style`
       );
     } catch (e) {
-      console.error("Bibliography error:", e);
-      setStatus("Error generating bibliography");
+      console.error("❌ Bibliography generation failed:", e);
+      setStatus(`❌ Bibliography error: ${e.message || 'Unknown error'}`);
     }
   };
 
