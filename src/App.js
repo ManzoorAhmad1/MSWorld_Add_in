@@ -5,6 +5,8 @@ import "./index.css";
 import LoginPage from "./LoginPage";
 import LoginPopup from "./LoginPopup";
 import Home from "./components/home";
+// IMPROVED: Import the new reliable citation system
+import SimplifiedHome from "./components/SimplifiedHome";
 
 function App() {
   const [showLoginPopup, setShowLoginPopup] = React.useState(false);
@@ -55,7 +57,8 @@ function App() {
       {showLoginPopup  ? (
         <LoginPopup setShowLoginPopup={setShowLoginPopup}/>
       ) : token ? (
-        <Home setShowLoginPopup={setShowLoginPopup}/>
+        // IMPROVED: Use the new reliable citation system instead of the problematic CSL version
+        <SimplifiedHome setShowLoginPopup={setShowLoginPopup}/>
       ) : (
         <LoginPage setShowLoginPopup={setShowLoginPopup} />
       )}
