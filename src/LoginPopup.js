@@ -105,224 +105,132 @@ export default function LoginPopup({ setShowLoginPopup }) {
   };
 
   return (
-    <div className="relative flex items-center justify-center min-h-screen w-full overflow-hidden">
-      <div
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-        style={{
-          backgroundImage: `url('/images/layoutBg.svg')`,
-          filter: "brightness(40%) contrast(70%) saturate(120%)",
-        }}
-      />
+    <div className="relative flex items-center justify-center min-h-screen w-full overflow-hidden bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      {/* Clean background with subtle pattern */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-white to-purple-50" />
+      
+      {/* Subtle decorative elements */}
+      <div className="absolute top-10 left-10 w-20 h-20 bg-blue-100 rounded-full opacity-30 blur-xl"></div>
+      <div className="absolute bottom-20 right-20 w-32 h-32 bg-purple-100 rounded-full opacity-20 blur-2xl"></div>
 
-      {/* Animated overlay gradient */}
-      <div className="absolute inset-0  animate-pulse" />
+      {/* Main container - single card design */}
+      <div className="relative z-10 w-full max-w-md mx-4">
+        {/* Close button */}
+        <button
+          type="button"
+          onClick={() => setShowLoginPopup(false)}
+          className="absolute -top-12 right-0 text-gray-500 hover:text-gray-700 transition-colors duration-200 p-2 rounded-full hover:bg-white/50"
+          aria-label="Close login popup"
+        >
+          <X size={24} />
+        </button>
 
-      {/* Floating particles effect */}
-      <div className="absolute inset-0 overflow-hidden">
         <div
-          className="absolute top-1/4 left-1/4 w-2 h-2 bg-white/20 rounded-full animate-bounce"
-          style={{ animationDelay: "0s", animationDuration: "3s" }}
-        />
-        <div
-          className="absolute top-1/3 right-1/3 w-1 h-1 bg-blue-300/30 rounded-full animate-bounce"
-          style={{ animationDelay: "1s", animationDuration: "4s" }}
-        />
-        <div
-          className="absolute bottom-1/3 left-1/3 w-1.5 h-1.5 bg-purple-300/25 rounded-full animate-bounce"
-          style={{ animationDelay: "2s", animationDuration: "5s" }}
-        />
-      </div>
-
-      <div
-        className="grid grid-cols-1 sm:grid-cols-1 lg:max-w-[1100px] lg:grid-cols-2 relative z-10 items-center justify-center text-center sm:m-6 m-4 rounded-2xl md:grid-cols-1 backdrop-blur-sm border border-white/10 shadow-2xl login-modal"
-        style={{
-          boxShadow:
-            "rgba(0, 0, 0, 0.8) 0px 25px 60px -15px, rgba(255, 255, 255, 0.1) 0px 0px 0px 1px inset",
-          background:
-            "linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)",
-          borderRadius: "20px",
-        }}
-      >
-        <div
-          className="hidden sm:block relative overflow-hidden rounded-tl-2xl lg:rounded-bl-2xl md:rounded-bl-none min-h-full md:rounded-tr-2xl lg:rounded-tr-none rounded-tr-2xl md:flex flex-col md:justify-center"
+          className="bg-white/80 backdrop-blur-lg rounded-3xl shadow-2xl border border-white/20 p-8 login-modal"
           style={{
-            background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
-            backdropFilter: "blur(10px)",
-            border: "1px solid rgba(255,255,255,0.2)",
+            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.3)",
           }}
         >
-          {/* Decorative elements */}
-          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-400/20 to-purple-500/20 rounded-full blur-3xl" />
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-pink-400/20 to-orange-500/20 rounded-full blur-2xl" />
-
-          <div className="relative z-10 md:px-[80px] px-[20px] md:py-[44.5px] py-[14.5px]">
-            <div className="flex items-center mb-8 gap-4 transform hover:scale-105 transition-transform duration-300 float-animation">
+          {/* Logo and branding section */}
+          <div className="text-center mb-8">
+            <div className="flex justify-center mb-6">
               <div className="relative">
                 <img
                   src="https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/images/researchcollab-logo.svg"
-                  alt="Logo"
-                  height={90}
-                  width={90}
-                  className="w-[90px] h-[90px] drop-shadow-lg hover:drop-shadow-2xl transition-all duration-300"
+                  alt="ResearchCollab Logo"
+                  className="w-16 h-16 mx-auto drop-shadow-lg"
                 />
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-600/20 rounded-full blur-xl animate-pulse" />
               </div>
-              <h1
-                className="font-bold text-[28px] font-semibold leading-[36px] text-gray-800 drop-shadow-sm"
-                style={{
-                  overflowWrap: "break-word",
-                  background:
-                    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                }}
-              >
-                ResearchCollab
-              </h1>
             </div>
-            <p className="font-medium text-[16px] text-left font-normal leading-[24px] text-gray-700 hidden md:block break-words drop-shadow-sm">
-              Smart Research, Simplified. Find papers, share ideas, stay
-              organized - all in one place
+            
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">
+              ResearchCollab
+            </h1>
+            <p className="text-gray-600 text-sm mb-2">
+              Smart Research, Simplified. Find papers, share ideas, stay organized - all in one place
             </p>
           </div>
-        </div>
 
-        <div
-          className="relative overflow-hidden rounded-tr-2xl rounded-br-2xl lg:rounded-tl-none md:rounded-tl-2xl lg:rounded-bl-none md:rounded-bl-2xl backdrop-blur-xl border-l border-white/10"
-          style={{
-            background:
-              "linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.05) 100%)",
-            backdropFilter: "blur(20px)",
-          }}
-        >
-          {/* Decorative background elements */}
-          <div className="absolute top-0 left-0 w-full h-full  bg-[#39393933] backdrop-blur-[12px] ">
-            <div className="absolute top-1/4 right-1/4 w-20 h-20 bg-gradient-to-r from-blue-500/10 to-purple-600/10 rounded-full blur-2xl animate-pulse" />
-            <div
-              className="absolute bottom-1/3 left-1/4 w-16 h-16 bg-gradient-to-r from-pink-500/10 to-orange-500/10 rounded-full blur-xl animate-pulse"
-              style={{ animationDelay: "1s" }}
-            />
+          {/* Welcome section */}
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-semibold text-gray-800 mb-2">Welcome Back</h2>
+            <p className="text-gray-500 text-sm">Sign in to continue your research journey</p>
           </div>
 
-          <div className="relative z-10 md:overflow-y-auto overflow-y-auto lg:max-h-[fit-content] md:max-h-[50vh] sm:max-h-full max-h-full p-8 md:p-12">
-            {/* Close button with enhanced styling */}
-            <button
-              type="button"
-              onClick={() => setShowLoginPopup(false)}
-              className="absolute top-4 right-4 text-white/70 hover:text-white hover:bg-white/10 transition-all duration-300 p-2 rounded-full backdrop-blur-sm border border-white/20 hover:border-white/40 hover:scale-110 transform"
-              aria-label="Close login popup"
-            >
-              <X size={20} className="drop-shadow-lg" />
-            </button>
-
-            <div className="w-full max-w-sm mx-auto mt-4 ">
-              {/* Enhanced welcome heading */}
-              <div className="text-center mb-8">
-                <h1
-                  className="text-2xl md:text-3xl font-bold text-white mb-2 drop-shadow-lg"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, #ffffff 0%, #e0e7ff 100%)",
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                    backgroundClip: "text",
-                  }}
-                >
-                  Welcome Back
-                </h1>
-                <p className="text-white/70 text-sm font-medium drop-shadow-sm">
-                  Sign in to continue your research journey
-                </p>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Email Input */}
+            <div className="space-y-2">
+              <div className="relative">
+                <Mail
+                  size={20}
+                  className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"
+                />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-12 pr-4 py-4 text-gray-700 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all duration-200 placeholder-gray-400"
+                  placeholder="Enter your email"
+                  required
+                  autoComplete="email"
+                  aria-label="Email address"
+                />
               </div>
-
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Email Input with enhanced styling */}
-                <div className="group">
-                  <div className="relative">
-                    <Mail
-                      size={18}
-                      className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white/60 group-focus-within:text-white/80 transition-colors duration-300"
-                    />
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full pl-12 pr-4 py-4 text-base border border-white/30 bg-white/10 backdrop-blur-sm rounded-xl focus:ring-2 focus:ring-blue-400/50 focus:border-white/60 focus:bg-white/20 outline-none transition-all duration-300 placeholder-white/50 text-white hover:border-white/40 hover:bg-white/15"
-                      placeholder="Enter your email"
-                      required
-                      autoComplete="email"
-                      aria-label="Email address"
-                    />
-                    <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-                  </div>
-                </div>
-
-                {/* Password Input with enhanced styling */}
-                <div className="group">
-                  <div className="relative">
-                    <Lock
-                      size={18}
-                      className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white/60 group-focus-within:text-white/80 transition-colors duration-300"
-                    />
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full pl-12 pr-14 py-4 text-base border border-white/30 bg-white/10 backdrop-blur-sm rounded-xl focus:ring-2 focus:ring-blue-400/50 focus:border-white/60 focus:bg-white/20 outline-none transition-all duration-300 placeholder-white/50 text-white hover:border-white/40 hover:bg-white/15"
-                      placeholder="Enter your password"
-                      required
-                      autoComplete="current-password"
-                      aria-label="Password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white/60 hover:text-white/90 transition-all duration-300 p-1 rounded-md hover:bg-white/10"
-                      aria-label={
-                        showPassword ? "Hide password" : "Show password"
-                      }
-                    >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                    <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-                  </div>
-                </div>
-
-                {error && (
-                  <div className="p-4 text-sm text-red-200 bg-red-500/20 backdrop-blur-sm border border-red-400/30 rounded-xl animate-pulse">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-2 h-2 bg-red-400 rounded-full animate-ping" />
-                      <span>{error}</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Enhanced Login Button */}
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className=" text-white rounded-[30px] bg-gradient-to-r from-[#0D4DA9] to-[#0E70FF] backdrop-blur-[32px] pt-[10px] pb-[10px] shadow-[0px_2px_1px_rgba(0,0,0,0.09),0px_4px_2px_rgba(0,0,0,0.09),0px_8px_4px_rgba(0,0,0,0.09),0px_16px_8px_rgba(0,0,0,0.09),0px_32px_16px_rgba(0,0,0,0.09)]"
-                  style={{
-                    background:
-                      "linear-gradient(273.51deg, #0D4DA9 -1.46%, #0E70FF 86.99%)",
-                    width: "100%",
-                  }}
-                >
-                  {loading ? (
-                    <div className="w-full flex items-center justify-center relative z-10">
-                      <LoaderCircle size={20} className="mr-3 animate-spin" />
-                      <span>Logging in...</span>
-                    </div>
-                  ) : (
-                    <span className="relative z-10 font-semibold tracking-wide">
-                      Sign In
-                    </span>
-                  )}
-                </button>
-              </form>
             </div>
-          </div>
+
+            {/* Password Input */}
+            <div className="space-y-2">
+              <div className="relative">
+                <Lock
+                  size={20}
+                  className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"
+                />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-12 pr-14 py-4 text-gray-700 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all duration-200 placeholder-gray-400"
+                  placeholder="Enter your password"
+                  required
+                  autoComplete="current-password"
+                  aria-label="Password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors duration-200"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+            </div>
+
+            {error && (
+              <div className="p-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-2xl">
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                  <span>{error}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Login Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-4 px-6 text-white font-semibold rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 focus:ring-4 focus:ring-blue-300 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <div className="flex items-center justify-center">
+                  <LoaderCircle size={20} className="mr-3 animate-spin" />
+                  <span>Signing In...</span>
+                </div>
+              ) : (
+                <span>Sign In</span>
+              )}
+            </button>
+          </form>
         </div>
       </div>
     </div>
