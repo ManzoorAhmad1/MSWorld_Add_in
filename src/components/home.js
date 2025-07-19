@@ -1541,7 +1541,7 @@ const Home = ({ setShowLoginPopup }) => {
       await Word.run(async (context) => {
         const body = context.document.body;
         body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
-        
+          console.log(Word.InsertLocation.end,'Word.InsertLocation.end')
         // Insert bibliography title
         const title = body.insertParagraph(
           bibliographyTitle,
@@ -1552,15 +1552,17 @@ const Home = ({ setShowLoginPopup }) => {
         title.font.size = 16;
         title.font.name = styleFont.family;
 
-        // FIXED: Process each bibliography entry individually to prevent duplication
+        // ULTRA-SIMPLIFIED: Process each bibliography entry individually to prevent duplication
         const bibEntries = bibRaw.split("\n").filter(entry => entry.trim());
         console.log(`📋 Processing ${bibEntries.length} bibliography entries`);
+        console.log(`📝 Raw bibliography content: ${bibRaw}`);
         
         for (let i = 0; i < bibEntries.length; i++) {
           const entry = bibEntries[i].trim();
           if (!entry) continue;
           
-          console.log(`📝 Processing entry ${i + 1}: ${entry.substring(0, 50)}...`);
+          console.log(`� Processing entry ${i + 1}:`);
+          console.log(`   Original: ${entry}`);
           
           // Create paragraph for each entry
           const para = body.insertParagraph("", Word.InsertLocation.end);
@@ -1569,22 +1571,22 @@ const Home = ({ setShowLoginPopup }) => {
           para.leftIndent = 36;
           para.firstLineIndent = -36;
 
-          // Check if entry contains special formatting (italics, etc.)
-          if (entry.includes("*") || entry.includes("**") || entry.includes("___")) {
-            console.log("✨ Applying special formatting to entry");
+          // SIMPLIFIED: Only check for asterisks (italics) - most common formatting
+          if (entry.includes("*")) {
+            console.log("✨ Entry contains asterisks - applying formatting");
             await parseAndFormatText(para, entry, citationStyle);
           } else {
-            console.log("📄 Adding plain text entry");
-            // For plain text, just insert the content directly
-            const range = para.insertText(entry, Word.InsertLocation.end);
-            range.font.name = styleFont.family;
-            range.font.size = styleFont.size;
+            console.log("📄 Plain text entry - direct insertion");
+            // Direct text insertion without any processing
+            await Word.run(async (context) => {
+              const range = para.insertText(entry, Word.InsertLocation.end);
+              range.font.name = styleFont.family;
+              range.font.size = styleFont.size;
+              await context.sync();
+            });
           }
           
-          // Add spacing between entries if there are multiple
-          if (bibEntries.length > 1 && i < bibEntries.length - 1) {
-            body.insertParagraph("", Word.InsertLocation.end);
-          }
+          console.log(`✅ Entry ${i + 1} processed successfully`);
         }
 
         await context.sync();
@@ -1601,88 +1603,79 @@ const Home = ({ setShowLoginPopup }) => {
     }
   };
 
-  // Enhanced function to parse and format text with multiple formatting types
+  // COMPLETELY REWRITTEN: Simplified text formatting to prevent duplication
   const parseAndFormatText = async (paragraph, text, citationStyle) => {
     try {
-      const formatPatterns = [
-        { pattern: /\*(.*?)\*/g, type: "italic" }, // *text* for italic
-        { pattern: /\*\*(.*?)\*\*/g, type: "bold" }, // **text** for bold
-        { pattern: /___(.*?)___/g, type: "underline" }, // ___text___ for underline
-        { pattern: /`(.*?)`/g, type: "code" }, // `text` for code/monospace
-      ];
-
-      let cursor = 0;
-      let hasFormatting = false;
-
-      // Check if text contains any formatting patterns
-      for (let pattern of formatPatterns) {
-        if (pattern.pattern.test(text)) {
-          hasFormatting = true;
-          break;
-        }
-      }
-
-      if (!hasFormatting) {
-        // No special formatting, just add as normal text
-        await applyTextFormatting(paragraph, text, "normal", citationStyle);
-        return;
-      }
-
-      // Process formatting patterns in order
-      for (let formatDef of formatPatterns) {
-        const regex = new RegExp(formatDef.pattern.source, "g");
-        let match;
-        let tempCursor = cursor;
-
-        while ((match = regex.exec(text)) !== null) {
-          // Add text before formatted section
-          if (match.index > tempCursor) {
-            const beforeText = text.substring(tempCursor, match.index);
-            await applyTextFormatting(
-              paragraph,
-              beforeText,
-              "normal",
-              citationStyle
-            );
+      console.log(`🎨 Formatting text with potential special characters: ${text.substring(0, 100)}...`);
+      
+      const styleFont = getCitationStyleFont(citationStyle);
+      let processedText = text;
+      let parts = [];
+      
+      // Split text by asterisks to handle italics properly
+      const asteriskParts = processedText.split(/(\*[^*]+\*)/);
+      
+      for (let i = 0; i < asteriskParts.length; i++) {
+        const part = asteriskParts[i];
+        if (!part) continue;
+        
+        if (part.startsWith('*') && part.endsWith('*')) {
+          // This is italic text - remove asterisks and mark as italic
+          const italicText = part.slice(1, -1);
+          if (italicText.trim()) {
+            parts.push({ text: italicText, type: 'italic' });
           }
-
-          // Add formatted text
-          const formattedText = match[1];
-          await applyFormattedText(
-            paragraph,
-            formattedText,
-            formatDef.type,
-            citationStyle
-          );
-
-          tempCursor = regex.lastIndex;
-        }
-
-        // Update text by removing processed formatting
-        text = text.replace(formatDef.pattern, "$1");
-      }
-
-      // Add any remaining text
-      if (cursor < text.length) {
-        const remainingText = text.substring(cursor);
-        if (remainingText.trim()) {
-          await applyTextFormatting(
-            paragraph,
-            remainingText,
-            "normal",
-            citationStyle
-          );
+        } else {
+          // This is regular text
+          if (part.trim()) {
+            parts.push({ text: part, type: 'normal' });
+          }
         }
       }
+      
+      console.log(`📝 Text split into ${parts.length} parts for formatting`);
+      
+      // Insert each part with appropriate formatting
+      for (const part of parts) {
+        if (part.type === 'italic') {
+          console.log(`✨ Adding italic text: ${part.text.substring(0, 30)}...`);
+          await Word.run(async (context) => {
+            const range = paragraph.insertText(part.text, Word.InsertLocation.end);
+            range.font.name = styleFont.family;
+            range.font.size = styleFont.size;
+            range.font.italic = true;
+            await context.sync();
+          });
+        } else {
+          console.log(`📄 Adding normal text: ${part.text.substring(0, 30)}...`);
+          await Word.run(async (context) => {
+            const range = paragraph.insertText(part.text, Word.InsertLocation.end);
+            range.font.name = styleFont.family;
+            range.font.size = styleFont.size;
+            range.font.italic = false;
+            await context.sync();
+          });
+        }
+      }
+      
+      console.log(`✅ Successfully formatted text with ${parts.length} parts`);
+      
     } catch (error) {
-      console.error("Text parsing error:", error);
-      // Fallback to plain text
-      await applyTextFormatting(
-        paragraph,
-        text.replace(/[*_`]/g, ""),
-        "normal",
-        citationStyle
-      );
+      console.error("❌ Text formatting error:", error);
+      // Ultimate fallback: insert plain text without any formatting
+      try {
+        const plainText = text.replace(/\*([^*]+)\*/g, '$1'); // Remove asterisks
+        await Word.run(async (context) => {
+          const range = paragraph.insertText(plainText, Word.InsertLocation.end);
+          const styleFont = getCitationStyleFont(citationStyle);
+          range.font.name = styleFont.family;
+          range.font.size = styleFont.size;
+          await context.sync();
+        });
+        console.log(`🔄 Used fallback plain text insertion`);
+      } catch (fallbackError) {
+        console.error("❌ Even fallback failed:", fallbackError);
+      }
     }
   };
 
