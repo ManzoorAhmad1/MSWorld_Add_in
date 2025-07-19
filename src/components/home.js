@@ -1533,8 +1533,9 @@ const Home = ({ setShowLoginPopup }) => {
 
     try {
       const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
+      console.log(bibRaw,'bibRaw')
       const styleFont = getCitationStyleFont(citationStyle);
-
+      console.log(styleFont,'styleFont')
       await Word.run(async (context) => {
         const body = context.document.body;
         body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
@@ -1551,6 +1552,7 @@ const Home = ({ setShowLoginPopup }) => {
 
         // Process bibliography entries with proper formatting
         if (bibRaw.includes("*")) {
+          console.log("Special formatting detected in bibliography");
           const bibEntries = bibRaw.split("\n");
           for (let entry of bibEntries) {
             if (entry.trim()) {
@@ -1565,17 +1567,19 @@ const Home = ({ setShowLoginPopup }) => {
             }
           }
         } else {
+          console.log("No special formatting detected in bibliography");
           // Fallback for entries without special formatting
           const content = body.insertParagraph(bibRaw, Word.InsertLocation.end);
           content.font.name = styleFont.family;
           content.font.size = styleFont.size;
           content.leftIndent = 36;
           content.firstLineIndent = -36;
+          console.log(content,'content')
         }
 
         await context.sync();
       });
-
+      console.log("Bibliography inserted:", bibRaw);
       setBibliography(bibRaw);
       setStatus(
         `Bibliography inserted with ${citationStyle.toUpperCase()} style using ${
