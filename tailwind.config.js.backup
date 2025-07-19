@@ -52,12 +52,6 @@ module.exports = {
         'spin-slow': 'spin 2s linear infinite',
         'pulse-custom': 'pulse-custom 2s infinite',
       },
-      keyframes: {
-        'pulse-custom': {
-          '0%, 100%': { opacity: '1' },
-          '50%': { opacity: '.5' },
-        }
-      },
       boxShadow: {
         'soft': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
         'medium': '0 4px 15px rgba(0, 0, 0, 0.1)',
@@ -69,4 +63,3 @@ module.exports = {
   },
   plugins: [],
 }
-

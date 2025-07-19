@@ -51,7 +51,7 @@ function App() {
     }
   }, [token,showLoginPopup]);
   return (
-    <div>
+    <div className="font-inter">
       {showLoginPopup  ? (
         <LoginPopup setShowLoginPopup={setShowLoginPopup}/>
       ) : token ? (

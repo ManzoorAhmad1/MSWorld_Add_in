@@ -35,52 +35,51 @@ export default function LoginPage({ setShowLoginPopup }) {
   };
 
   return (
-    <div className="App">
-      <div className="App-header">
-        <div className="login-container">
-          <div className="login-header">
-            <div className="login-icon">
-              🔬
-            </div>
-            <h1 className="login-title">Welcome to researchCollab</h1>
-            <p className="login-subtitle">Your intelligent research companion</p>
+    <div className="font-inter bg-gradient-to-br from-slate-50 to-slate-200 min-h-screen text-slate-800">
+      <div className="p-6 max-w-lg mx-auto bg-white rounded-xl shadow-soft mt-5 mb-5">
+        <div className="text-center mb-8 bg-gradient-to-r from-white to-slate-50 p-5 rounded-xl shadow-medium">
+          <div className="text-4xl mb-4">
+            🔬
           </div>
-          
-          {!user ? (
-            <div className="login-content">
-              <div className="login-features">
-                <div className="feature-item">
-                  <span className="feature-icon">📚</span>
-                  <span>Search academic papers</span>
-                </div>
-                <div className="feature-item">
-                  <span className="feature-icon">📝</span>
-                  <span>Generate citations</span>
-                </div>
-                <div className="feature-item">
-                  <span className="feature-icon">📖</span>
-                  <span>Manage bibliography</span>
-                </div>
-              </div>
-              
-              <p className="login-desc">Sign in to access your research tools</p>
-              <button className="btn-primary login-btn" onClick={handleLogin}>
-                <span>🚀</span>
-                Get Started
-              </button>
-            </div>
-          ) : (
-            <div className="login-content">
-              <div className="user-welcome">
-                <div className="user-avatar">👤</div>
-                <p className="login-desc">Welcome back, {user.email}!</p>
-                <button className="btn-secondary">
-                  Continue to Dashboard
-                </button>
-              </div>
-            </div>
-          )}
+          <h1 className="text-blue-600 mb-2 text-4xl font-bold">Welcome to researchCollab</h1>
+          <p className="text-slate-600 text-lg">Your intelligent research companion</p>
         </div>
+        
+        {!user ? (
+          <div>
+            <div className="space-y-4 mb-6">
+              <div className="flex items-center p-3 bg-slate-50 rounded-lg">
+                <span className="text-2xl mr-3">📚</span>
+                <span className="text-slate-700">Search academic papers</span>
+              </div>
+              <div className="flex items-center p-3 bg-slate-50 rounded-lg">
+                <span className="text-2xl mr-3">📝</span>
+                <span className="text-slate-700">Generate citations</span>
+              </div>
+              <div className="flex items-center p-3 bg-slate-50 rounded-lg">
+                <span className="text-2xl mr-3">📖</span>
+                <span className="text-slate-700">Manage bibliography</span>
+              </div>
+            </div>
+            
+            <p className="text-slate-700 text-center mb-6">Sign in to access your research tools</p>
+            <button 
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 px-5 rounded-lg transition-all duration-200 transform hover:-translate-y-0.5 hover:shadow-primary flex items-center justify-center" 
+              onClick={handleLogin}
+            >
+              <span className="mr-2">🚀</span>
+              Get Started
+            </button>
+          </div>
+        ) : (
+          <div className="text-center">
+            <div className="w-16 h-16 bg-slate-200 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">👤</div>
+            <p className="text-slate-700 mb-4">Welcome back, {user.email}!</p>
+            <button className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 hover:border-slate-400 rounded-lg px-5 py-3 text-sm font-medium transition-all">
+              Continue to Dashboard
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
