@@ -10,8 +10,8 @@
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="researchCollab"/>
   <Description DefaultValue="A React.js based Word Add-in for research documents"/>
-  <IconUrl DefaultValue="https://ms-world-add-in.vercel.app/assets/icon-32.png"/>
-  <HighResolutionIconUrl DefaultValue="https://ms-world-add-in.vercel.app/assets/icon-64.png"/>
+  <IconUrl DefaultValue="https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/images/researchcollab-logo.svg"/>
+  <HighResolutionIconUrl DefaultValue="https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/images/researchcollab-logo.svg"/>
   <SupportUrl DefaultValue="https://www.contoso.com/help"/>
   <AppDomains>
     <AppDomain>https://ms-world-add-in.vercel.app/</AppDomain>
