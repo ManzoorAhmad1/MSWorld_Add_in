@@ -16,7 +16,7 @@ import enLocale from "../csl-styles/localesen-US.xml";
 import React, { useState, useEffect, useRef } from "react";
 import { fetchUserFilesDocs } from "../api";
 
-const Home = ({ setShowLoginPopup }) => {
+const Home = ({ handleLogout,status,setStatus }) => {
   // Fallback CSL styles (minimal working styles)
   const fallbackAPA = `<?xml version="1.0" encoding="utf-8"?>
 <style xmlns="http://purl.org/net/xbiblio/csl" class="in-text" version="1.0">
@@ -1221,7 +1221,6 @@ const Home = ({ setShowLoginPopup }) => {
   ];
 
   const [isOfficeReady, setIsOfficeReady] = useState(false);
-  const [status, setStatus] = useState("Loading...");
 
   // Auth
   const getTokenFromUrl = () => {
@@ -1679,48 +1678,6 @@ const Home = ({ setShowLoginPopup }) => {
     }
   };
 
-  // Function to apply specific formatting types
-  const applyFormattedText = async (
-    paragraph,
-    text,
-    formatType,
-    citationStyle
-  ) => {
-    try {
-      await Word.run(async (context) => {
-        const range = paragraph.insertText(text, Word.InsertLocation.end);
-        const styleFont = getCitationStyleFont(citationStyle);
-
-        // Apply base font settings
-        range.font.name = styleFont.family;
-        range.font.size = styleFont.size;
-
-        // Apply specific formatting
-        switch (formatType) {
-          case "italic":
-            range.font.italic = true;
-            break;
-          case "bold":
-            range.font.bold = true;
-            break;
-          case "underline":
-            range.font.underline = Word.UnderlineType.single;
-            break;
-          case "code":
-            range.font.name = "Courier New";
-            range.font.size = styleFont.size - 1;
-            break;
-          default:
-            break;
-        }
-
-        await context.sync();
-      });
-    } catch (error) {
-      console.error("Formatted text application error:", error);
-    }
-  };
-
   const exportCitations = () => {
     if (citations.length === 0) {
       setStatus("Nothing to export");
@@ -1888,165 +1845,6 @@ const Home = ({ setShowLoginPopup }) => {
     return `${title}${year ? " (" + year + ")" : ""}`;
   };
 
-  // Function to fix existing citations in library
-  const fixExistingCitations = () => {
-    const updatedCitations = citations
-      .map((citation) => {
-        const normalized = normalizeCitation(citation);
-        return normalized;
-      })
-      .filter((c) => c);
-
-    setCitations(updatedCitations);
-    saveCitations(updatedCitations);
-    setStatus("Citations library updated");
-  };
-
-  const mockPDFs = [
-    {
-      id: 1,
-      title: "Climate Change Research 2024",
-      content: `This study examines the latest developments in climate science...`,
-    },
-  ];
-
-  const handlePDFClick = (pdf) => {
-    if (!isOfficeReady) {
-      console.log("Use this in Word");
-      return;
-    }
-
-    Word.run(async (context) => {
-      const body = context.document.body;
-      body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
-      const title = body.insertParagraph(pdf.title, Word.InsertLocation.end);
-      title.style = "Heading 1";
-      const content = body.insertParagraph(
-        pdf.content,
-        Word.InsertLocation.end
-      );
-      content.font.size = 11;
-      await context.sync();
-      setStatus(`Inserted: ${pdf.title}`);
-    });
-  };
-
-  // Test the EXACT duplication pattern the user reported
-  const testExactDuplication = () => {
-    console.log("🧪 Testing EXACT user duplication pattern...");
-
-    const problematicText =
-      "mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1(1). https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/Creative-Thinking%20(1).pdf.";
-
-    console.log(`📝 BEFORE: ${problematicText}`);
-
-    // Apply the same cleanup logic from our cleanEntry function
-    let text = problematicText;
-
-    // NEW: SUPER-SPECIFIC pattern for the user's exact case
-    // Pattern matches: "mentioned, N. (2023). Title. Journal, 1mentioned, N. (2023). Title. Journal, 1(1). URL"
-    const superSpecificPattern = /^(.+?),\s*(\d+)(.+?),\s*\2\((\d+)\)(\..*)$/;
-    const superMatch = text.match(superSpecificPattern);
-    if (superMatch) {
-      const beforeVolume = superMatch[1]; // "mentioned, N. (2023). Substitute... Strategies"
-      const volume = superMatch[2]; // "1"
-      const duplicatedPart = superMatch[3]; // "mentioned, N. (2023). Substitute... Strategies" (duplicate)
-      const issue = superMatch[4]; // "1" (from (1))
-      const trailing = superMatch[5]; // ". https://..."
-
-      // Check if duplicatedPart is actually a duplicate by comparing with beforeVolume
-      if (
-        duplicatedPart.includes(
-          beforeVolume.substring(beforeVolume.lastIndexOf(".") + 1).trim()
-        ) ||
-        calculateSimilarity(beforeVolume, duplicatedPart) > 0.7
-      ) {
-        text = beforeVolume + ", " + volume + "(" + issue + ")" + trailing;
-        console.log(`✅ SUPER-SPECIFIC FIX APPLIED!`);
-        console.log(`📝 AFTER: ${text}`);
-        return;
-      }
-    }
-
-    // ULTRA-PRIORITY: Most aggressive pattern for the specific case
-    const ultraPriorityPattern =
-      /^(.*?\([0-9]{4}\)\..*?),\s*(\d+)\1,\s*\2(\([^)]*\))(.*)$/;
-    const ultraMatch = text.match(ultraPriorityPattern);
-    if (ultraMatch) {
-      const citation = ultraMatch[1];
-      const volume = ultraMatch[2];
-      const issue = ultraMatch[3];
-      const trailing = ultraMatch[4];
-      text = citation + ", " + volume + issue + trailing;
-      console.log(`✅ ULTRA-PRIORITY FIX APPLIED!`);
-      console.log(`📝 AFTER: ${text}`);
-      return;
-    }
-
-    // If ultra-priority didn't catch it, try the flexible pattern
-    const flexiblePattern = /^(.*?),\s*(\d+)(.*?),\s*\2(\([^)]*\))(.*)$/;
-    const flexMatch = text.match(flexiblePattern);
-    if (flexMatch) {
-      const firstPart = flexMatch[1];
-      const volume = flexMatch[2];
-      const middlePart = flexMatch[3];
-      const issue = flexMatch[4];
-      const trailing = flexMatch[5];
-
-      // Check if the middle part contains a significant portion of the first part
-      const firstWords = firstPart.split(" ").slice(-10).join(" "); // Last 10 words
-      if (middlePart.includes(firstWords.substring(0, 30))) {
-        text = firstPart + ", " + volume + issue + trailing;
-        console.log(`✅ FLEXIBLE PATTERN FIX APPLIED!`);
-        console.log(`📝 AFTER: ${text}`);
-        return;
-      }
-    }
-
-    console.log(
-      `❌ NO PATTERN MATCHED - this indicates our regex needs adjustment`
-    );
-    console.log(`📝 Let me debug the patterns:`);
-    console.log(`   Text length: ${text.length}`);
-    console.log(`   Contains "(2023)": ${text.includes("(2023)")}`);
-    console.log(`   Contains "mentioned": ${text.includes("mentioned")}`);
-    console.log(`   Text sample: ${text.substring(0, 200)}`);
-  };
-
-  // Debug function to test citation style loading
-  const testCitationStyles = async () => {
-    console.log("Testing citation styles...");
-    for (const style of citationStyles) {
-      try {
-        const styleXML = await getCSLStyleWithFallbacks(style.value);
-        console.log(
-          `${style.label} (${style.value}):`,
-          styleXML ? "✓ Loaded" : "✗ Failed"
-        );
-
-        // Test with a sample citation
-        const sampleCitation = {
-          id: "test_citation",
-          type: "article-journal",
-          author: [{ given: "John", family: "Doe" }],
-          title: "Test Article",
-          issued: { "date-parts": [[2025]] },
-          "container-title": "Test Journal",
-        };
-
-        const formatted = await formatCitationCiteproc(
-          sampleCitation,
-          style.value,
-          "in-text"
-        );
-        console.log(`${style.value} formatting result:`, formatted);
-      } catch (error) {
-        console.error(`Error testing ${style.value}:`, error);
-      }
-    }
-    setStatus("Citation styles tested - check console for results");
-  };
-
   // Function to preview citation style formatting
   const previewCitationStyle = async (styleName) => {
     const sampleCitation = {
@@ -2146,57 +1944,6 @@ const Home = ({ setShowLoginPopup }) => {
     setStatus("APA Citation formatting tested - check console for results");
   };
 
-  // Function to test formatting with actual PDF data
-  const testPDFCitationFormatting = () => {
-    // Sample data from your PDF
-    const samplePDFData = {
-      id: 804,
-      file_name: "Pyramid Scene Parsing Network",
-      straico_file_url:
-        "https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/899df281-2adf-4bf3-9e34-c62446cb4667",
-      pdf_metadata: {
-        Abstract:
-          "Scene parsing is challenging for unrestricted open vocabulary and diverse scenes...",
-        PublicationDate: "April 27 2017",
-        Authors:
-          "Hengshuang Zhao, Jianping Shi, Xiaojuan Qi, Xiaogang Wang, Jiaya Jia",
-        PublicationYear: "2017",
-        JournalName: "arXiv",
-        Volume: "1",
-        Issue: "1",
-        DOI: "",
-        Institution: "The Chinese University of Hong Kong",
-      },
-      pdf_search_data: {
-        Title: "Pyramid Scene Parsing Network",
-        Authors:
-          "Hengshuang Zhao, Jianping Shi, Xiaojuan Qi, Xiaogang Wang, Jiaya Jia",
-        PublicationDate: "April 2017",
-      },
-    };
-
-    console.log("Testing PDF Citation Formatting:");
-    console.log("================================");
-
-    // Test each citation style
-    citationStyles.forEach((style) => {
-      console.log(`\n${style.label} (${style.value}):`);
-      console.log("----------------------------");
-
-      // Test in-text citation
-      const inTextCitation = formatCitationFallback(samplePDFData, "in-text");
-      console.log(`In-text: ${inTextCitation}`);
-
-      // Test full bibliography citation
-      const fullCitation = formatCitationFallback(samplePDFData, "full");
-      console.log(`Bibliography: ${fullCitation}`);
-
-      console.log("");
-    });
-
-    setStatus("PDF Citation formatting tested - check console for results");
-  };
-
   // Function to get font family and formatting based on citation style
   const getCitationStyleFont = (styleName) => {
     const fontMap = {
@@ -2267,65 +2014,6 @@ const Home = ({ setShowLoginPopup }) => {
       }
     );
   };
-
-  // Function to apply formatting to text based on citation style
-  const applyTextFormatting = async (
-    paragraph,
-    text,
-    formatType,
-    citationStyle
-  ) => {
-    const styleFont = getCitationStyleFont(citationStyle);
-
-    try {
-      await Word.run(async (context) => {
-        const range = paragraph.insertText(text, Word.InsertLocation.end);
-
-        // Apply basic font settings
-        range.font.name = styleFont.family;
-        range.font.size = styleFont.size;
-
-        // Apply specific formatting based on type and style
-        switch (formatType) {
-          case "title":
-          case "journal":
-          case "book":
-            if (styleFont.titleFormat === "italic") {
-              range.font.italic = true;
-            } else if (styleFont.titleFormat === "bold") {
-              range.font.bold = true;
-            } else if (styleFont.titleFormat === "underline") {
-              range.font.underline = Word.UnderlineType.single;
-            }
-            break;
-          case "emphasis":
-            if (styleFont.emphasis === "italic") {
-              range.font.italic = true;
-            } else if (styleFont.emphasis === "bold") {
-              range.font.bold = true;
-            }
-            break;
-          case "volume":
-            // Volume numbers are often bold in many styles
-            if (["nature", "science", "vancouver"].includes(citationStyle)) {
-              range.font.bold = true;
-            }
-            break;
-          default:
-            // Normal text formatting
-            range.font.italic = false;
-            range.font.bold = false;
-            break;
-        }
-
-        await context.sync();
-        return range;
-      });
-    } catch (error) {
-      console.error("Text formatting error:", error);
-    }
-  };
-
   // Helper function to calculate text similarity (Levenshtein distance based)
   const calculateSimilarity = (str1, str2) => {
     if (str1 === str2) return 1;
@@ -2361,55 +2049,6 @@ const Home = ({ setShowLoginPopup }) => {
     const maxLen = Math.max(len1, len2);
     const distance = matrix[len1][len2];
     return (maxLen - distance) / maxLen;
-  };
-
-  // Function to test if CSL styles are loading correctly
-  const testCSLStyleLoading = () => {
-    console.log("🔍 Testing CSL Style Loading:");
-    console.log("============================");
-
-    const styles = {
-      apa: apaStyle,
-      mla: mlaStyle,
-      ieee: ieeeStyle,
-      harvard: harvardStyle,
-      vancouver: vancouverStyle,
-      nature: natureStyle,
-      science: scienceStyle,
-      chicago: chicagoStyle,
-    };
-
-    const locale = enLocale;
-
-    console.log("📄 Locale file:", locale ? "✅ Loaded" : "❌ Failed");
-    if (locale) {
-      console.log("📄 Locale preview:", locale.substring(0, 100) + "...");
-    }
-
-    console.log("\n📚 CSL Style Files:");
-    Object.entries(styles).forEach(([name, style]) => {
-      const status = style ? "✅ Loaded" : "❌ Failed";
-      const preview = style
-        ? style.substring(0, 100).replace(/\n/g, " ") + "..."
-        : "N/A";
-      console.log(`📝 ${name.toUpperCase()}: ${status}`);
-      if (style) {
-        console.log(`   Preview: ${preview}`);
-      }
-    });
-
-    // Test getCSLStyle function
-    console.log("\n🔧 Testing getCSLStyle function:");
-    citationStyles.forEach(({ value, label }) => {
-      const result = getCSLStyle(value);
-      const status =
-        result && result !== fallbackAPA ? "✅ Success" : "⚠️ Using Fallback";
-      console.log(`📝 ${label} (${value}): ${status}`);
-    });
-
-    setStatus(
-      "CSL Style loading test completed - check browser console for results"
-    );
   };
 
   // Function to test duplicate text removal
@@ -2506,25 +2145,6 @@ const Home = ({ setShowLoginPopup }) => {
     setStatus(
       "Duplicate removal test completed - check browser console for results"
     );
-  };
-
-  // Logout function to clear user data
-  const handleLogout = () => {
-    try {
-      // Clear all user-related data from localStorage
-      localStorage.removeItem("user");
-      localStorage.removeItem("token");
-      // Reset state
-      setToken("");
-      setCitations([]);
-      setSearchResults([]);
-      setRecentCitations([]);
-      setShowLoginPopup(true);
-      setStatus("Logged out successfully");
-    } catch (error) {
-      console.error("Logout error:", error);
-      setStatus("Error during logout");
-    }
   };
 
   return (

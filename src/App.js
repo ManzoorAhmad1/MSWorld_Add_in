@@ -9,6 +9,8 @@ import Home from "./components/home";
 function App() {
   const [showLoginPopup, setShowLoginPopup] = React.useState(false);
   const [token, setToken] = React.useState(null);
+  const [status, setStatus] = React.useState("Loading...");
+
   useEffect(() => {
     let intervalId;
     let attempts = 0;
@@ -39,6 +41,7 @@ function App() {
     tryConnect();
     return () => clearInterval(intervalId);
   }, []);
+
   useEffect(() => {
     const user = localStorage.getItem("user");
     if (user) {
@@ -50,12 +53,27 @@ function App() {
       );
     }
   }, [token,showLoginPopup]);
+  
+  const handleLogout = () => {
+    try {
+      // Clear all user-related data from localStorage
+      localStorage.removeItem("user");
+      localStorage.removeItem("token");
+      // Reset state
+      setToken("");
+      setShowLoginPopup(true);
+      setStatus("Logged out successfully");
+    } catch (error) {
+      console.error("Logout error:", error);
+      setStatus("Error during logout");
+    }
+  };
   return (
     <div className="font-inter">
       {showLoginPopup  ? (
         <LoginPopup setShowLoginPopup={setShowLoginPopup}/>
       ) : token ? (
-        <Home setShowLoginPopup={setShowLoginPopup}/>
+        <Home handleLogout={handleLogout} setStatus={setStatus} status={status}/>
       ) : (
         <LoginPage setShowLoginPopup={setShowLoginPopup} />
       )}
