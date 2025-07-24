@@ -8,7 +8,7 @@
   <Version>1.0.0.0</Version>
   <ProviderName>Your Company Name</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="researchCollab"/>
+  <DisplayName DefaultValue="ResearchCollab"/>
   <Description DefaultValue="A React.js based Word Add-in for research documents"/>
   <IconUrl DefaultValue="https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/images/researchcollab-logo.svg"/>
   <HighResolutionIconUrl DefaultValue="https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/images/researchcollab-logo.svg"/>
@@ -76,12 +76,12 @@
         <bt:Url id="Taskpane.Url" DefaultValue="https://ms-world-add-in.vercel.app"/>
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="GetStarted.Title" DefaultValue="Get started with researchCollab!"/>
+        <bt:String id="GetStarted.Title" DefaultValue="Get started with ResearchCollab!"/>
         <bt:String id="CommandsGroup.Label" DefaultValue="Research Tools"/>
         <bt:String id="TaskpaneButton.Label" DefaultValue="Open Research Panel"/>
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="GetStarted.Description" DefaultValue="Your researchCollab add-in loaded successfully. Go to the HOME tab and click the 'Open Research Panel' button to get started with your research document tools."/>
+        <bt:String id="GetStarted.Description" DefaultValue="Your ResearchCollab add-in loaded successfully. Go to the HOME tab and click the 'Open Research Panel' button to get started with your research document tools."/>
         <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Click to open the research document tools panel"/>
       </bt:LongStrings>
     </Resources>

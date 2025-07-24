@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Mail, Eye, EyeOff, X, Lock, LoaderCircle } from "lucide-react";
+import { Mail, Eye, EyeOff, X, Lock, LoaderCircle, ArrowLeft } from "lucide-react";
 import { signin } from "./api";
 
 export default function LoginPopup({ setShowLoginPopup }) {
@@ -126,11 +126,20 @@ export default function LoginPopup({ setShowLoginPopup }) {
         </button>
 
         <div
-          className="bg-white/80 backdrop-blur-lg rounded-3xl shadow-2xl border border-white/20 p-8 login-modal"
+          className="bg-white/80 backdrop-blur-lg rounded-3xl shadow-2xl border border-white/20 p-8 login-modal relative"
           style={{
             boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.3)",
           }}
         >
+          {/* Left arrow button inside modal */}
+          <button
+            type="button"
+            onClick={() => setShowLoginPopup(false)}
+            className="absolute top-4 left-4 text-gray-500 hover:text-gray-700 transition-colors duration-200 p-2 rounded-full hover:bg-gray-100"
+            aria-label="Go back"
+          >
+            <ArrowLeft size={20} />
+          </button>
           {/* Logo and branding section */}
           <div className="text-center mb-8">
             <div className="flex justify-center mb-6">

@@ -48,7 +48,7 @@ export default function LoginPage({ setShowLoginPopup }) {
             />{" "}
           </div>
           <h1 className="text-blue-600 mb-2 text-4xl font-bold">
-            Welcome to researchCollab
+            Welcome to ResearchCollab
           </h1>
           <p className="text-slate-600 text-lg">
             Your intelligent research companion
