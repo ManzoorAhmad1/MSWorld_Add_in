@@ -408,13 +408,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
             case "mla":
               authorList = `${lastName}, ${firstName}`;
               break;
-            case "ieee":
-              // IEEE: F. LastName for single author
-              authorList = `${firstInitial} ${lastName}`;
-              break;
-            case "vancouver":
-              authorList = `${lastName} ${firstInitial}`;
-              break;
             default:
               authorList = `${lastName}, ${firstInitial}`;
           }
@@ -441,12 +434,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
               case "mla":
                 authorList = `${firstLastName}, ${firstFirstName}, and ${secondFirstName} ${secondLastName}`;
                 break;
-              case "ieee":
-                authorList = `${firstInitial} ${firstLastName} and ${secondInitial} ${secondLastName}`;
-                break;
-              case "vancouver":
-                authorList = `${firstLastName} ${firstInitial}, ${secondLastName} ${secondInitial}`;
-                break;
               default:
                 authorList = `${firstLastName}, ${firstInitial}, & ${secondLastName}, ${secondInitial}`;
             }
@@ -458,12 +445,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
                 break;
               case "mla":
                 authorList = `${firstLastName}, ${firstFirstName}, et al.`;
-                break;
-              case "ieee":
-                authorList = `${firstInitial} ${firstLastName} et al.`;
-                break;
-              case "vancouver":
-                authorList = `${firstLastName} ${firstInitial}, et al.`;
                 break;
               default:
                 authorList = `${firstLastName}, ${firstInitial}, et al.`;
@@ -505,13 +486,10 @@ const Home = ({ handleLogout, status, setStatus }) => {
               mlaResult += ` ${year}`;
             }
             mlaResult += ".";
-            if (url) {
-              mlaResult += ` Web. ${new Date().toLocaleDateString()}`;
-            }
             return mlaResult;
 
           case "ieee":
-            // IEEE: F. Author, "Title," *Journal*, vol. Volume, no. Issue, pp. pages, Month Year.
+            // IEEE: A. Author, "Title," *Journal*, vol. Volume, no. Issue, pp. pages, Month Year.
             let ieeeResult = `${authorList}, "${title},"`;
             if (journal) {
               ieeeResult += ` *${journal}*`;
@@ -523,11 +501,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
               ieeeResult += ` ${year}`;
             }
             ieeeResult += ".";
-            if (doi) {
-              ieeeResult += ` doi: ${doi}`;
-            } else if (url) {
-              ieeeResult += ` [Online]. Available: ${url}`;
-            }
             return ieeeResult;
 
           case "harvard":
@@ -542,11 +515,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
               if (pages) harvardResult += `, pp. ${pages}`;
             }
             harvardResult += ".";
-            if (doi) {
-              harvardResult += ` DOI: ${doi}`;
-            } else if (url) {
-              harvardResult += ` Available at: ${url}`;
-            }
             return harvardResult;
 
           case "vancouver":
@@ -564,11 +532,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
               vancouverResult += ` ${year}`;
             }
             vancouverResult += ".";
-            if (doi) {
-              vancouverResult += ` doi:${doi}`;
-            } else if (url) {
-              vancouverResult += ` Available from: ${url}`;
-            }
             return vancouverResult;
 
           case "chicago":
@@ -584,11 +547,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
               chicagoResult += ` ${year}`;
             }
             chicagoResult += ".";
-            if (doi) {
-              chicagoResult += ` https://doi.org/${doi}`;
-            } else if (url) {
-              chicagoResult += ` ${url}`;
-            }
             return chicagoResult;
 
           case "nature":
@@ -600,11 +558,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
               if (pages) natureResult += `, ${pages}`;
             }
             natureResult += ` (${year}).`;
-            if (doi) {
-              natureResult += ` https://doi.org/${doi}`;
-            } else if (url) {
-              natureResult += ` ${url}`;
-            }
             return natureResult;
 
           case "science":
@@ -616,11 +569,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
               if (pages) scienceResult += `, ${pages}`;
             }
             scienceResult += ` (${year}).`;
-            if (doi) {
-              scienceResult += ` https://doi.org/${doi}`;
-            } else if (url) {
-              scienceResult += ` ${url}`;
-            }
             return scienceResult;
 
           default: // APA as default
@@ -2379,194 +2327,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
     );
   };
 
-  // Function to test all citation styles
-  const testAllCitationStyles = async () => {
-    console.log("🧪 Testing All Citation Styles:");
-    console.log("===============================");
-
-    const sampleCitation = {
-      id: "test_citation",
-      type: "article-journal",
-      author: [
-        { given: "John", family: "Doe" },
-        { given: "Jane", family: "Smith" },
-      ],
-      title: "Complex Networks and Their Applications",
-      issued: { "date-parts": [[2024]] },
-      "container-title": "Journal of Network Science",
-      volume: "15",
-      issue: "3",
-      page: "123-145",
-      DOI: "10.1234/jns.2024.001"
-    };
-
-    // Test each style individually
-    for (const style of citationStyles) {
-      console.log(`\n📝 Testing ${style.label} (${style.value}):`);
-      console.log("─".repeat(50));
-      
-      try {
-        // Temporarily set the citation style for this test
-        const originalStyle = citationStyle;
-        setCitationStyle(style.value);
-        
-        // Test fallback formatting first
-        const fallbackResult = formatCitationFallback(sampleCitation, "full");
-        console.log(`✅ Fallback: ${fallbackResult}`);
-        
-        // Test CSL formatting
-        const cslResult = await formatCitationCiteproc(sampleCitation, style.value, "full");
-        console.log(`🔬 CSL Result: ${cslResult}`);
-        
-        // Test bibliography formatting
-        const bibResult = await formatBibliographyCiteproc([sampleCitation], style.value);
-        console.log(`📚 Bibliography: ${bibResult}`);
-        
-        // Check if output looks correct
-        if (fallbackResult.includes("Doe, J.") || fallbackResult.includes("J. Doe")) {
-          console.log(`✅ ${style.value.toUpperCase()} fallback format appears correct`);
-        } else {
-          console.log(`❌ ${style.value.toUpperCase()} fallback format may have issues`);
-        }
-        
-        // Restore original style
-        setCitationStyle(originalStyle);
-        
-      } catch (error) {
-        console.error(`❌ Error testing ${style.value}:`, error);
-      }
-    }
-    
-    setStatus("Citation style testing completed - check console for results");
-  };
-
-  // Function to create a sample citation and test current style
-  const testCurrentCitationStyle = async () => {
-    console.log(`🔬 Testing Current Style: ${citationStyle.toUpperCase()}`);
-    console.log("================================================");
-    
-    const sampleCitation = {
-      id: "current_test",
-      type: "article-journal",
-      author: [
-        { given: "Albert", family: "Einstein" },
-        { given: "Marie", family: "Curie" },
-      ],
-      title: "On the Electrodynamics of Moving Bodies",
-      issued: { "date-parts": [[1905]] },
-      "container-title": "Annalen der Physik",
-      volume: "17",
-      issue: "10",
-      page: "891-921",
-      DOI: "10.1002/andp.19053221004"
-    };
-    
-    try {
-      const fallbackResult = formatCitationFallback(sampleCitation, "full");
-      console.log(`Current style (${citationStyle}) fallback result:`);
-      console.log(fallbackResult);
-      
-      const cslResult = await formatCitationCiteproc(sampleCitation, citationStyle, "full");
-      console.log(`Current style (${citationStyle}) CSL result:`);
-      console.log(cslResult);
-      
-      const bibResult = await formatBibliographyCiteproc([sampleCitation], citationStyle);
-      console.log(`Current style (${citationStyle}) bibliography result:`);
-      console.log(bibResult);
-      
-      return { fallback: fallbackResult, csl: cslResult, bibliography: bibResult };
-      
-    } catch (error) {
-      console.error(`Error testing current style ${citationStyle}:`, error);
-      return null;
-    }
-  };
-
-  // Function to diagnose current bibliography issues
-  const diagnoseCurrentBibliography = async () => {
-    console.log("🔍 Diagnosing Current Bibliography Issues:");
-    console.log("==========================================");
-    
-    const usedCitations = citations.filter(c => c.used);
-    
-    if (usedCitations.length === 0) {
-      console.log("❌ No citations marked as 'used'");
-      console.log("💡 Suggestion: Insert some citations first, then test bibliography");
-      setStatus("No citations to diagnose - insert citations first");
-      return;
-    }
-    
-    console.log(`📊 Found ${usedCitations.length} used citations:`);
-    usedCitations.forEach((citation, index) => {
-      console.log(`${index + 1}. ${getCitationTitle(citation)} (${getCitationAuthors(citation)})`);
-    });
-    
-    console.log(`\n🎨 Current citation style: ${citationStyle.toUpperCase()}`);
-    
-    // Test each used citation individually
-    for (let i = 0; i < usedCitations.length; i++) {
-      const citation = usedCitations[i];
-      console.log(`\n🔬 Testing Citation ${i + 1}:`);
-      console.log(`Original:`, citation);
-      
-      const normalized = normalizeCitation(citation);
-      console.log(`Normalized:`, normalized);
-      
-      try {
-        const fallbackFormatted = formatCitationFallback(citation, "full");
-        console.log(`Fallback formatted: ${fallbackFormatted}`);
-        
-        const cslFormatted = await formatCitationCiteproc(citation, citationStyle, "full");
-        console.log(`CSL formatted: ${cslFormatted}`);
-        
-        const bibFormatted = await formatBibliographyCiteproc([citation], citationStyle);
-        console.log(`Bibliography formatted: ${bibFormatted}`);
-        
-      } catch (error) {
-        console.error(`❌ Error formatting citation ${i + 1}:`, error);
-      }
-    }
-    
-    // Test the complete bibliography
-    console.log(`\n📚 Complete Bibliography Test:`);
-    try {
-      const completeBib = await formatBibliographyCiteproc(usedCitations, citationStyle);
-      console.log(`Complete bibliography result:`);
-      console.log(completeBib);
-      
-      // Check for common issues
-      if (completeBib.includes("Author, No.")) {
-        console.log("❌ ISSUE DETECTED: 'Author, No.' suggests author parsing problems");
-      }
-      if (completeBib.includes("Untitled")) {
-        console.log("❌ ISSUE DETECTED: 'Untitled' suggests title parsing problems");
-      }
-      if (completeBib.includes("[Citation Error]")) {
-        console.log("❌ ISSUE DETECTED: Citation error detected in output");
-      }
-      if (completeBib.includes("undefined")) {
-        console.log("❌ ISSUE DETECTED: Undefined values in output");
-      }
-      
-    } catch (error) {
-      console.error(`❌ Complete bibliography test failed:`, error);
-    }
-    
-    // Test CSL style loading
-    console.log(`\n🔄 Testing CSL Style Loading:`);
-    try {
-      const styleXML = await getCSLStyleWithFallbacks(citationStyle);
-      console.log(`Style XML loaded: ${styleXML ? 'YES' : 'NO'}`);
-      console.log(`Style XML length: ${styleXML ? styleXML.length : 0} characters`);
-      console.log(`Is valid XML: ${styleXML && styleXML.includes('<?xml') ? 'YES' : 'NO'}`);
-      console.log(`Style preview: ${styleXML ? styleXML.substring(0, 200) + '...' : 'N/A'}`);
-    } catch (error) {
-      console.error(`❌ CSL style loading failed:`, error);
-    }
-    
-    setStatus("Bibliography diagnosis completed - check console for detailed results");
-  };
-
   return (
     <div className="font-inter bg-gradient-to-br from-slate-50 to-slate-200 min-h-screen">
       <header className="p-6 max-w-6xl mx-auto">
@@ -2683,8 +2443,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
           citations={citations}
           testAPACitationFormatting={testAPACitationFormatting}
           testDuplicateRemoval={testDuplicateRemoval}
-          testAllCitationStyles={testAllCitationStyles}
-          diagnoseCurrentBibliography={diagnoseCurrentBibliography}
         />
       </header>
     </div>
