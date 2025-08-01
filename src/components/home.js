@@ -83,13 +83,12 @@ const Home = ({ handleLogout, status, setStatus }) => {
   // Enhanced normalizeCitation function to handle PDF metadata properly
   const normalizeCitation = (raw) => {
     if (!raw) return null;
-    console.log(raw, "raw citation data");
     // Handle authors from different sources
     let authors = [];
 
     // Check pdf_metadata first, then pdf_search_data, then direct author field
     const pdfAuthors =
-      raw.pdf_metadata?.Authors || raw.pdf_search_data?.Authors || raw.author;
+      raw.authors ;
 
     if (pdfAuthors) {
       if (Array.isArray(pdfAuthors) && pdfAuthors.length > 0) {
@@ -221,7 +220,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
   // Enhanced getCSLStyle function with fallbacks
   const getCSLStyle = (styleName) => {
     try {
-      console.log(`Loading CSL style: ${styleName}`);
       let style;
       switch (styleName) {
         case "apa":
@@ -253,10 +251,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
           break;
       }
 
-      console.log(
-        `Style ${styleName} loaded:`,
-        style ? "Success" : "Failed - using fallback"
-      );
       return style || fallbackAPA;
     } catch (error) {
       console.warn(`Failed to load style ${styleName}, using fallback`, error);
@@ -312,33 +306,19 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
   // Enhanced CSL style loading with multiple fallback methods
   const getCSLStyleWithFallbacks = async (styleName) => {
-    console.log(`🔄 Loading CSL style: ${styleName}`);
 
     try {
       // Method 1: Try imported styles first
       let style = getCSLStyle(styleName);
       if (style && style !== fallbackAPA && style.includes("<?xml")) {
-        console.log(
-          `✅ Loaded ${styleName} via import (${style.length} chars)`
-        );
+     
         return style;
-      } else {
-        console.log(
-          `⚠️ Import failed for ${styleName} - style:`,
-          style ? `${style.substring(0, 50)}...` : "null"
-        );
       }
 
       // Method 2: Try async loading
-      console.log(`🔄 Trying async load for ${styleName}`);
       style = await loadCSLStyle(styleName);
       if (style && style !== fallbackAPA && style.includes("<?xml")) {
-        console.log(
-          `✅ Loaded ${styleName} via async fetch (${style.length} chars)`
-        );
         return style;
-      } else {
-        console.log(`⚠️ Async load failed for ${styleName}`);
       }
 
       // Method 3: Use fallback
@@ -353,7 +333,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
   // Enhanced fallback formatting function with proper academic citation styles
   const formatCitationFallback = (citation, format = "in-text") => {
     try {
-      console.log(citation,'citation')
       const normalized = normalizeCitation(citation);
       if (!normalized) return "[Invalid Citation]";
 
@@ -604,10 +583,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
     format = "in-text"
   ) => {
     try {
-      console.log(
-        `Formatting citation with style: ${styleName}, format: ${format}`
-      );
-
       // Validate and normalize citation
       if (!citation || typeof citation !== "object") {
         console.error("Invalid citation object:", citation);
@@ -624,10 +599,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
       // Get CSL style with validation
       const styleXML = await getCSLStyleWithFallbacks(styleName);
-      console.log(
-        `Using style XML for ${styleName}:`,
-        styleXML ? "Loaded" : "Not loaded"
-      );
 
       if (!styleXML || styleXML === fallbackAPA) {
         console.warn(`Style ${styleName} not available, using fallback`);
@@ -661,7 +632,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
       let citeproc;
       try {
         citeproc = new CSL.Engine(sys, styleXML, "en-US");
-        console.log("CSL Engine initialized successfully");
       } catch (engineError) {
         console.error("CSL Engine initialization failed:", engineError);
         return formatCitationFallback(normalizedCitation, format);
@@ -689,8 +659,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
             },
           ]);
         }
-
-        console.log("Citation formatting result:", result);
 
         // Extract formatted text from result
         if (result && result[0] && result[0][1]) {
@@ -732,9 +700,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
       }
 
       // PRE-PROCESS citations to prevent duplicates BEFORE CSL processing
-      console.log(
-        `🔄 Pre-processing ${normalizedCitations.length} citations to prevent duplicates...`
-      );
       const preprocessedCitations = normalizedCitations.map((citation) => {
         if (!citation.title) return citation;
 
@@ -749,23 +714,13 @@ const Home = ({ handleLogout, status, setStatus }) => {
           const issue = titleMatch[3];
           const trailing = titleMatch[4];
           title = cleanTitle + ", " + volume + issue + trailing;
-          console.log(
-            `🎯 PRE-PROCESSED TITLE DUPLICATE: ${title.substring(0, 100)}...`
-          );
         }
 
         return { ...citation, title };
       });
 
-      console.log(`🔄 Generating bibliography with style: ${styleName}`);
-      console.log(`📊 Processing ${preprocessedCitations.length} citations`);
-
       // PRIORITY: Check if CSL styles are loading properly
       const styleXML = await getCSLStyleWithFallbacks(styleName);
-      console.log(
-        `📄 Style XML loaded:`,
-        styleXML ? `${styleXML.length} chars` : "Failed"
-      );
 
       // If CSL style failed to load properly, use fallback formatting
       if (
@@ -773,9 +728,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
         styleXML === fallbackAPA ||
         !styleXML.includes("<?xml")
       ) {
-        console.warn(
-          `⚠️ CSL style ${styleName} not loaded properly, using enhanced fallback`
-        );
         return preprocessedCitations
           .map((c) => formatCitationFallback(c, "full"))
           .join("\n\n");
@@ -790,10 +742,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
       let citeproc;
       try {
         citeproc = new CSL.Engine(sys, styleXML, "en-US");
-        console.log("✅ Bibliography CSL Engine initialized successfully");
       } catch (error) {
         console.error("❌ Bibliography CSL Engine failed:", error);
-        console.log("🔄 Falling back to manual formatting");
         // Fallback to enhanced manual bibliography
         return preprocessedCitations
           .map((c) => formatCitationFallback(c, "full"))
@@ -807,8 +757,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
       if (bibResult && bibResult[1]) {
         // Enhanced cleanup function with multiple aggressive duplicate removal patterns
         const cleanEntry = (html) => {
-          console.log(`🧹 Cleaning entry: ${html.substring(0, 100)}...`);
-
           // Replace <i>...</i> with *...*
           let text = html.replace(/<i>(.*?)<\/i>/gi, "*$1*");
           // Remove all other HTML tags
@@ -831,8 +779,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
             .replace(/\s*\(Downloaded\)\s*/gi, "")
             .replace(/\s*\(Viewed\)\s*/gi, "");
 
-          console.log(`🔍 After initial cleanup: ${text.substring(0, 100)}...`);
-
           // ULTRA-PRIORITY: Most aggressive pattern for your specific case
           // This targets the EXACT pattern: "Text. Journal, 1Text. Journal, 1(1). URL"
           const ultraPriorityPattern =
@@ -844,9 +790,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
             const issue = ultraMatch[3];
             const trailing = ultraMatch[4];
             const fixed = citation + ", " + volume + issue + trailing;
-            console.log(`🎯 ULTRA-PRIORITY FIX APPLIED!`);
-            console.log(`   Before: ${text.substring(0, 150)}...`);
-            console.log(`   After:  ${fixed.substring(0, 150)}...`);
             return fixed.endsWith(".") ? fixed : fixed + ".";
           }
 
@@ -871,9 +814,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
             ) {
               const fixed =
                 beforeVolume + ", " + volume + "(" + issue + ")" + trailing;
-              console.log(`🎯 SUPER-SPECIFIC FIX APPLIED!`);
-              console.log(`   Before: ${text.substring(0, 150)}...`);
-              console.log(`   After:  ${fixed.substring(0, 150)}...`);
               return fixed.endsWith(".") ? fixed : fixed + ".";
             }
           }
@@ -888,9 +828,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
             const issue = zhaoMatch[3];
             const trailing = zhaoMatch[4];
             const fixed = citation + ", " + volume + issue + trailing;
-            console.log(`🎯 ZHAO-SPECIFIC FIX APPLIED!`);
-            console.log(`   Before: ${text.substring(0, 150)}...`);
-            console.log(`   After:  ${fixed.substring(0, 150)}...`);
             return fixed.endsWith(".") ? fixed : fixed + ".";
           }
 
@@ -904,9 +841,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
             const issue = genericMatch[3];
             const trailing = genericMatch[4];
             const fixed = citation + ", " + volume + issue + trailing;
-            console.log(`🎯 GENERIC DUPLICATION FIX APPLIED!`);
-            console.log(`   Before: ${text.substring(0, 150)}...`);
-            console.log(`   After:  ${fixed.substring(0, 150)}...`);
             return fixed.endsWith(".") ? fixed : fixed + ".";
           }
 
@@ -924,9 +858,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
             const firstWords = firstPart.split(" ").slice(-10).join(" "); // Last 10 words
             if (middlePart.includes(firstWords.substring(0, 30))) {
               const fixed = firstPart + ", " + volume + issue + trailing;
-              console.log(`🎯 FLEXIBLE PATTERN FIX APPLIED!`);
-              console.log(`   Before: ${text.substring(0, 150)}...`);
-              console.log(`   After:  ${fixed.substring(0, 150)}...`);
               return fixed.endsWith(".") ? fixed : fixed + ".";
             }
           }
@@ -1425,15 +1356,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
         setCurrentPage(page);
         setTotalPages(folderData.data.pagination?.totalPages || calculatedTotalPages);
         setTotalResults(totalFiles);
-        
-        console.log('Handle Page Change Debug:', {
-          page,
-          totalFiles,
-          pageSize,
-          calculatedTotalPages,
-          apiTotalPages: folderData.data.pagination?.totalPages,
-          finalTotalPages: folderData.data.pagination?.totalPages || calculatedTotalPages
-        });
       }
       setFetchPaperLoader(false);
     } catch (error) {
@@ -1578,7 +1500,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
   // Enhanced insertCitation function with proper formatting
   const insertCitation = async (citation) => {
     if (!isOfficeReady) {
-      console.log("Run this in Microsoft Word");
       return;
     }
 
@@ -1595,14 +1516,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
         citationStyle,
         citationFormat
       );
-
-      console.log("Citation formatting result:", {
-        original: citation,
-        normalized: normalizedCitation,
-        formatted: formatted,
-        style: citationStyle,
-        format: citationFormat,
-      });
 
       if (
         !formatted ||
@@ -1682,7 +1595,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
   const generateBibliography = async () => {
     if (!isOfficeReady) {
-      console.log("Run this in Word");
       return;
     }
 
@@ -1694,15 +1606,12 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
     try {
       const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
-      console.log("📚 Final bibliography for insertion:", bibRaw);
 
       const styleFont = getCitationStyleFont(citationStyle);
-      console.log("🎨 Style font config:", styleFont);
 
       await Word.run(async (context) => {
         const body = context.document.body;
         body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
-        console.log(Word.InsertLocation.end, "Word.InsertLocation.end");
         // Insert bibliography title
         const title = body.insertParagraph(
           bibliographyTitle,
@@ -1715,15 +1624,9 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
         // ULTRA-SIMPLIFIED: Process each bibliography entry individually to prevent duplication
         const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
-        console.log(`📋 Processing ${bibEntries.length} bibliography entries`);
-        console.log(`📝 Raw bibliography content: ${bibRaw}`);
-
         for (let i = 0; i < bibEntries.length; i++) {
           const entry = bibEntries[i].trim();
           if (!entry) continue;
-
-          console.log(`� Processing entry ${i + 1}:`);
-          console.log(`   Original: ${entry}`);
 
           // Create paragraph for each entry
           const para = body.insertParagraph("", Word.InsertLocation.end);
@@ -1734,10 +1637,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
           // SIMPLIFIED: Only check for asterisks (italics) - most common formatting
           if (entry.includes("*")) {
-            console.log("✨ Entry contains asterisks - applying formatting");
             await parseAndFormatText(para, entry, citationStyle);
           } else {
-            console.log("📄 Plain text entry - direct insertion");
             // Direct text insertion without any processing
             await Word.run(async (context) => {
               const range = para.insertText(entry, Word.InsertLocation.end);
@@ -1746,12 +1647,9 @@ const Home = ({ handleLogout, status, setStatus }) => {
               await context.sync();
             });
           }
-
-          console.log(`✅ Entry ${i + 1} processed successfully`);
         }
 
         await context.sync();
-        console.log("✅ Bibliography successfully inserted into Word document");
       });
 
       setBibliography(bibRaw);
@@ -1769,13 +1667,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
   // COMPLETELY REWRITTEN: Simplified text formatting to prevent duplication
   const parseAndFormatText = async (paragraph, text, citationStyle) => {
     try {
-      console.log(
-        `🎨 Formatting text with potential special characters: ${text.substring(
-          0,
-          100
-        )}...`
-      );
-
       const styleFont = getCitationStyleFont(citationStyle);
       let processedText = text;
       let parts = [];
@@ -1801,14 +1692,9 @@ const Home = ({ handleLogout, status, setStatus }) => {
         }
       }
 
-      console.log(`📝 Text split into ${parts.length} parts for formatting`);
-
       // Insert each part with appropriate formatting
       for (const part of parts) {
         if (part.type === "italic") {
-          console.log(
-            `✨ Adding italic text: ${part.text.substring(0, 30)}...`
-          );
           await Word.run(async (context) => {
             const range = paragraph.insertText(
               part.text,
@@ -1820,9 +1706,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
             await context.sync();
           });
         } else {
-          console.log(
-            `📄 Adding normal text: ${part.text.substring(0, 30)}...`
-          );
           await Word.run(async (context) => {
             const range = paragraph.insertText(
               part.text,
@@ -1835,8 +1718,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
           });
         }
       }
-
-      console.log(`✅ Successfully formatted text with ${parts.length} parts`);
     } catch (error) {
       console.error("❌ Text formatting error:", error);
       // Ultimate fallback: insert plain text without any formatting
@@ -1852,7 +1733,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
           range.font.size = styleFont.size;
           await context.sync();
         });
-        console.log(`🔄 Used fallback plain text insertion`);
       } catch (fallbackError) {
         console.error("❌ Even fallback failed:", fallbackError);
       }
@@ -2055,14 +1935,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
       );
       const styleFont = getCitationStyleFont(styleName);
 
-      console.log(`Preview for ${styleName}:`);
-      console.log(`Font: ${styleFont.family}, Size: ${styleFont.size}`);
-      console.log(`Title format: ${styleFont.titleFormat}`);
-      console.log(`Book format: ${styleFont.bookFormat}`);
-      console.log(`Emphasis: ${styleFont.emphasis}`);
-      console.log(`In-text: ${inTextFormatted}`);
-      console.log(`Bibliography: ${fullFormatted}`);
-
       return {
         inText: inTextFormatted,
         bibliography: fullFormatted,
@@ -2107,21 +1979,9 @@ const Home = ({ handleLogout, status, setStatus }) => {
       },
     };
 
-    console.log("Testing APA Citation Formatting:");
-    console.log("================================");
-
     // Test APA specifically
     const apaInText = formatCitationFallback(samplePDFData, "in-text");
     const apaFull = formatCitationFallback(samplePDFData, "full");
-
-    console.log("APA In-text:", apaInText);
-    console.log("APA Bibliography:", apaFull);
-    console.log("");
-    console.log("Expected APA Bibliography:");
-    console.log(
-      "Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. *arXiv*, 1(1). Retrieved from https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/899df281-2adf-4bf3-9e34-c62446cb4667"
-    );
-
     setStatus("APA Citation formatting tested - check console for results");
   };
 
@@ -2239,15 +2099,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
       "mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1(1). https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/Creative-Thinking%20(1).pdf",
     ];
 
-    console.log("🧪 Testing Duplicate Text Removal:");
-    console.log("===============================");
-
     problematicTexts.forEach((text, index) => {
-      console.log(`\n📝 Test Case ${index + 1}:`);
-      console.log("❌ Original (with duplicates):");
-      console.log(text);
-      console.log("");
-
       // Use the actual cleanEntry function from formatBibliographyCiteproc
       const cleanEntry = (html) => {
         // Replace <i>...</i> with *...*
@@ -2312,17 +2164,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
       };
 
       const cleaned = cleanEntry(text);
-      console.log("✅ Fixed (duplicates removed):");
-      console.log(cleaned);
-      console.log(
-        `🎯 Fixed: ${text !== cleaned ? "YES" : "NO (no duplicates detected)"}`
-      );
-      console.log("─".repeat(50));
     });
 
-    console.log(
-      "\n✨ Test completed! Check the console output above to see the before/after results."
-    );
     setStatus(
       "Duplicate removal test completed - check browser console for results"
     );
