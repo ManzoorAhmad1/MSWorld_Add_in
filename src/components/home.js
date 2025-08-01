@@ -14,7 +14,7 @@ import scienceStyle from "../csl-styles/science.csl";
 import chicagoStyle from "../csl-styles/chicago-author-date.csl";
 import enLocale from "../csl-styles/localesen-US.xml";
 import React, { useState, useEffect, useRef } from "react";
-import { fetchUserFilesDocs, getFolder, getWorkspaces } from "../api";
+import { fetchUserFilesDocs, getFolder, getWorkspaces, getFolders } from "../api";
 
 const Home = ({ handleLogout, status, setStatus }) => {
   // Fallback CSL styles (minimal working styles)
@@ -1246,6 +1246,12 @@ const Home = ({ handleLogout, status, setStatus }) => {
   const [fetchFolder, setFetchFolder] = useState([]);
   const [isFolderLoading, setIsFolderLoading] = useState(false);
   const [isSelectedFolder, setIsSelectedFolder] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalResults, setTotalResults] = useState(0);
+  const [pageSize] = useState(10);
 
   // Fetch user files on component mount
   useEffect(() => {
@@ -1282,31 +1288,80 @@ const Home = ({ handleLogout, status, setStatus }) => {
   }, []);
   
   useEffect(() => {
-    const fetchFiles = async () => {
+    const fetchFiles = async (page = 1) => {
       try {
         // Only fetch files if a project is selected
         if (!selectedProject) {
           setSearchResults([]);
+          setCurrentPage(1);
+          setTotalPages(1);
+          setTotalResults(0);
           return;
         }
 
         setFetchPaperLoader(true);
-        const response = await fetchUserFilesDocs(selectedProject);
-        if (response?.files) {
+        const folderData = await getFolders({
+          projectId: selectedProject,
+          folderId: isSelectedFolder || null,
+          pageNo: page,
+          limit: pageSize
+        });
+        
+        // Extract files from the response and set them as search results
+        if (folderData.data && folderData.data.files) {
+          const filesWithCitationFormat = folderData.data.files.map(file => ({
+            id: file.id,
+            title: file.fileName,
+            authors: file.pdf_metadata?.Authors || 'Unknown Authors',
+            'container-title': file.pdf_metadata?.JournalName || 'Unknown Journal',
+            issued: file.pdf_metadata?.PublicationYear ? 
+              { 'date-parts': [[parseInt(file.pdf_metadata.PublicationYear)]] } : null,
+            source: 'folder',
+            CitationCount: file.CitationCount || 0,
+            originalFileData: file // Keep original data for reference
+          }));
+          
           // Normalize the fetched data
-          setFetchPaperLoader(false);
-          const normalizedFiles = response.files.map((file) =>
+          const normalizedFiles = filesWithCitationFormat.map((file) =>
             normalizeCitation(file)
           );
           setSearchResults(normalizedFiles);
+          
+          // Update pagination state with better calculation
+          const totalFiles = folderData.data.totalFiles || folderData.data.pagination?.total || normalizedFiles.length;
+          const calculatedTotalPages = Math.ceil(totalFiles / pageSize);
+          
+          setCurrentPage(page);
+          setTotalPages(folderData.data.pagination?.totalPages || calculatedTotalPages);
+          setTotalResults(totalFiles);
+          
+          console.log('Pagination Debug:', {
+            totalFiles,
+            pageSize,
+            calculatedTotalPages,
+            apiTotalPages: folderData.data.pagination?.totalPages,
+            finalTotalPages: folderData.data.pagination?.totalPages || calculatedTotalPages,
+            currentPage: page
+          });
+          
+          setFetchPaperLoader(false);
+        } else {
+          setFetchPaperLoader(false);
+          setSearchResults([]);
+          setCurrentPage(1);
+          setTotalPages(1);
+          setTotalResults(0);
         }
       } catch (e) {
         setFetchPaperLoader(false);
+        setCurrentPage(1);
+        setTotalPages(1);
+        setTotalResults(0);
         console.error("Fetch files error:", e);
       }
     };
     fetchFiles();
-  }, [selectedProject]);
+  }, [selectedProject, isSelectedFolder]);
 
   useEffect(() => {
     const urlToken = getTokenFromUrl();
@@ -1337,6 +1392,76 @@ const Home = ({ handleLogout, status, setStatus }) => {
       loadSavedCitations();
     }
   }, []);
+
+  // Pagination handlers
+  const handlePageChange = async (page) => {
+    try {
+      if (!selectedProject) return;
+      
+      setFetchPaperLoader(true);
+      const folderData = await getFolders({
+        projectId: selectedProject,
+        folderId: isSelectedFolder || null,
+        pageNo: page,
+        limit: pageSize,
+        filter: [{"name":"Name","filters":[]},{"name":"Review Stage","filters":[]},{"name":"Tags","filters":[]},{"name":"Status","filters":[]}],
+        orderBy: "last_update",
+        orderDirection: "DESC"
+      });
+      
+      if (folderData.data && folderData.data.files) {
+        const filesWithCitationFormat = folderData.data.files.map(file => ({
+          id: file.id,
+          title: file.fileName,
+          authors: file.pdf_metadata?.Authors || 'Unknown Authors',
+          'container-title': file.pdf_metadata?.JournalName || 'Unknown Journal',
+          issued: file.pdf_metadata?.PublicationYear ? 
+            { 'date-parts': [[parseInt(file.pdf_metadata.PublicationYear)]] } : null,
+          source: 'folder',
+          CitationCount: file.CitationCount || 0,
+          originalFileData: file
+        }));
+        
+        const normalizedFiles = filesWithCitationFormat.map((file) =>
+          normalizeCitation(file)
+        );
+        setSearchResults(normalizedFiles);
+        
+        // Update pagination state with better calculation
+        const totalFiles = folderData.data.totalFiles || folderData.data.pagination?.total || normalizedFiles.length;
+        const calculatedTotalPages = Math.ceil(totalFiles / pageSize);
+        
+        setCurrentPage(page);
+        setTotalPages(folderData.data.pagination?.totalPages || calculatedTotalPages);
+        setTotalResults(totalFiles);
+        
+        console.log('Handle Page Change Debug:', {
+          page,
+          totalFiles,
+          pageSize,
+          calculatedTotalPages,
+          apiTotalPages: folderData.data.pagination?.totalPages,
+          finalTotalPages: folderData.data.pagination?.totalPages || calculatedTotalPages
+        });
+      }
+      setFetchPaperLoader(false);
+    } catch (error) {
+      setFetchPaperLoader(false);
+      console.error('Pagination error:', error);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      handlePageChange(currentPage - 1);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      handlePageChange(currentPage + 1);
+    }
+  };
 
   const loadSavedCitations = () => {
     try {
@@ -2287,7 +2412,15 @@ const Home = ({ handleLogout, status, setStatus }) => {
           isSelectedFolder={isSelectedFolder}
           setIsSelectedFolder={setIsSelectedFolder}
           setSearchResults={setSearchResults}    
-          setFetchPaperLoader={setFetchPaperLoader}    
+          setFetchPaperLoader={setFetchPaperLoader}
+          // Pagination props
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalResults={totalResults}
+          pageSize={pageSize}
+          handlePageChange={handlePageChange}
+          handlePreviousPage={handlePreviousPage}
+          handleNextPage={handleNextPage}
         />
 
         <CitationLibrary

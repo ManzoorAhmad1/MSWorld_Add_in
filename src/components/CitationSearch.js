@@ -1,7 +1,7 @@
-import { Loader, Folder, ChevronLeft, Home } from "lucide-react";
+import { Loader, Folder, ChevronLeft, Home, ChevronRight } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { Select, Text, Button } from "rizzui";
-import { getFolders } from "../api/index";
+import TableSkeleton from "./TableSkeleton";
 
 const CitationSearch = ({
   searchResults,
@@ -22,6 +22,14 @@ const CitationSearch = ({
   isSelectedFolder,
   setIsSelectedFolder,
   setFetchPaperLoader,
+  // Pagination props
+  currentPage,
+  totalPages,
+  totalResults,
+  pageSize,
+  handlePageChange,
+  handlePreviousPage,
+  handleNextPage,
 }) => {
   
   // State for folder navigation
@@ -117,71 +125,15 @@ const CitationSearch = ({
     
     setIsSelectedFolder(folder.id);
     
-    try {
-      setFetchPaperLoader(true);
-      const folderData = await getFolders({
-        projectId: selectedProject,
-        folderId: folder.id,
-        pageNo: 1,
-        limit: 10
-      });
-      
-      console.log('Folder API Response:', folderData.data);
-      
-      // Extract files from the response and set them as search results
-      if (folderData.data && folderData.data.files) {
-        const filesWithCitationFormat = folderData.data.files.map(file => ({
-          id: file.id,
-          title: file.fileName,
-          authors: file.pdf_metadata?.Authors || 'Unknown Authors',
-          'container-title': file.pdf_metadata?.JournalName || 'Unknown Journal',
-          issued: file.pdf_metadata?.PublicationYear ? 
-            { 'date-parts': [[parseInt(file.pdf_metadata.PublicationYear)]] } : null,
-          source: 'folder',
-          CitationCount: file.CitationCount || 0,
-          originalFileData: file // Keep original data for reference
-        }));
-        
-        setSearchResults(filesWithCitationFormat);
-        setFetchPaperLoader(false)
-        console.log('Files set as search results:', filesWithCitationFormat);
-      } else {
-        setFetchPaperLoader(false);
-        setSearchResults([]);
-      }
-    } catch (error) {
-      setFetchPaperLoader(false)
-      console.error('Error fetching folder data:', error);
-      setSearchResults([]);
-    }
-  };
-
-  // Navigate back to parent folder
-  const navigateBack = () => {
-    if (navigationPath.length > 0) {
-      const newPath = [...navigationPath];
-      newPath.pop(); // Remove the last folder
-      setNavigationPath(newPath);
-      
-      // Set current parent to the previous folder in path, or null if at root
-      if (newPath.length > 0) {
-        setCurrentParentId(newPath[newPath.length - 1].id);
-      } else {
-        setCurrentParentId(null);
-      }
-    }
+    // Note: API call moved to home.js for centralized data management
+    // The parent component will handle the data fetching based on isSelectedFolder changes
   };
 
   // Navigate to root
   const navigateToRoot = () => {
+    navigateToFolder({ id: null, folder_name: "Root" });
     setNavigationPath([]);
     setCurrentParentId(null);
-  };
-
-  // Get current folder name for breadcrumb
-  const getCurrentFolderName = () => {
-    if (navigationPath.length === 0) return "Root";
-    return navigationPath[navigationPath.length - 1].folder_name;
   };
 
   return (
@@ -267,6 +219,7 @@ const CitationSearch = ({
                     const newPath = navigationPath.slice(0, index + 1);
                     setNavigationPath(newPath);
                     setCurrentParentId(folder.id);
+                    navigateToFolder(folder)
                   }}
                   className="hover:text-blue-600 transition-colors"
                 >
@@ -344,14 +297,7 @@ const CitationSearch = ({
       </Text>
       
       {fetchPaperLoader ? (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-4">
-            <div className="flex items-center gap-2">
-              <Loader className="h-4 w-4 animate-spin text-blue-600" />
-              <Text className="text-sm text-gray-600">Loading citations...</Text>
-            </div>
-          </div>
-        </div>
+        <TableSkeleton rows={5} />
       ) : searchResults.length > 0 ? (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
@@ -409,7 +355,7 @@ const CitationSearch = ({
                     </td>
                     <td className="px-4 py-4 text-center">
                       <div className="flex items-center justify-center">
-                        <span className="bg-gradient-to-r from-green-500 to-teal-600 text-white px-3 py-1 rounded-full text-sm font-semibold shadow-md">
+                        <span className="px-3 text-sm font-semibold">
                           {result.CitationCount || 0}
                         </span>
                       </div>
@@ -438,6 +384,103 @@ const CitationSearch = ({
               </tbody>
             </table>
           </div>
+          
+          {/* Modern Pagination Design */}
+          {searchResults.length > 0 && (
+            <div className="flex items-center justify-between px-6 py-4 bg-white border-t border-gray-200">
+    
+
+              {/* Center - Results info */}
+              <div className="text-sm text-gray-600">
+                {((currentPage - 1) * (pageSize || 10)) + 1}-{Math.min(currentPage * (pageSize || 10), totalResults)} of {totalResults}
+              </div>
+
+              {/* Right side - Navigation */}
+              <div className="flex items-center gap-1">
+                <Button
+                  onClick={handlePreviousPage}
+                  disabled={currentPage === 1}
+                  size="sm"
+                  className="p-2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 border border-gray-300"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                
+                {/* Page numbers with smart pagination */}
+                {totalPages > 1 && (() => {
+                  const pages = [];
+                  const maxVisiblePages = 7; // Maximum pages to show
+                  
+                  if (totalPages <= maxVisiblePages) {
+                    // Show all pages if total is small
+                    for (let i = 1; i <= totalPages; i++) {
+                      pages.push(i);
+                    }
+                  } else {
+                    // Smart pagination for many pages
+                    if (currentPage <= 4) {
+                      // Near beginning: 1 2 3 4 5 ... Last
+                      for (let i = 1; i <= 5; i++) {
+                        pages.push(i);
+                      }
+                      pages.push('...');
+                      pages.push(totalPages);
+                    } else if (currentPage >= totalPages - 3) {
+                      // Near end: 1 ... 46 47 48 49 50
+                      pages.push(1);
+                      pages.push('...');
+                      for (let i = totalPages - 4; i <= totalPages; i++) {
+                        pages.push(i);
+                      }
+                    } else {
+                      // Middle: 1 ... 23 24 25 ... 50
+                      pages.push(1);
+                      pages.push('...');
+                      for (let i = currentPage - 1; i <= currentPage + 1; i++) {
+                        pages.push(i);
+                      }
+                      pages.push('...');
+                      pages.push(totalPages);
+                    }
+                  }
+                  
+                  return pages.map((page, index) => {
+                    if (page === '...') {
+                      return (
+                        <span key={`ellipsis-${index}`} className="px-2 py-1 text-gray-400">
+                          ...
+                        </span>
+                      );
+                    }
+                    
+                    return (
+                      <Button
+                        key={page}
+                        onClick={() => handlePageChange(page)}
+                        size="sm"
+                        className={`min-w-[32px] h-8 text-sm border ${
+                          page === currentPage
+                            ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </Button>
+                    );
+                  });
+                })()}
+                
+                <Button
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages}
+                  size="sm"
+                  className="p-2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 border border-gray-300"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div className="text-center py-8 text-gray-500 bg-white rounded-lg shadow-sm border border-gray-200">
