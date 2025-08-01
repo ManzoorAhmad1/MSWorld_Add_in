@@ -97,6 +97,10 @@ const Home = ({ handleLogout, status, setStatus }) => {
           family: author.family || "Author",
         }));
       } else if (typeof pdfAuthors === "string") {
+        return{
+          given: pdfAuthors,
+          family: pdfAuthors,
+        }
         // Parse author string like "Hengshuang Zhao, Jianping Shi, Xiaojuan Qi, Xiaogang Wang, Jiaya Jia"
         const authorNames = pdfAuthors.split(",").map((name) => name.trim());
         authors = authorNames.map((name) => {
