@@ -5,6 +5,7 @@ import "./index.css";
 import LoginPage from "./LoginPage";
 import LoginPopup from "./LoginPopup";
 import Home from "./components/home";
+import AppProviders from "./config/providers";
 
 function App() {
   const [showLoginPopup, setShowLoginPopup] = React.useState(false);
@@ -69,15 +70,17 @@ function App() {
     }
   };
   return (
-    <div className="font-inter">
-      {showLoginPopup  ? (
-        <LoginPopup setShowLoginPopup={setShowLoginPopup}/>
-      ) : token ? (
-        <Home handleLogout={handleLogout} setStatus={setStatus} status={status}/>
-      ) : (
-        <LoginPage setShowLoginPopup={setShowLoginPopup} />
-      )}
-    </div>
+    <AppProviders>
+      <div className="font-inter">
+        {showLoginPopup  ? (
+          <LoginPopup setShowLoginPopup={setShowLoginPopup}/>
+        ) : token ? (
+          <Home handleLogout={handleLogout} setStatus={setStatus} status={status}/>
+        ) : (
+          <LoginPage setShowLoginPopup={setShowLoginPopup} />
+        )}
+      </div>
+    </AppProviders>
   );
 }
 

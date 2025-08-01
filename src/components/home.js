@@ -14,9 +14,9 @@ import scienceStyle from "../csl-styles/science.csl";
 import chicagoStyle from "../csl-styles/chicago-author-date.csl";
 import enLocale from "../csl-styles/localesen-US.xml";
 import React, { useState, useEffect, useRef } from "react";
-import { fetchUserFilesDocs } from "../api";
+import { fetchUserFilesDocs, getFolder, getWorkspaces } from "../api";
 
-const Home = ({ handleLogout,status,setStatus }) => {
+const Home = ({ handleLogout, status, setStatus }) => {
   // Fallback CSL styles (minimal working styles)
   const fallbackAPA = `<?xml version="1.0" encoding="utf-8"?>
 <style xmlns="http://purl.org/net/xbiblio/csl" class="in-text" version="1.0">
@@ -1234,22 +1234,68 @@ const Home = ({ handleLogout,status,setStatus }) => {
   const [bibliography, setBibliography] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
-  const [fetchPaperLoader,setFetchPaperLoader] = useState(false);
+  const [fetchPaperLoader, setFetchPaperLoader] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [citationFormat, setCitationFormat] = useState("in-text");
   const [bibliographyTitle, setBibliographyTitle] = useState("References");
   const [recentCitations, setRecentCitations] = useState([]);
+  const [userWorkSpaces, setUserWorkSpaces] = useState({});
+  const [selectedWorkSpace, setSelectedWorkSpace] = useState(null);
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [isWorkSpaceLoading, setIsWorkSpaceLoading] = useState(false);
+  const [fetchFolder, setFetchFolder] = useState([]);
+  const [isFolderLoading, setIsFolderLoading] = useState(false);
+  const [isSelectedFolder, setIsSelectedFolder] = useState(false);
 
   // Fetch user files on component mount
-  React.useEffect(() => {
+  useEffect(() => {
+    const fetchUserWorkSpaces = async () => {
+      try {
+        setIsWorkSpaceLoading(true);
+        const response = await getWorkspaces();
+        const workspaces = response.data || [];
+        setUserWorkSpaces(workspaces);
+        setIsWorkSpaceLoading(false);
+      } catch (error) {
+        setIsWorkSpaceLoading(false);
+        console.error("Error fetching workspaces:", error);
+      }
+    };
+    fetchUserWorkSpaces();
+  }, []);
+
+  useEffect(() => {
+    const fetchFolders = async () => {
+      try {
+        setIsFolderLoading(true);
+        const response = await getFolder();
+        const folder = response.data || [];
+        setFetchFolder(folder);
+        setIsFolderLoading(false);
+      } catch (error) {
+        setIsFolderLoading(false);
+        console.error("Error fetching folders:", error);
+      }
+
+    };
+    fetchFolders();
+  }, []);
+  
+  useEffect(() => {
     const fetchFiles = async () => {
       try {
+        // Only fetch files if a project is selected
+        if (!selectedProject) {
+          setSearchResults([]);
+          return;
+        }
+
         setFetchPaperLoader(true);
-        const response = await fetchUserFilesDocs();
-        if (response?.data) {
+        const response = await fetchUserFilesDocs(selectedProject);
+        if (response?.files) {
           // Normalize the fetched data
           setFetchPaperLoader(false);
-          const normalizedFiles = response.data.map((file) =>
+          const normalizedFiles = response.files.map((file) =>
             normalizeCitation(file)
           );
           setSearchResults(normalizedFiles);
@@ -1260,7 +1306,7 @@ const Home = ({ handleLogout,status,setStatus }) => {
       }
     };
     fetchFiles();
-  }, []);
+  }, [selectedProject]);
 
   useEffect(() => {
     const urlToken = getTokenFromUrl();
@@ -1533,14 +1579,14 @@ const Home = ({ handleLogout,status,setStatus }) => {
     try {
       const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
       console.log("📚 Final bibliography for insertion:", bibRaw);
-      
+
       const styleFont = getCitationStyleFont(citationStyle);
       console.log("🎨 Style font config:", styleFont);
-      
+
       await Word.run(async (context) => {
         const body = context.document.body;
         body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
-          console.log(Word.InsertLocation.end,'Word.InsertLocation.end')
+        console.log(Word.InsertLocation.end, "Word.InsertLocation.end");
         // Insert bibliography title
         const title = body.insertParagraph(
           bibliographyTitle,
@@ -1552,17 +1598,17 @@ const Home = ({ handleLogout,status,setStatus }) => {
         title.font.name = styleFont.family;
 
         // ULTRA-SIMPLIFIED: Process each bibliography entry individually to prevent duplication
-        const bibEntries = bibRaw.split("\n").filter(entry => entry.trim());
+        const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
         console.log(`📋 Processing ${bibEntries.length} bibliography entries`);
         console.log(`📝 Raw bibliography content: ${bibRaw}`);
-        
+
         for (let i = 0; i < bibEntries.length; i++) {
           const entry = bibEntries[i].trim();
           if (!entry) continue;
-          
+
           console.log(`� Processing entry ${i + 1}:`);
           console.log(`   Original: ${entry}`);
-          
+
           // Create paragraph for each entry
           const para = body.insertParagraph("", Word.InsertLocation.end);
           para.font.name = styleFont.family;
@@ -1584,71 +1630,88 @@ const Home = ({ handleLogout,status,setStatus }) => {
               await context.sync();
             });
           }
-          
+
           console.log(`✅ Entry ${i + 1} processed successfully`);
         }
 
         await context.sync();
         console.log("✅ Bibliography successfully inserted into Word document");
       });
-      
+
       setBibliography(bibRaw);
       setStatus(
-        `✅ Bibliography inserted: ${used.length} citation${used.length !== 1 ? 's' : ''} in ${citationStyle.toUpperCase()} style`
+        `✅ Bibliography inserted: ${used.length} citation${
+          used.length !== 1 ? "s" : ""
+        } in ${citationStyle.toUpperCase()} style`
       );
     } catch (e) {
       console.error("❌ Bibliography generation failed:", e);
-      setStatus(`❌ Bibliography error: ${e.message || 'Unknown error'}`);
+      setStatus(`❌ Bibliography error: ${e.message || "Unknown error"}`);
     }
   };
 
   // COMPLETELY REWRITTEN: Simplified text formatting to prevent duplication
   const parseAndFormatText = async (paragraph, text, citationStyle) => {
     try {
-      console.log(`🎨 Formatting text with potential special characters: ${text.substring(0, 100)}...`);
-      
+      console.log(
+        `🎨 Formatting text with potential special characters: ${text.substring(
+          0,
+          100
+        )}...`
+      );
+
       const styleFont = getCitationStyleFont(citationStyle);
       let processedText = text;
       let parts = [];
-      
+
       // Split text by asterisks to handle italics properly
       const asteriskParts = processedText.split(/(\*[^*]+\*)/);
-      
+
       for (let i = 0; i < asteriskParts.length; i++) {
         const part = asteriskParts[i];
         if (!part) continue;
-        
-        if (part.startsWith('*') && part.endsWith('*')) {
+
+        if (part.startsWith("*") && part.endsWith("*")) {
           // This is italic text - remove asterisks and mark as italic
           const italicText = part.slice(1, -1);
           if (italicText.trim()) {
-            parts.push({ text: italicText, type: 'italic' });
+            parts.push({ text: italicText, type: "italic" });
           }
         } else {
           // This is regular text
           if (part.trim()) {
-            parts.push({ text: part, type: 'normal' });
+            parts.push({ text: part, type: "normal" });
           }
         }
       }
-      
+
       console.log(`📝 Text split into ${parts.length} parts for formatting`);
-      
+
       // Insert each part with appropriate formatting
       for (const part of parts) {
-        if (part.type === 'italic') {
-          console.log(`✨ Adding italic text: ${part.text.substring(0, 30)}...`);
+        if (part.type === "italic") {
+          console.log(
+            `✨ Adding italic text: ${part.text.substring(0, 30)}...`
+          );
           await Word.run(async (context) => {
-            const range = paragraph.insertText(part.text, Word.InsertLocation.end);
+            const range = paragraph.insertText(
+              part.text,
+              Word.InsertLocation.end
+            );
             range.font.name = styleFont.family;
             range.font.size = styleFont.size;
             range.font.italic = true;
             await context.sync();
           });
         } else {
-          console.log(`📄 Adding normal text: ${part.text.substring(0, 30)}...`);
+          console.log(
+            `📄 Adding normal text: ${part.text.substring(0, 30)}...`
+          );
           await Word.run(async (context) => {
-            const range = paragraph.insertText(part.text, Word.InsertLocation.end);
+            const range = paragraph.insertText(
+              part.text,
+              Word.InsertLocation.end
+            );
             range.font.name = styleFont.family;
             range.font.size = styleFont.size;
             range.font.italic = false;
@@ -1656,16 +1719,18 @@ const Home = ({ handleLogout,status,setStatus }) => {
           });
         }
       }
-      
+
       console.log(`✅ Successfully formatted text with ${parts.length} parts`);
-      
     } catch (error) {
       console.error("❌ Text formatting error:", error);
       // Ultimate fallback: insert plain text without any formatting
       try {
-        const plainText = text.replace(/\*([^*]+)\*/g, '$1'); // Remove asterisks
+        const plainText = text.replace(/\*([^*]+)\*/g, "$1"); // Remove asterisks
         await Word.run(async (context) => {
-          const range = paragraph.insertText(plainText, Word.InsertLocation.end);
+          const range = paragraph.insertText(
+            plainText,
+            Word.InsertLocation.end
+          );
           const styleFont = getCitationStyleFont(citationStyle);
           range.font.name = styleFont.family;
           range.font.size = styleFont.size;
@@ -2211,6 +2276,16 @@ const Home = ({ handleLogout,status,setStatus }) => {
           getCitationTitle={getCitationTitle}
           getCitationAuthors={getCitationAuthors}
           citations={citations}
+          userWorkSpaces={userWorkSpaces}
+          isWorkSpaceLoading={isWorkSpaceLoading}
+          setSelectedProject={setSelectedProject}
+          selectedProject={selectedProject}
+          setSelectedWorkSpace={setSelectedWorkSpace}
+          selectedWorkSpace={selectedWorkSpace}
+          isFolderLoading={isFolderLoading}
+          fetchFolder={fetchFolder}
+          isSelectedFolder={isSelectedFolder}
+          setIsSelectedFolder={setIsSelectedFolder}
         />
 
         <CitationLibrary

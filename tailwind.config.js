@@ -2,7 +2,9 @@
 module.exports = {
   content: [
     "./src/**/*.{js,jsx,ts,tsx}",
-    "./public/index.html"
+    "./public/index.html",
+    // Include Rizzui components
+    "./node_modules/rizzui/dist/**/*.{js,mjs}"
   ],
   theme: {
     extend: {
