@@ -23,8 +23,8 @@ export const getFolder = async () => {
 
 
 export const getFolders = async (data) => {
-  const response = await axiosInstancePrivate.get(
-    `/files/user-files/${data?.projectId}?pageNo=${
+  const response = await privateRequest.get(
+    `/api/v1/files/user-files/${data?.projectId}?pageNo=${
       data?.pageNo ? (data?.pageNo === -1 ? 1 : data?.pageNo) : ""
     }&limit=${data?.limit ? data?.limit : ""}&search=${
       data?.search ? encodeURIComponent(data?.search.toString()) : ""

@@ -2286,6 +2286,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
           fetchFolder={fetchFolder}
           isSelectedFolder={isSelectedFolder}
           setIsSelectedFolder={setIsSelectedFolder}
+          setSearchResults={setSearchResults}    
+          setFetchPaperLoader={setFetchPaperLoader}    
         />
 
         <CitationLibrary

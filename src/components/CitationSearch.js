@@ -1,9 +1,11 @@
 import { Loader, Folder, ChevronLeft, Home } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { Select, Text, Button } from "rizzui";
+import { getFolders } from "../api/index";
 
 const CitationSearch = ({
   searchResults,
+  setSearchResults,
   addCitationToLibrary,
   getCitationTitle,
   getCitationAuthors,
@@ -18,7 +20,8 @@ const CitationSearch = ({
   isFolderLoading,
   fetchFolder,
   isSelectedFolder,
-  setIsSelectedFolder
+  setIsSelectedFolder,
+  setFetchPaperLoader,
 }) => {
   
   // State for folder navigation
@@ -100,7 +103,7 @@ const CitationSearch = ({
   };
 
   // Navigate into a folder (show its children)
-  const navigateToFolder = (folder) => {
+  const navigateToFolder = async (folder) => {
     // Check if this folder has children in the current project
     const hasChildren = fetchFolder.some(f => 
       f.parent_id === folder.id && 
@@ -108,13 +111,49 @@ const CitationSearch = ({
     );
     
     if (hasChildren) {
-      // Add current folder to navigation path
       setNavigationPath(prev => [...prev, folder]);
       setCurrentParentId(folder.id);
     }
     
-    // Always select the folder regardless of whether it has children
     setIsSelectedFolder(folder.id);
+    
+    try {
+      setFetchPaperLoader(true);
+      const folderData = await getFolders({
+        projectId: selectedProject,
+        folderId: folder.id,
+        pageNo: 1,
+        limit: 10
+      });
+      
+      console.log('Folder API Response:', folderData.data);
+      
+      // Extract files from the response and set them as search results
+      if (folderData.data && folderData.data.files) {
+        const filesWithCitationFormat = folderData.data.files.map(file => ({
+          id: file.id,
+          title: file.fileName,
+          authors: file.pdf_metadata?.Authors || 'Unknown Authors',
+          'container-title': file.pdf_metadata?.JournalName || 'Unknown Journal',
+          issued: file.pdf_metadata?.PublicationYear ? 
+            { 'date-parts': [[parseInt(file.pdf_metadata.PublicationYear)]] } : null,
+          source: 'folder',
+          CitationCount: file.CitationCount || 0,
+          originalFileData: file // Keep original data for reference
+        }));
+        
+        setSearchResults(filesWithCitationFormat);
+        setFetchPaperLoader(false)
+        console.log('Files set as search results:', filesWithCitationFormat);
+      } else {
+        setFetchPaperLoader(false);
+        setSearchResults([]);
+      }
+    } catch (error) {
+      setFetchPaperLoader(false)
+      console.error('Error fetching folder data:', error);
+      setSearchResults([]);
+    }
   };
 
   // Navigate back to parent folder
@@ -329,6 +368,9 @@ const CitationSearch = ({
                     Source
                   </th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Citations
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Action
                   </th>
                 </tr>
@@ -364,6 +406,13 @@ const CitationSearch = ({
                       <Text className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium inline-block">
                         {result.source || "database"}
                       </Text>
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      <div className="flex items-center justify-center">
+                        <span className="bg-gradient-to-r from-green-500 to-teal-600 text-white px-3 py-1 rounded-full text-sm font-semibold shadow-md">
+                          {result.CitationCount || 0}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-4 py-4 text-center">
                       {isCitationInLibrary(result.id) ? (
