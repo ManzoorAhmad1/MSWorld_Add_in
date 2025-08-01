@@ -83,7 +83,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
   // Enhanced normalizeCitation function to handle PDF metadata properly
   const normalizeCitation = (raw) => {
     if (!raw) return null;
-
+    console.log(raw, "raw citation data");
     // Handle authors from different sources
     let authors = [];
 
@@ -353,6 +353,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
   // Enhanced fallback formatting function with proper academic citation styles
   const formatCitationFallback = (citation, format = "in-text") => {
     try {
+      console.log(citation,'citation')
       const normalized = normalizeCitation(citation);
       if (!normalized) return "[Invalid Citation]";
 
