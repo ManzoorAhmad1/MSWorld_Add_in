@@ -89,7 +89,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
     // Check pdf_metadata first, then pdf_search_data, then direct author field
     const pdfAuthors =
       raw.authors ;
- console.log(pdfAuthors,raw,'raw')
+
     if (pdfAuthors) {
       if (Array.isArray(pdfAuthors) && pdfAuthors.length > 0) {
         authors = pdfAuthors.map((author) => ({
@@ -97,10 +97,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
           family: author.family || "Author",
         }));
       } else if (typeof pdfAuthors === "string") {
-        return{
-          given: pdfAuthors,
-          family: pdfAuthors,
-        }
         // Parse author string like "Hengshuang Zhao, Jianping Shi, Xiaojuan Qi, Xiaogang Wang, Jiaya Jia"
         const authorNames = pdfAuthors.split(",").map((name) => name.trim());
         authors = authorNames.map((name) => {
@@ -338,7 +334,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
   const formatCitationFallback = (citation, format = "in-text") => {
     try {
       const normalized = normalizeCitation(citation);
-      console.log(normalized,'normalized citation');
       if (!normalized) return "[Invalid Citation]";
 
       const authors = normalized.author || [
@@ -704,7 +699,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
         return "";
       }
 
-      // PRE-PROCESS citations to prevent duplicates BEFORE CSL processing
+  
       const preprocessedCitations = normalizedCitations.map((citation) => {
         if (!citation.title) return citation;
 
@@ -2104,7 +2099,11 @@ const Home = ({ handleLogout, status, setStatus }) => {
       "mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1mentioned, N. (2023). Substitute Combine Adapt Modify Rearrange Eliminate. Sustainability Strategies, 1(1). https://ihgjcrfmdpdjvnoqknoh.supabase.co/storage/v1/object/public/explorerFiles/uploads/148/Creative-Thinking%20(1).pdf",
     ];
 
+
+
     problematicTexts.forEach((text, index) => {
+   
+
       // Use the actual cleanEntry function from formatBibliographyCiteproc
       const cleanEntry = (html) => {
         // Replace <i>...</i> with *...*
@@ -2169,6 +2168,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
       };
 
       const cleaned = cleanEntry(text);
+    
     });
 
     setStatus(
