@@ -89,7 +89,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
     // Check pdf_metadata first, then pdf_search_data, then direct author field
     const pdfAuthors =
       raw.authors ;
-
+ console.log(pdfAuthors,raw,'raw')
     if (pdfAuthors) {
       if (Array.isArray(pdfAuthors) && pdfAuthors.length > 0) {
         authors = pdfAuthors.map((author) => ({
@@ -334,6 +334,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
   const formatCitationFallback = (citation, format = "in-text") => {
     try {
       const normalized = normalizeCitation(citation);
+      console.log(normalized,'normalized citation');
       if (!normalized) return "[Invalid Citation]";
 
       const authors = normalized.author || [
