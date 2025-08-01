@@ -1,4 +1,6 @@
 import React from "react";
+import { Text, Button } from "rizzui";
+import { FileText, Trash2, Lock } from "lucide-react";
 
 const CitationLibrary = ({
   citations,
@@ -12,9 +14,6 @@ const CitationLibrary = ({
   isOfficeReady,
   formatCitationPreview,
 }) => {
-  const usedCitations = citations.filter((c) => c.used);
-  const unusedCitations = citations.filter((c) => !c.used);
-
   return (
     <div className="">
       <h2 className="text-xl font-semibold text-gray-900 flex items-center my-2">
@@ -42,117 +41,114 @@ const CitationLibrary = ({
           </p>
         </div>
       ) : (
-        <div className="grid gap-4">
-          {citations.map((citation) => (
-            <div
-              key={citation.id}
-              className={`bg-white border rounded-lg p-6 shadow-sm transition-all ${
-                citation.used
-                  ? "opacity-70 bg-gradient-to-r from-green-50 to-emerald-50 border-green-200"
-                  : "hover:shadow-md border-gray-200"
-              }`}
-            >
-              <div className="flex justify-between items-start mb-3">
-                <h4 className="text-lg font-semibold text-gray-900 leading-tight flex-1 mr-4">
-                  {getCitationTitle(citation)}
-                </h4>
-                <div className="flex-shrink-0">
-                  {citation.used ? (
-                    <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-medium">
-                      ✓ Used{" "}
-                      {citation.inTextCitations
-                        ? `(${citation.inTextCitations.length}x)`
-                        : ""}
-                    </span>
-                  ) : (
-                    <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-medium">
-                      ○ Unused
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <div className="text-sm text-gray-700 mb-2">
-                <strong className="font-medium">Authors:</strong>{" "}
-                <span className="text-gray-600">
-                  {getCitationAuthors(citation)}
-                </span>
-              </div>
-
-              {citation["container-title"] && (
-                <div className="text-sm text-gray-700 mb-2">
-                  <strong className="font-medium">Journal:</strong>{" "}
-                  <span className="text-gray-600">
-                    {citation["container-title"]}
-                  </span>
-                </div>
-              )}
-
-              {citation.issued?.["date-parts"]?.[0]?.[0] && (
-                <div className="text-sm text-gray-700 mb-2">
-                  <strong className="font-medium">Year:</strong>{" "}
-                  <span className="text-gray-600">
-                    {citation.issued["date-parts"][0][0]}
-                  </span>
-                </div>
-              )}
-
-              {citation.DOI && (
-                <div className="text-sm text-gray-700 mb-3">
-                  <strong className="font-medium">DOI:</strong>
-                  <a
-                    href={`https://doi.org/${citation.DOI}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-700 ml-1 underline"
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Title & Authors
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Journal & Year
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Citations
+                  </th>
+                  
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {citations.map((citation) => (
+                  <tr
+                    key={citation.id}
+                    className={`transition-colors ${
+                      citation.used
+                        ? "bg-green-50 hover:bg-green-100"
+                        : "hover:bg-gray-50"
+                    }`}
                   >
-                    {citation.DOI}
-                  </a>
-                </div>
-              )}
-
-              <div className="bg-gray-50 rounded-md p-3 mb-4">
-                <small className="text-gray-600 text-sm leading-relaxed">
-                  {formatCitationPreview(citation)}
-                </small>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <button
-                  onClick={() => insertCitation(citation)}
-                  disabled={!isOfficeReady || citation.used}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center ${
-                    citation.used
-                      ? "bg-gray-100 text-gray-500 cursor-not-allowed"
-                      : "bg-blue-600 hover:bg-blue-700 text-white"
-                  }`}
-                  title={
-                    citation.used
-                      ? "Already inserted in document"
-                      : "Insert citation into document"
-                  }
-                >
-                  {citation.used ? <>🔒 Inserted</> : <>📝 Insert</>}
-                </button>
-                <button
-                  onClick={() => removeCitationFromLibrary(citation.id)}
-                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center"
-                  title="Remove from library"
-                >
-                  <span className="mr-1">×</span>
-                  <span>Remove</span>
-                </button>
-              </div>
-
-              {citation.used && citation.inTextCitations && (
-                <div className="mt-3 pt-3 border-t border-gray-200">
-                  <small className="text-gray-600">
-                    Used {citation.inTextCitations.length} time(s)
-                  </small>
-                </div>
-              )}
-            </div>
-          ))}
+                    <td className="px-4 py-4">
+                      <div className="space-y-1">
+                        <div className="font-semibold text-gray-900 text-sm leading-tight">
+                          {getCitationTitle(citation)}
+                        </div>
+                        <Text className="text-xs text-gray-600">
+                          <strong>Authors:</strong> {citation?.authors}
+                        </Text>
+                     
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="space-y-1">
+                        {citation["container-title"] && (
+                          <div className="text-sm text-gray-900">
+                            {citation["container-title"]}
+                          </div>
+                        )}
+                        {citation.issued?.["date-parts"]?.[0]?.[0] && (
+                          <div className="text-xs text-gray-600">
+                            Year: {citation.issued["date-parts"][0][0]}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      {citation.CitationCount ? (
+                        <Text>
+                          {citation.CitationCount}
+                      </Text>
+                      ) : (
+                        <span className="text-gray-400 text-xs">No Citation</span>
+                      )}
+                    </td>
+                   
+                    <td className="px-4 py-4 text-center">
+                      <div className="flex items-center justify-center space-x-2">
+                        <button
+                          onClick={() => insertCitation(citation)}
+                          disabled={!isOfficeReady || citation.used}
+                          className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 ${
+                            citation.used
+                              ? "bg-gray-100 text-gray-500 cursor-not-allowed"
+                              : "bg-blue-600 hover:bg-blue-700 text-white"
+                          }`}
+                          title={
+                            citation.used
+                              ? "Already inserted in document"
+                              : "Insert citation into document"
+                          }
+                        >
+                          {citation.used ? (
+                            <>
+                              <Lock className="h-3 w-3" />
+                              Inserted
+                            </>
+                          ) : (
+                            <>
+                              <FileText className="h-3 w-3" />
+                              Insert
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => removeCitationFromLibrary(citation.id)}
+                          className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-lg text-xs font-medium transition-colors flex items-center gap-1"
+                          title="Remove from library"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          Remove
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

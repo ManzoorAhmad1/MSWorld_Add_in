@@ -1333,17 +1333,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
           
           setCurrentPage(page);
           setTotalPages(folderData.data.pagination?.totalPages || calculatedTotalPages);
-          setTotalResults(totalFiles);
-          
-          console.log('Pagination Debug:', {
-            totalFiles,
-            pageSize,
-            calculatedTotalPages,
-            apiTotalPages: folderData.data.pagination?.totalPages,
-            finalTotalPages: folderData.data.pagination?.totalPages || calculatedTotalPages,
-            currentPage: page
-          });
-          
+          setTotalResults(totalFiles);          
           setFetchPaperLoader(false);
         } else {
           setFetchPaperLoader(false);
