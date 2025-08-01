@@ -37,6 +37,16 @@
     "rizzui": "^1.0.1",
     "util": "^0.12.5"
   },
+  "overrides": {
+    "rizzui": {
+      "react": "$react",
+      "react-dom": "$react-dom"
+    }
+  },
+  "resolutions": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
   "devDependencies": {
     "@babel/core": "^7.22.0",
     "@babel/preset-env": "^7.22.0",

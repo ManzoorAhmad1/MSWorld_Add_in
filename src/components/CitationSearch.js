@@ -1,6 +1,6 @@
 import { Loader, Folder, ChevronLeft, Home, ChevronRight } from "lucide-react";
 import React, { useEffect, useState } from "react";
-import { Select, Text, Button } from "rizzui";
+import { Text, Button } from "rizzui";
 import TableSkeleton from "./TableSkeleton";
 
 const CitationSearch = ({
@@ -155,14 +155,18 @@ const CitationSearch = ({
               <Text className="text-sm text-gray-600">Loading workspaces...</Text>
             </div>
           ) : (
-            <Select
-              placeholder="Select a workspace..."
-              options={workspaceOptions}
-              value={workspaceOptions.find(option => option.value === selectedWorkSpace)}
-              onChange={(selectedOption) => handleWorkspaceChange(selectedOption?.value)}
-              className="w-full bg-white border border-blue-200 rounded-lg"
-              dropdownClassName="bg-white border border-gray-200 shadow-lg rounded-lg"
-            />
+            <select
+              value={selectedWorkSpace || ''}
+              onChange={(e) => handleWorkspaceChange(e.target.value)}
+              className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Select a workspace...</option>
+              {workspaceOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           )}
         </div>
 
@@ -171,15 +175,19 @@ const CitationSearch = ({
           <Text className="text-sm font-medium text-blue-900 mb-2">
             Select Project:
           </Text>
-          <Select
-            placeholder="Select a project..."
-            options={projectOptions}
-            value={projectOptions.find(option => option.value === selectedProject)}
-            onChange={(selectedOption) => handleProjectChange(selectedOption?.value)}
+          <select
+            value={selectedProject || ''}
+            onChange={(e) => handleProjectChange(e.target.value)}
             disabled={!selectedWorkSpace || projectOptions.length === 0}
-            className="w-full bg-white border border-blue-200 rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
-            dropdownClassName="bg-white border border-gray-200 shadow-lg rounded-lg"
-          />
+            className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
+          >
+            <option value="">Select a project...</option>
+            {projectOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
           {selectedWorkSpace && getAvailableProjects().length === 0 && (
             <Text className="text-xs text-gray-500 mt-1">No projects available in selected workspace</Text>
           )}
@@ -388,8 +396,6 @@ const CitationSearch = ({
           {/* Modern Pagination Design */}
           {searchResults.length > 0 && (
             <div className="flex items-center justify-between px-6 py-4 bg-white border-t border-gray-200">
-    
-
               {/* Center - Results info */}
               <div className="text-sm text-gray-600">
                 {((currentPage - 1) * (pageSize || 10)) + 1}-{Math.min(currentPage * (pageSize || 10), totalResults)} of {totalResults}
