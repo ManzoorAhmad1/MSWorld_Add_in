@@ -407,6 +407,9 @@ const Home = ({ handleLogout, status, setStatus }) => {
             case "mla":
               authorList = `${lastName}, ${firstName}`;
               break;
+            case "ieee":
+              authorList = `${firstInitial} ${lastName}`;
+              break;
             default:
               authorList = `${lastName}, ${firstInitial}`;
           }
@@ -432,6 +435,9 @@ const Home = ({ handleLogout, status, setStatus }) => {
                 break;
               case "mla":
                 authorList = `${firstLastName}, ${firstFirstName}, and ${secondFirstName} ${secondLastName}`;
+                break;
+              case "ieee":
+                authorList = `${firstInitial} ${firstLastName} and ${secondInitial} ${secondLastName}`;
                 break;
               default:
                 authorList = `${firstLastName}, ${firstInitial}, & ${secondLastName}, ${secondInitial}`;
@@ -459,6 +465,9 @@ const Home = ({ handleLogout, status, setStatus }) => {
                   // More than 20 authors - use et al.
                   authorList = `${firstLastName}, ${firstInitial}, et al.`;
                 }
+                break;
+              case "ieee":
+                authorList = `${firstInitial} ${firstLastName} et al.`;
                 break;
               case "mla":
                 authorList = `${firstLastName}, ${firstFirstName}, et al.`;
