@@ -100,8 +100,25 @@ const Home = ({ handleLogout, status, setStatus }) => {
         }));
       } else if (typeof pdfAuthors === "string") {
         // Parse author string like "Hengshuang Zhao, Jianping Shi, Xiaojuan Qi, Xiaogang Wang, Jiaya Jia"
-        const authorNames = pdfAuthors.split(",").map((name) => name.trim());
+        // Handle complex patterns and clean up malformed author entries
+        let cleanedAuthors = pdfAuthors
+          .replace(/\s+and\s+/gi, ", ") // Replace "and" with comma
+          .replace(/\s*&\s*/g, ", ") // Replace & with comma
+          .replace(/\s*;\s*/g, ", ") // Replace semicolon with comma
+          .replace(/,\s*,/g, ",") // Remove double commas
+          .trim();
+        
+        const authorNames = cleanedAuthors.split(",").map((name) => name.trim()).filter(name => name.length > 0);
+        
         authors = authorNames.map((name) => {
+          // Clean up common parsing issues
+          name = name.replace(/\s+/g, " ").trim();
+          
+          // Skip if name is too short or contains weird patterns
+          if (name.length < 2 || /^\W+$/.test(name)) {
+            return null;
+          }
+          
           const nameParts = name.split(" ");
           if (nameParts.length >= 2) {
             return {
@@ -114,7 +131,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
               family: "Author",
             };
           }
-        });
+        }).filter(author => author !== null); // Remove null entries
       }
     }
 
@@ -420,10 +437,28 @@ const Home = ({ handleLogout, status, setStatus }) => {
                 authorList = `${firstLastName}, ${firstInitial}, & ${secondLastName}, ${secondInitial}`;
             }
           } else {
-            // 3 or more authors
+            // 3 or more authors - APA has specific rules
             switch (citationStyle) {
               case "apa":
-                authorList = `${firstLastName}, ${firstInitial}, et al.`;
+                // APA 7th edition: List all authors up to 20 in reference list
+                if (authors.length <= 20) {
+                  const allAuthors = authors.map(author => {
+                    const lastName = author.family || "Unknown";
+                    const firstName = author.given || "";
+                    const firstInitial = firstName ? firstName.charAt(0) + "." : "";
+                    return `${lastName}, ${firstInitial}`;
+                  });
+                  // Join with commas, and use & before last author
+                  if (allAuthors.length > 1) {
+                    const lastAuthor = allAuthors.pop();
+                    authorList = allAuthors.join(", ") + ", & " + lastAuthor;
+                  } else {
+                    authorList = allAuthors[0];
+                  }
+                } else {
+                  // More than 20 authors - use et al.
+                  authorList = `${firstLastName}, ${firstInitial}, et al.`;
+                }
                 break;
               case "mla":
                 authorList = `${firstLastName}, ${firstFirstName}, et al.`;
@@ -446,8 +481,11 @@ const Home = ({ handleLogout, status, setStatus }) => {
                 if (issue) apaResult += `(${issue})`;
               }
               if (pages) apaResult += `, ${pages}`;
+              apaResult += ".";
+            } else {
+              // No journal, just add period after title
+              if (!apaResult.endsWith(".")) apaResult += ".";
             }
-            apaResult += ".";
             if (doi) {
               apaResult += ` https://doi.org/${doi}`;
             } else if (url) {
