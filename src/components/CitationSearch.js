@@ -468,34 +468,6 @@ const CitationSearch = ({
               <span className="text-sm text-gray-500">({searchResults.length})</span>
             )}
           </Text>
-          
-          {/* Sync Button with helpful info */}
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-500 hidden md:inline">
-              Auto-syncs every 10s
-            </span>
-            <button
-              onClick={handleSyncCitations}
-              disabled={isSyncing}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                isSyncing
-                  ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                  : 'bg-blue-100 hover:bg-blue-200 text-blue-700'
-              }`}
-              title="Sync with Word document to detect manually removed citations"
-            >
-              {isSyncing ? (
-                <>
-                  <Loader className="h-4 w-4 animate-spin" />
-                  Syncing...
-                </>
-              ) : (
-                <>
-                  🔄 Sync Now
-                </>
-              )}
-            </button>
-          </div>
         </div>
 
         {fetchPaperLoader ? (

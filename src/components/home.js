@@ -1383,6 +1383,31 @@ const Home = ({ handleLogout, status, setStatus }) => {
     };
   }, [isOfficeReady, citations]);
 
+  // Auto-update bibliography when citation style changes
+  useEffect(() => {
+    const autoUpdateBibliography = async () => {
+      // Only auto-update if Office is ready and there are used citations
+      const usedCitations = citations.filter(c => c.used);
+      
+      if (isOfficeReady && usedCitations.length > 0) {
+        try {
+          console.log(`🔄 Auto-updating bibliography for style change to: ${citationStyle}`);
+          await generateBibliography();
+          console.log(`✅ Bibliography auto-updated to ${citationStyle.toUpperCase()} style`);
+        } catch (error) {
+          console.error('❌ Auto-update bibliography failed:', error);
+        }
+      }
+    };
+
+    // Add a small delay to avoid too frequent updates during rapid style changes
+    const timeoutId = setTimeout(autoUpdateBibliography, 300);
+    
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [citationStyle, isOfficeReady]); // Dependencies: citation style and Office ready state
+
   // Pagination handlers
   const handlePageChange = async (page) => {
     try {
