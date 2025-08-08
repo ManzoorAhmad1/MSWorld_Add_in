@@ -1676,10 +1676,10 @@ const Home = ({ handleLogout, status, setStatus }) => {
         `Citation inserted successfully with ${citationStyle.toUpperCase()} style and proper formatting`
       );
       
-      // Auto-regenerate bibliography with new citation
-      setTimeout(async () => {
-        await autoRegenerateBibliography(updated);
-      }, 500);
+      // NOTE: Auto-regenerate bibliography removed - only manual generation via button
+      // setTimeout(async () => {
+      //   await autoRegenerateBibliography(updated);
+      // }, 500);
     } catch (error) {
       console.error("Insert citation failed:", error);
       setStatus(`Insert failed: ${error.message}`);
@@ -1693,52 +1693,82 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
     const used = citations.filter((c) => c.used);
     if (used.length === 0) {
-      setStatus("No citations used");
+      setStatus("No citations used - insert citations first");
       return;
     }
 
     try {
       const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
-
       const styleFont = getCitationStyleFont(citationStyle);
 
       await Word.run(async (context) => {
-        const body = context.document.body;
-        body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
-        // Insert bibliography title
-        const title = body.insertParagraph(
-          bibliographyTitle,
-          Word.InsertLocation.end
-        );
-        title.style = "Heading 1";
-        title.font.bold = true;
-        title.font.size = 16;
-        title.font.name = styleFont.family;
+        // Check if bibliography already exists
+        const searchResults = context.document.body.search(bibliographyTitle, { matchCase: false, matchWholeWord: false });
+        searchResults.load('items');
+        await context.sync();
 
-        // ULTRA-SIMPLIFIED: Process each bibliography entry individually to prevent duplication
+        let bibliographyExists = searchResults.items.length > 0;
+        
+        if (!bibliographyExists) {
+          // No existing bibliography - create new one
+          try {
+            // Try to insert at cursor position
+            const selection = context.document.getSelection();
+            selection.load(['isEmpty']);
+            await context.sync();
+            
+            let insertionPoint;
+            if (!selection.isEmpty) {
+              // Insert at cursor position
+              insertionPoint = selection;
+            } else {
+              // Insert at end of document
+              insertionPoint = context.document.body;
+            }
+            
+            // Create bibliography title
+            const title = insertionPoint.insertParagraph(
+              bibliographyTitle,
+              Word.InsertLocation.end
+            );
+            title.style = "Heading 1";
+            title.font.bold = true;
+            title.font.size = 16;
+            title.font.name = styleFont.family;
+            
+          } catch (e) {
+            // Fallback: insert at end of document
+            const title = context.document.body.insertParagraph(
+              bibliographyTitle,
+              Word.InsertLocation.end
+            );
+            title.style = "Heading 1";
+            title.font.bold = true;
+            title.font.size = 16;
+            title.font.name = styleFont.family;
+          }
+        }
+
+        // Process each bibliography entry on new lines
         const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
         for (let i = 0; i < bibEntries.length; i++) {
           const entry = bibEntries[i].trim();
           if (!entry) continue;
 
-          // Create paragraph for each entry
-          const para = body.insertParagraph("", Word.InsertLocation.end);
+          // Create paragraph for each entry (new line, not new page)
+          const para = context.document.body.insertParagraph("", Word.InsertLocation.end);
           para.font.name = styleFont.family;
           para.font.size = styleFont.size;
-          para.leftIndent = 36;
+          para.leftIndent = 36; // Hanging indent for citations
           para.firstLineIndent = -36;
 
-          // SIMPLIFIED: Only check for asterisks (italics) - most common formatting
+          // Format the entry text
           if (entry.includes("*")) {
             await parseAndFormatText(para, entry, citationStyle);
           } else {
-            // Direct text insertion without any processing
-            await Word.run(async (context) => {
-              const range = para.insertText(entry, Word.InsertLocation.end);
-              range.font.name = styleFont.family;
-              range.font.size = styleFont.size;
-              await context.sync();
-            });
+            const range = para.insertText(entry, Word.InsertLocation.end);
+            range.font.name = styleFont.family;
+            range.font.size = styleFont.size;
           }
         }
 
@@ -1747,7 +1777,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
       setBibliography(bibRaw);
       setStatus(
-        `✅ Bibliography inserted: ${used.length} citation${
+        `✅ Bibliography ${bibliographyExists ? 'updated' : 'created'}: ${used.length} citation${
           used.length !== 1 ? "s" : ""
         } in ${citationStyle.toUpperCase()} style`
       );
@@ -2004,19 +2034,20 @@ const Home = ({ handleLogout, status, setStatus }) => {
     saveCitations(updated);
     setStatus("Citation removed from bibliography");
     
+    // NOTE: Auto-regenerate bibliography removed - only manual generation via button
     // Auto-regenerate bibliography if there are still used citations
-    const stillUsed = updated.filter(c => c.used);
-    if (stillUsed.length > 0) {
-      // Small delay to ensure state is updated
-      setTimeout(async () => {
-        await autoRegenerateBibliography(updated);
-      }, 100);
-    } else {
-      // If no citations are used, clear bibliography
-      setTimeout(async () => {
-        await clearBibliography();
-      }, 100);
-    }
+    // const stillUsed = updated.filter(c => c.used);
+    // if (stillUsed.length > 0) {
+    //   // Small delay to ensure state is updated
+    //   setTimeout(async () => {
+    //     await autoRegenerateBibliography(updated);
+    //   }, 100);
+    // } else {
+    //   // If no citations are used, clear bibliography
+    //   setTimeout(async () => {
+    //     await clearBibliography();
+    //   }, 100);
+    // }
   };
 
   // Auto-regenerate bibliography with updated citations
@@ -2199,17 +2230,18 @@ const Home = ({ handleLogout, status, setStatus }) => {
           
           setStatus(`🔄 Auto-sync: ${removedCitations.length} citation(s) unchecked after manual removal: ${citationTitles}`);
           
+          // NOTE: Auto-regenerate bibliography removed - only manual generation via button
           // Auto-regenerate bibliography
-          const stillUsed = updated.filter(c => c.used);
-          if (stillUsed.length > 0) {
-            setTimeout(async () => {
-              await autoRegenerateBibliography(updated);
-            }, 500); // Small delay to ensure sync completes
-          } else {
-            setTimeout(async () => {
-              await clearBibliography();
-            }, 500);
-          }
+          // const stillUsed = updated.filter(c => c.used);
+          // if (stillUsed.length > 0) {
+          //   setTimeout(async () => {
+          //     await autoRegenerateBibliography(updated);
+          //   }, 500); // Small delay to ensure sync completes
+          // } else {
+          //   setTimeout(async () => {
+          //     await clearBibliography();
+          //   }, 500);
+          // }
         }
       });
     } catch (error) {
