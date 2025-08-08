@@ -1392,168 +1392,30 @@ const Home = ({ handleLogout, status, setStatus }) => {
       if (isOfficeReady && usedCitations.length > 0) {
         try {
           console.log(`🔄 Auto-updating existing bibliography for style change to: ${citationStyle}`);
+          setStatus(`🔄 Updating bibliography to ${citationStyle.toUpperCase()} style...`);
           
-          // Check if bibliography exists first
-          await Word.run(async (context) => {
-            const searchResults = context.document.body.search(bibliographyTitle, { matchCase: false, matchWholeWord: false });
-            searchResults.load('items');
-            await context.sync();
-
-            if (searchResults.items.length > 0) {
-              // Bibliography exists, update it in-place
-              const bibRaw = await formatBibliographyCiteproc(usedCitations, citationStyle);
-              const styleFont = getCitationStyleFont(citationStyle);
-
-              // Find the bibliography section and update entries
-              const bibTitleRange = searchResults.items[0];
-              let currentParagraph = bibTitleRange.parentOrNullObject;
-              currentParagraph.load('text');
-              await context.sync();
-
-              // Navigate to the paragraph after the bibliography title
-              let nextParagraph = currentParagraph.getNext();
-              nextParagraph.load('text');
-              await context.sync();
-
-              // Clear existing bibliography entries (find and remove paragraphs that look like citations)
-              const allParagraphs = context.document.body.paragraphs;
-              allParagraphs.load('text');
-              await context.sync();
-
-              let titleFound = false;
-              const paragraphsToDelete = [];
-
-              // Collect paragraphs to delete (those after bibliography title that contain citations)
-              for (let i = 0; i < allParagraphs.items.length; i++) {
-                const paragraph = allParagraphs.items[i];
-                const text = paragraph.text.trim();
-
-                if (text === bibliographyTitle) {
-                  titleFound = true;
-                  continue;
-                }
-
-                if (titleFound) {
-                  // Stop if we hit another major heading (all caps, or starts with number)
-                  if (text.match(/^[A-Z\s]+$/) && text.length > 10) {
-                    break; // Hit another section title
-                  }
-                  
-                  // Stop if we hit a numbered section
-                  if (text.match(/^\d+\.|^\d+\s/)) {
-                    break; // Hit a numbered section
-                  }
-
-                  // If it's empty, check if it's between citations or end of bibliography
-                  if (text.length === 0) {
-                    // Look ahead to see if there are more citations coming
-                    let hasMoreCitations = false;
-                    for (let j = i + 1; j < Math.min(i + 3, allParagraphs.items.length); j++) {
-                      const nextText = allParagraphs.items[j]?.text?.trim();
-                      if (nextText && (nextText.match(/^[A-Z][^.]*\(/) || nextText.includes("("))) {
-                        hasMoreCitations = true;
-                        break;
-                      }
-                    }
-                    if (hasMoreCitations) {
-                      paragraphsToDelete.push(paragraph); // Delete empty lines between citations
-                    } else {
-                      break; // End of bibliography
-                    }
-                    continue;
-                  }
-
-                  // Enhanced citation detection patterns
-                  const isCitation = 
-                    text.match(/^[A-Z][^.]*\(\d{4}\)/) ||  // Author (Year) pattern
-                    text.match(/^[A-Z][^.]*\d{4}/) ||      // Author Year pattern  
-                    text.match(/^\[[0-9]+\]/) ||           // [1] numbered reference
-                    text.match(/^[A-Z][a-z]+,\s*[A-Z]\./) || // Author, A. pattern
-                    text.includes("doi:") ||               // DOI reference
-                    text.includes("http") ||               // URL reference
-                    text.match(/\.\s*\*[^*]+\*/) ||        // Italicized journal name
-                    (text.length > 50 && text.includes("(") && text.includes(")"));
-
-                  if (isCitation) {
-                    paragraphsToDelete.push(paragraph);
-                  } else {
-                    // If it doesn't look like a citation and we've been collecting citations, we've reached the end
-                    if (paragraphsToDelete.length > 0) {
-                      break;
-                    }
-                  }
-                }
-              }
-
-              // Delete old bibliography entries
-              for (const paragraph of paragraphsToDelete) {
-                paragraph.delete();
-              }
-
-              await context.sync();
-
-              // Find the bibliography title again and insert updated entries after it
-              const updatedSearchResults = context.document.body.search(bibliographyTitle, { matchCase: false, matchWholeWord: false });
-              updatedSearchResults.load('items');
-              await context.sync();
-
-              if (updatedSearchResults.items.length > 0) {
-                const titleRange = updatedSearchResults.items[0];
-                let insertionPoint = titleRange.getRange(Word.RangeLocation.after);
-
-                // Insert updated bibliography entries
-                const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
-                for (let i = 0; i < bibEntries.length; i++) {
-                  const entry = bibEntries[i].trim();
-                  if (!entry) continue;
-
-                  // Insert paragraph after the previous entry
-                  const para = insertionPoint.insertParagraph("", Word.InsertLocation.after);
-                  para.font.name = styleFont.family;
-                  para.font.size = styleFont.size;
-                  para.leftIndent = 36; // Hanging indent for citations
-                  para.firstLineIndent = -36;
-
-                  // Format the entry text
-                  if (entry.includes("*")) {
-                    await parseAndFormatText(para, entry, citationStyle);
-                  } else {
-                    para.insertText(entry, Word.InsertLocation.start);
-                  }
-
-                  // Update insertion point for next entry
-                  insertionPoint = para.getRange(Word.RangeLocation.after);
-                }
-
-                await context.sync();
-                
-                console.log(`✅ Existing bibliography updated to ${citationStyle.toUpperCase()} style`);
-                setStatus(`✅ Bibliography updated to ${citationStyle.toUpperCase()} style`);
-              } else {
-                console.warn('⚠️ Could not find bibliography title after deletion');
-                // Fallback to full regeneration if we can't find the title
-                await generateBibliography();
-              }
-            } else {
-              console.log('📝 No existing bibliography found, skipping auto-update');
-              // Don't create new bibliography automatically, let user do it manually
-            }
-          });
-
+          // Call the existing generateBibliography function which handles everything
+          await generateBibliography();
+          
+          console.log(`✅ Bibliography auto-updated to ${citationStyle.toUpperCase()} style`);
         } catch (error) {
           console.error('❌ Auto-update existing bibliography failed:', error);
           setStatus('❌ Bibliography update failed');
         }
+      } else if (isOfficeReady && usedCitations.length === 0) {
+        console.log('📝 No used citations found, skipping auto-update');
+      } else if (!isOfficeReady) {
+        console.log('📝 Office not ready, skipping auto-update');
       }
     };
 
     // Add a small delay to avoid too frequent updates during rapid style changes
-    const timeoutId = setTimeout(autoUpdateExistingBibliography, 300);
+    const timeoutId = setTimeout(autoUpdateExistingBibliography, 500);
     
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [citationStyle, isOfficeReady, citations]); // Added citations as dependency to access current state
+  }, [citationStyle, isOfficeReady, citations.length]); // Simplified dependencies
 
   // Pagination handlers
   const handlePageChange = async (page) => {
@@ -3313,6 +3175,9 @@ const Home = ({ handleLogout, status, setStatus }) => {
             bibliographyTitle={bibliographyTitle}
             setBibliographyTitle={setBibliographyTitle}
             previewCitationStyle={previewCitationStyle}
+            // Debug props
+            isOfficeReady={isOfficeReady}
+            citations={citations}
           />
         )}
       </header>
