@@ -2663,6 +2663,13 @@ const Home = ({ handleLogout, status, setStatus }) => {
           `,  ,`,                    // Double commas
           `..`,                      // Double periods
           `  `,                      // Double spaces
+          // Additional bibliography-related patterns
+          `arXiv`,                   // arXiv remnants
+          `DOI:`,                    // DOI remnants
+          `Retrieved from`,          // Retrieved from remnants
+          `Available at`,            // Available at remnants
+          `https://`,                // URL fragments
+          `www.`,                    // Website fragments
         ].filter(pattern => pattern && pattern.trim().length > 0);
         
         let totalCleaned = 0;
@@ -2809,10 +2816,19 @@ const Home = ({ handleLogout, status, setStatus }) => {
           setCitations(updated);
           saveCitations(updated);
           
-          // Remove bibliography entries for manually removed citations
-          console.log(`📚 Auto-removing bibliography entries for ${removedCitations.length} manually removed citations`);
-          for (const removedCitation of removedCitations) {
-            await removeSpecificBibliographyEntry(removedCitation);
+          // Check if there are any citations left after removal
+          const remainingUsedCitations = updated.filter(c => c.used);
+          
+          if (remainingUsedCitations.length === 0) {
+            // No citations remaining - clear entire bibliography
+            console.log('🧹 No citations remaining - clearing entire bibliography');
+            await clearBibliography();
+          } else {
+            // Some citations still exist - remove only specific entries
+            console.log(`📚 Auto-removing bibliography entries for ${removedCitations.length} manually removed citations`);
+            for (const removedCitation of removedCitations) {
+              await removeSpecificBibliographyEntry(removedCitation);
+            }
           }
           
           // Additional cleanup: Remove any leftover citation fragments
@@ -2826,7 +2842,11 @@ const Home = ({ handleLogout, status, setStatus }) => {
             c.title ? c.title.substring(0, 30) + '...' : 'Untitled'
           ).join(', ');
           
-          setStatus(`🔄 Auto-sync: ${removedCitations.length} citation(s) and bibliography entries removed: ${citationTitles}`);
+          if (remainingUsedCitations.length === 0) {
+            setStatus(`🔄 Auto-sync: Last ${removedCitations.length} citation(s) removed. Bibliography completely cleared: ${citationTitles}`);
+          } else {
+            setStatus(`🔄 Auto-sync: ${removedCitations.length} citation(s) and bibliography entries removed. ${remainingUsedCitations.length} citations remaining: ${citationTitles}`);
+          }
           
           // NOTE: Auto-regenerate bibliography removed - only manual generation via button
           // Auto-regenerate bibliography
