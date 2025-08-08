@@ -2,6 +2,7 @@ import React from 'react';
 
 const BibliographySection = ({
   generateBibliography,
+  autoRegenerateBibliography,
   isOfficeReady,
   citations,
   testAPACitationFormatting,
@@ -26,7 +27,7 @@ const BibliographySection = ({
         )}
       </div>
       
-      <div className="flex justify-center">
+      <div className="flex justify-center gap-3">
         <button 
           onClick={generateBibliography}
           disabled={!isOfficeReady || usedCitations.length === 0}
@@ -38,6 +39,17 @@ const BibliographySection = ({
         >
           📋 Generate Bibliography
         </button>
+        
+        {usedCitations.length > 0 && (
+          <button 
+            onClick={() => autoRegenerateBibliography && autoRegenerateBibliography(citations)}
+            disabled={!isOfficeReady}
+            className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 transform hover:-translate-y-0.5 shadow-primary"
+            title="Update existing bibliography with current citations"
+          >
+            🔄 Refresh
+          </button>
+        )}
       </div>
     </div>
   );
