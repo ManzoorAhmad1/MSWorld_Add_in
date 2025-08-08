@@ -8,15 +8,11 @@ const CitationSettings = ({
   setCitationFormat,
   bibliographyTitle,
   setBibliographyTitle,
-  previewCitationStyle, // New prop for style preview
-  // Debug props
-  isOfficeReady,
-  citations
+  previewCitationStyle // New prop for style preview
 }) => {
   const [stylePreview, setStylePreview] = useState(null);
 
   const handleStyleChange = async (newStyle) => {
-    console.log(`🔄 CitationSettings: Style changed from ${citationStyle} to ${newStyle}`);
     setCitationStyle(newStyle);
     
     // Generate preview if previewCitationStyle function is available
@@ -36,31 +32,6 @@ const CitationSettings = ({
       <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">
         ⚙️ Citation Settings
       </h3>
-      
-      {/* Debug Status Display */}
-      {citations && (
-        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <h4 className="font-medium mb-3 text-blue-800">🔍 System Status:</h4>
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <span className="font-medium">Office Ready:</span> {isOfficeReady ? '✅ Yes' : '❌ No'}
-            </div>
-            <div>
-              <span className="font-medium">Current Style:</span> {citationStyle.toUpperCase()}
-            </div>
-            <div>
-              <span className="font-medium">Total Citations:</span> {citations.length}
-            </div>
-            <div>
-              <span className="font-medium">Used Citations:</span> {citations.filter(c => c.used).length}
-            </div>
-            <div className="col-span-2">
-              <span className="font-medium">Auto-Update Active:</span> {isOfficeReady && citations.filter(c => c.used).length > 0 ? '✅ Yes' : '❌ No'}
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="space-y-6">
         <div className="space-y-2">
           <label htmlFor="citation-style" className="block text-sm font-medium text-gray-700">
