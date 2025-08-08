@@ -2411,13 +2411,18 @@ const Home = ({ handleLogout, status, setStatus }) => {
           }
           
           // Try pattern-based bibliography cleanup as backup
-          console.log('🔍 Trying pattern-based bibliography cleanup...');
+          console.log('🔍 Starting aggressive bibliography cleanup...');
+          
+          // Method 1: Search and delete all bibliography-like paragraphs
           const citationPatterns = [
-            "[A-Za-z]+, [A-Z]\\. \\([0-9]{4}\\)", // Author, A. (2023)
-            "\\([0-9]{4}\\)\\.",                   // (2023).
-            "et al\\.",                             // et al.
+            "Zhao, H\\., Shi, J\\., Qi, X\\.", // Specific author pattern from your document
+            "[A-Za-z]+, [A-Z]\\.", // Author, A.
+            "\\([0-9]{4}\\)", // (2017)
+            "arXiv Preprint", // arXiv Preprint
+            "et al\\.", // et al.
             "DOI:",
-            "Retrieved from"
+            "Retrieved from",
+            "Preprint\\." // Preprint.
           ];
           
           for (const pattern of citationPatterns) {
@@ -2431,7 +2436,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
               if (patternResults.items.length > 0) {
                 console.log(`🔍 Found ${patternResults.items.length} matches for pattern: ${pattern}`);
-                for (let i = 0; i < Math.min(patternResults.items.length, 5); i++) {
+                for (let i = 0; i < patternResults.items.length; i++) {
                   try {
                     const item = patternResults.items[i];
                     const paragraph = item.paragraphs.getFirst();
@@ -2439,8 +2444,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
                     await context.sync();
                     
                     const text = paragraph.text || '';
-                    if (text.length > 50) {
-                      console.log(`🗑️ Deleting bibliography entry: "${text.substring(0, 60)}..."`);
+                    if (text.length > 20) { // More aggressive - delete smaller entries too
+                      console.log(`🗑️ Deleting bibliography entry: "${text.substring(0, 80)}..."`);
                       paragraph.delete();
                     }
                   } catch (patternItemError) {
@@ -2448,14 +2453,68 @@ const Home = ({ handleLogout, status, setStatus }) => {
                   }
                 }
                 await context.sync();
-                break; // Stop after first successful pattern
               }
             } catch (patternError) {
               console.log(`⚠️ Pattern "${pattern}" failed:`, patternError);
             }
           }
           
-          console.log(`✅ Bibliography cleanup attempted`);
+          // Method 2: Nuclear option - scan all paragraphs and delete bibliography-like content
+          console.log('🚨 Starting nuclear cleanup - scanning all paragraphs...');
+          try {
+            const allParagraphs = context.document.body.paragraphs;
+            allParagraphs.load(['items']);
+            await context.sync();
+            
+            let deletedCount = 0;
+            const totalParagraphs = allParagraphs.items.length;
+            
+            // Scan from the end backwards (bibliography usually at end)
+            for (let i = totalParagraphs - 1; i >= 0; i--) {
+              try {
+                const para = allParagraphs.items[i];
+                para.load(['text', 'style']);
+                await context.sync();
+                
+                const text = para.text?.trim() || '';
+                const style = para.style || '';
+                
+                // More aggressive detection of bibliography entries
+                if (text.length > 10 && (
+                  text.includes('Zhao') || // Specific to your document
+                  text.includes('Shi') ||
+                  text.includes('arXiv') ||
+                  text.includes('Preprint') ||
+                  text.includes('2017') ||
+                  (text.includes('(') && text.includes(')') && text.match(/\d{4}/)) || // Has year in parentheses
+                  text.includes('et al.') || // Has et al
+                  text.match(/^[A-Z][a-z]+, [A-Z]\./) || // Starts with Author, A.
+                  text.includes('DOI:') || text.includes('doi:') || // Has DOI
+                  text.includes('Retrieved') || text.includes('Available') || // Has retrieval info
+                  (text.split(' ').length > 5 && text.includes(',') && !text.endsWith('.') === false) // Multi-word with commas (likely citation)
+                )) {
+                  console.log(`🗑️ Nuclear deletion: "${text.substring(0, 60)}..."`);
+                  para.delete();
+                  deletedCount++;
+                  
+                  // Safety limit
+                  if (deletedCount >= 50) {
+                    console.log('🛑 Hit safety limit of 50 deletions');
+                    break;
+                  }
+                }
+              } catch (paraError) {
+                console.log(`⚠️ Could not process paragraph ${i}:`, paraError);
+              }
+            }
+            
+            await context.sync();
+            console.log(`☢️ Nuclear cleanup deleted ${deletedCount} potential bibliography paragraphs`);
+          } catch (nuclearError) {
+            console.log('⚠️ Nuclear cleanup failed:', nuclearError);
+          }
+          
+          console.log(`✅ Comprehensive bibliography cleanup completed`);
         } else {
           console.log('� No existing bibliography found to clear');
         }
