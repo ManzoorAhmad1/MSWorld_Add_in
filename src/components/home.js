@@ -2633,111 +2633,10 @@ const Home = ({ handleLogout, status, setStatus }) => {
     }
   };
 
-  // Aggressive cleanup for citation remnants (leftover words, punctuation, etc.)
-  const cleanupCitationRemnants = async (citation) => {
-    if (!isOfficeReady || !citation) return;
-    
-    try {
-      await Word.run(async (context) => {
-        console.log('🧹 Starting aggressive cleanup for citation remnants:', citation);
-        
-        const normalized = normalizeCitation(citation);
-        const firstAuthor = normalized?.author?.[0]?.family || 
-                           citation.authors?.split(',')[0]?.trim() || 
-                           citation.pdf_search_data?.Authors?.split(',')[0]?.trim() || '';
-        const year = normalized?.issued?.["date-parts"]?.[0]?.[0] || 
-                    citation.year || 
-                    citation.pdf_search_data?.year || '';
-        
-        // More aggressive patterns to catch leftovers
-        const aggressivePatterns = [
-          `${firstAuthor}`,           // Just author name
-          `${year}`,                  // Just year
-          `(${year})`,               // Year in parentheses
-          `, ${year}`,               // Comma + year
-          `${firstAuthor},`,         // Author with comma
-          `et al.`,                  // "et al." remnants
-          `& `,                      // Ampersand remnants
-          `( )`,                     // Empty parentheses
-          `()`,                      // Empty parentheses compact
-          `,  ,`,                    // Double commas
-          `..`,                      // Double periods
-          `  `,                      // Double spaces
-          // Additional bibliography-related patterns
-          `arXiv`,                   // arXiv remnants
-          `DOI:`,                    // DOI remnants
-          `Retrieved from`,          // Retrieved from remnants
-          `Available at`,            // Available at remnants
-          `https://`,                // URL fragments
-          `www.`,                    // Website fragments
-        ].filter(pattern => pattern && pattern.trim().length > 0);
-        
-        let totalCleaned = 0;
-        
-        for (const pattern of aggressivePatterns) {
-          try {
-            console.log(`🔍 Aggressive search for: "${pattern}"`);
-            const searchResults = context.document.body.search(pattern, {
-              matchCase: false,
-              matchWholeWord: false
-            });
-            searchResults.load('items');
-            await context.sync();
-            
-            if (searchResults.items.length > 0) {
-              console.log(`🎯 Found ${searchResults.items.length} instances of "${pattern}"`);
-              
-              for (let i = 0; i < searchResults.items.length; i++) {
-                try {
-                  const item = searchResults.items[i];
-                  
-                  // Get surrounding context to make sure we're not deleting important text
-                  const range = item.getRange();
-                  range.load(['text']);
-                  await context.sync();
-                  
-                  const surroundingText = range.text;
-                  
-                  // Only delete if it looks like citation remnant (not part of regular text)
-                  const isCitationRemnant = (
-                    surroundingText.length < 50 || // Short text fragments
-                    surroundingText.match(/^\s*[\(\),\.\s]+\s*$/) || // Just punctuation and spaces
-                    surroundingText.includes(firstAuthor) || // Contains the author name
-                    surroundingText.match(/^\s*et al\.\s*$/i) || // Just "et al."
-                    surroundingText.match(/^\s*\(\s*\)\s*$/) // Just empty parentheses
-                  );
-                  
-                  if (isCitationRemnant) {
-                    console.log(`🗑️ Removing remnant: "${surroundingText}"`);
-                    item.delete();
-                    totalCleaned++;
-                  } else {
-                    console.log(`⚠️ Skipping potential false positive: "${surroundingText.substring(0, 50)}..."`);
-                  }
-                } catch (itemError) {
-                  console.log(`⚠️ Could not process item ${i}:`, itemError);
-                }
-              }
-              await context.sync();
-            }
-          } catch (patternError) {
-            console.log(`⚠️ Aggressive pattern "${pattern}" failed:`, patternError);
-          }
-        }
-        
-        console.log(`✅ Aggressive cleanup completed. Cleaned ${totalCleaned} remnants.`);
-      });
-    } catch (error) {
-      console.error('❌ Aggressive cleanup failed:', error);
-    }
-  };
-
   // Sync citations with Word document content
   const syncCitationsWithDocument = async () => {
     if (!isOfficeReady) return;
 
-    console.log('🔄 Starting sync with Word document...');
-    
     try {
       await Word.run(async (context) => {
         const body = context.document.body;
@@ -2749,9 +2648,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
         await context.sync();
 
         const documentText = body.text;
-        console.log(`📄 Document text length: ${documentText.length}`);
-        console.log(`📝 Document preview: ${documentText.substring(0, 200)}...`);
-        
         const footnotesText = footnotes.items.map(f => {
           f.body.load('text');
           return f;
@@ -2759,81 +2655,28 @@ const Home = ({ handleLogout, status, setStatus }) => {
         
         if (footnotesText.length > 0) {
           await context.sync();
-          console.log(`📝 Found ${footnotesText.length} footnotes`);
         }
-
-        console.log(`📚 Checking ${citations.length} citations, ${citations.filter(c => c.used).length} are marked as used`);
 
         // Check which citations are still in the document
         const citationsInDoc = citations.filter(citation => {
           if (!citation.used) return false;
           
-          // Enhanced detection - check multiple patterns for citation presence
-          const normalized = normalizeCitation(citation);
-          const firstAuthor = normalized?.author?.[0]?.family || 
-                             citation.authors?.split(',')[0]?.trim() || 
-                             citation.pdf_search_data?.Authors?.split(',')[0]?.trim() || '';
-          const year = normalized?.issued?.["date-parts"]?.[0]?.[0] || 
-                      citation.year || 
-                      citation.pdf_search_data?.year || '';
-          
-          console.log(`🔍 Checking citation: ${firstAuthor}, ${year}`);
-          
-          // Multiple detection patterns
-          const detectionPatterns = [
-            `${firstAuthor}, ${year}`,        // Author, Year
-            `(${firstAuthor}, ${year})`,      // (Author, Year)
-            `${firstAuthor} et al., ${year}`, // Author et al., Year
-            `(${firstAuthor} et al., ${year})`, // (Author et al., Year)
-            firstAuthor,                       // Just author name
-          ].filter(pattern => pattern && pattern.length > 2);
-          
-          console.log(`🔍 Detection patterns for ${firstAuthor}:`, detectionPatterns);
-          
-          // Check if any pattern is found in document or footnotes
-          const isStillInDocument = detectionPatterns.some(pattern => {
-            const isInBody = documentText.includes(pattern);
-            const isInFootnotes = footnotesText.some(fn => 
-              fn.body.text.includes(pattern)
-            );
-            const found = isInBody || isInFootnotes;
-            console.log(`📋 Pattern "${pattern}": Body=${isInBody}, Footnotes=${isInFootnotes}, Found=${found}`);
-            return found;
-          });
-          
-          // Also check original inTextCitations if they exist
-          const hasOriginalCitations = citation.inTextCitations?.some(inTextCit => {
+          // Check if any of the citation's in-text citations are still in the document
+          return citation.inTextCitations?.some(inTextCit => {
             // Remove formatting characters for comparison
             const cleanedCitation = inTextCit.replace(/[*_]/g, '').trim();
             const isInBody = documentText.includes(cleanedCitation);
             const isInFootnotes = footnotesText.some(fn => 
               fn.body.text.includes(cleanedCitation)
             );
-            const found = isInBody || isInFootnotes;
-            console.log(`📋 Original citation "${cleanedCitation}": Body=${isInBody}, Footnotes=${isInFootnotes}, Found=${found}`);
-            return found;
+            return isInBody || isInFootnotes;
           });
-          
-          const stillExists = isStillInDocument || hasOriginalCitations;
-          console.log(`✅ Citation ${firstAuthor} still exists: ${stillExists}`);
-          return stillExists;
         });
-
-        console.log(`📊 Citations still in document: ${citationsInDoc.length}`);
 
         // Find citations that were used but are no longer in document
         const removedCitations = citations.filter(citation => 
           citation.used && !citationsInDoc.find(c => String(c.id) === String(citation.id))
         );
-
-        console.log(`🗑️ Removed citations detected: ${removedCitations.length}`);
-        if (removedCitations.length > 0) {
-          console.log('🗑️ Removed citations:', removedCitations.map(c => ({
-            id: c.id,
-            title: c.title || 'No title',
-            author: c.authors || 'No author'
-          })));
-        }
 
         // Mark removed citations as unused and remove their bibliography entries
         if (removedCitations.length > 0) {
@@ -2845,25 +2688,10 @@ const Home = ({ handleLogout, status, setStatus }) => {
           setCitations(updated);
           saveCitations(updated);
           
-          // Check if there are any citations left after removal
-          const remainingUsedCitations = updated.filter(c => c.used);
-          
-          if (remainingUsedCitations.length === 0) {
-            // No citations remaining - clear entire bibliography
-            console.log('🧹 No citations remaining - clearing entire bibliography');
-            await clearBibliography();
-          } else {
-            // Some citations still exist - remove only specific entries
-            console.log(`📚 Auto-removing bibliography entries for ${removedCitations.length} manually removed citations`);
-            for (const removedCitation of removedCitations) {
-              await removeSpecificBibliographyEntry(removedCitation);
-            }
-          }
-          
-          // Additional cleanup: Remove any leftover citation fragments
-          console.log('🧹 Performing additional cleanup for citation remnants...');
+          // Remove bibliography entries for manually removed citations
+          console.log(`📚 Auto-removing bibliography entries for ${removedCitations.length} manually removed citations`);
           for (const removedCitation of removedCitations) {
-            await cleanupCitationRemnants(removedCitation);
+            await removeSpecificBibliographyEntry(removedCitation);
           }
           
           // More detailed status message
@@ -2871,11 +2699,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
             c.title ? c.title.substring(0, 30) + '...' : 'Untitled'
           ).join(', ');
           
-          if (remainingUsedCitations.length === 0) {
-            setStatus(`🔄 Auto-sync: Last ${removedCitations.length} citation(s) removed. Bibliography completely cleared: ${citationTitles}`);
-          } else {
-            setStatus(`🔄 Auto-sync: ${removedCitations.length} citation(s) and bibliography entries removed. ${remainingUsedCitations.length} citations remaining: ${citationTitles}`);
-          }
+          setStatus(`🔄 Auto-sync: ${removedCitations.length} citation(s) and bibliography entries removed: ${citationTitles}`);
           
           // NOTE: Auto-regenerate bibliography removed - only manual generation via button
           // Auto-regenerate bibliography
