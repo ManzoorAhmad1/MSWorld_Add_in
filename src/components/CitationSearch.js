@@ -2,7 +2,6 @@ import { Loader, Folder, ChevronLeft, Home, ChevronRight } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { Text, Button } from "rizzui";
 import TableSkeleton from "./TableSkeleton";
-import CitationEditor from "./CitationEditor";
 
 const CitationSearch = ({
   searchResults,
@@ -618,43 +617,7 @@ const CitationSearch = ({
                                 <strong>Authors:</strong> {result?.authors}
                               </Text>
                               {/* Insert/Remove Citation Button under authors */}
-                              <div className="flex gap-2 items-center">
-                                {isUsed ? (
-                                  <>
-                                    <Button
-                                      onClick={() => removeCitationFromDocument(result.id)}
-                                      size="sm"
-                                      className="bg-red-500 hover:bg-red-600 text-white text-xs px-3 py-1 transition-colors"
-                                    >
-                                      🗑️ Remove Citation
-                                    </Button>
-                                    <span className="text-xs text-green-600 font-medium">
-                                      ✅ In Bibliography
-                                    </span>
-                                  </>
-                                ) : isInLibrary ? (
-                                  <>
-                                    <Button
-                                      onClick={() => handleEditCitation(result)}
-                                      size="sm"
-                                      className="bg-green-500 hover:bg-green-600 text-white text-xs px-3 py-1 transition-colors"
-                                    >
-                                      📄 Use Existing Citation
-                                    </Button>
-                                    <span className="text-xs text-yellow-600 font-medium">
-                                      📚 In Library
-                                    </span>
-                                  </>
-                                ) : (
-                                  <Button
-                                    onClick={() => handleEditCitation(result)}
-                                    size="sm"
-                                    className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-3 py-1 transition-colors"
-                                  >
-                                    📝 Insert Citation
-                                  </Button>
-                                )}
-                              </div>
+                              
                             </div>
                           </td>
                           <td className="px-4 py-4">
@@ -798,17 +761,6 @@ const CitationSearch = ({
         )}
       </div>
 
-      {/* Citation Editor Modal */}
-      <CitationEditor
-        isOpen={isEditingCitation}
-        onClose={() => {
-          setIsEditingCitation(false);
-          setCurrentEditingCitation(null);
-        }}
-        citation={currentEditingCitation}
-        onSave={handleSaveCitationChanges}
-        citationFormat="Author, Year"
-      />
     </>
   );
 };
