@@ -1546,10 +1546,9 @@ const Home = ({ handleLogout, status, setStatus }) => {
     }
   };
 
-  // Mendeley-style citation insertion with hidden field tracking
+  // Enhanced insertCitation function with proper formatting
   const insertCitation = async (citation) => {
     if (!isOfficeReady) {
-      setStatus("Word not available - please open Microsoft Word");
       return;
     }
 
@@ -1561,59 +1560,63 @@ const Home = ({ handleLogout, status, setStatus }) => {
         return;
       }
 
-      // Create unique citation tracking ID (Mendeley approach)
-      const citationId = `RC_${normalizedCitation.id}_${Date.now()}`;
-      const citationData = {
-        id: normalizedCitation.id,
-        trackingId: citationId,
-        style: citationStyle,
-        format: citationFormat,
-        insertedAt: new Date().toISOString(),
-        citationData: normalizedCitation
-      };
-
-      // Store citation metadata for document tracking
-      const documentCitations = JSON.parse(localStorage.getItem('RC_document_citations') || '[]');
-      documentCitations.push(citationData);
-      localStorage.setItem('RC_document_citations', JSON.stringify(documentCitations));
-
-      // Format citation using current style
       let formatted = await formatCitationCiteproc(
         normalizedCitation,
         citationStyle,
         citationFormat
       );
 
-      if (!formatted || formatted.includes("Error")) {
-        const fallbackFormatted = formatCitationFallback(normalizedCitation, citationFormat);
+      if (
+        !formatted ||
+        (formatted.includes("[") && formatted.includes("Error"))
+      ) {
+        console.error("Citation formatting failed, trying fallback");
+        const fallbackFormatted = formatCitationFallback(
+          normalizedCitation,
+          citationFormat
+        );
         if (fallbackFormatted && !fallbackFormatted.includes("Error")) {
           formatted = fallbackFormatted;
+          setStatus("Citation inserted with fallback formatting");
         } else {
-          setStatus("Citation formatting failed");
+          setStatus("Citation formatting failed completely");
           return;
         }
       }
 
-      // Insert into Word with Mendeley-style field tracking
+      // Insert into Word with proper formatting
       await Word.run(async (context) => {
         const selection = context.document.getSelection();
         const styleFont = getCitationStyleFont(citationStyle);
 
-        // Insert formatted citation text
-        const range = selection.insertText(formatted, Word.InsertLocation.replace);
-        range.font.name = styleFont.family;
-        range.font.size = styleFont.size;
-
-        // Insert hidden field for citation tracking (Mendeley approach)
-        const fieldCode = `ADDIN RCLIB.CitationField {"citationID":"${citationId}","citationItems":[{"id":"${normalizedCitation.id}","uris":[],"uri":[],"itemData":${JSON.stringify(normalizedCitation).replace(/"/g, '\\"')}}],"properties":{"style":"${citationStyle}","format":"${citationFormat}"}}`;
-        
-        // Insert as a Word field (similar to Mendeley)
-        const field = range.insertField(Word.FieldType.unknown, fieldCode, Word.InsertLocation.after);
-        field.locked = true;
-        
-        // Make the field code hidden
-        field.code.font.hidden = true;
-        field.code.font.size = 1;
+        if (citationFormat === "in-text") {
+          // For in-text citations, apply formatting based on style
+          if (
+            formatted.includes("*") ||
+            formatted.includes("**") ||
+            formatted.includes("___")
+          ) {
+            // Create a paragraph to handle formatting
+            const tempPara = selection.insertParagraph(
+              "",
+              Word.InsertLocation.replace
+            );
+            await parseAndFormatText(tempPara, formatted, citationStyle);
+          } else {
+            // Simple text insertion with font styling
+            const range = selection.insertText(
+              formatted,
+              Word.InsertLocation.replace
+            );
+            range.font.name = styleFont.family;
+            range.font.size = styleFont.size;
+          }
+        } else {
+          // For footnotes, create formatted footnote
+          const footnote = selection.insertFootnote(formatted);
+          footnote.body.font.name = styleFont.family;
+          footnote.body.font.size = styleFont.size - 1; // Footnotes typically smaller
+        }
 
         await context.sync();
       });
@@ -1639,368 +1642,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
     }
   };
 
-  // Mendeley-style refresh citations (update all citations in document)
-  const refreshCitations = async () => {
-    if (!isOfficeReady) {
-      setStatus("Word not available for citation refresh");
-      return;
-    }
-
-    try {
-      setStatus("Refreshing citations in document...");
-      let updatedCount = 0;
-
-      await Word.run(async (context) => {
-        // Find all ResearchCollab citation fields in the document
-        const fields = context.document.body.fields;
-        fields.load("items");
-        await context.sync();
-
-        for (let i = 0; i < fields.items.length; i++) {
-          const field = fields.items[i];
-          field.load("code");
-          await context.sync();
-
-          // Check if this is a ResearchCollab citation field
-          if (field.code.text.includes("ADDIN RCLIB.CitationField")) {
-            try {
-              // Extract citation data from field code
-              const fieldMatch = field.code.text.match(/\{"citationID":"([^"]+)".*"itemData":(\{.*?\})\}/);
-              if (fieldMatch) {
-                const citationId = fieldMatch[1];
-                const itemDataStr = fieldMatch[2].replace(/\\"/g, '"');
-                const itemData = JSON.parse(itemDataStr);
-
-                // Reformat citation with current style
-                const newFormatted = await formatCitationCiteproc(itemData, citationStyle, citationFormat);
-                
-                if (newFormatted && !newFormatted.includes("Error")) {
-                  // Update the field result
-                  field.load("result");
-                  await context.sync();
-                  
-                  const range = field.result;
-                  range.clear();
-                  range.insertText(newFormatted, Word.InsertLocation.start);
-                  
-                  // Update field code with new style
-                  const newFieldCode = field.code.text.replace(
-                    /"style":"[^"]+"/,
-                    `"style":"${citationStyle}"`
-                  ).replace(
-                    /"format":"[^"]+"/,
-                    `"format":"${citationFormat}"`
-                  );
-                  
-                  field.code.clear();
-                  field.code.insertText(newFieldCode, Word.InsertLocation.start);
-                  
-                  updatedCount++;
-                }
-              }
-            } catch (fieldError) {
-              console.error("Error updating citation field:", fieldError);
-            }
-          }
-        }
-
-        await context.sync();
-      });
-
-      setStatus(`✅ Refreshed ${updatedCount} citations with ${citationStyle.toUpperCase()} style`);
-    } catch (error) {
-      console.error("Citation refresh failed:", error);
-      setStatus("❌ Citation refresh failed");
-    }
-  };
-
-  // Mendeley-style document analysis
-  const analyzeCitationsInDocument = async () => {
-    if (!isOfficeReady) {
-      setStatus("Word not available for document analysis");
-      return [];
-    }
-
-    try {
-      setStatus("Analyzing document citations...");
-      let foundCitations = [];
-
-      await Word.run(async (context) => {
-        const fields = context.document.body.fields;
-        fields.load("items");
-        await context.sync();
-
-        for (let i = 0; i < fields.items.length; i++) {
-          const field = fields.items[i];
-          field.load("code");
-          await context.sync();
-
-          if (field.code.text.includes("ADDIN RCLIB.CitationField")) {
-            try {
-              const fieldMatch = field.code.text.match(/\{"citationID":"([^"]+)".*"itemData":(\{.*?\})\}/);
-              if (fieldMatch) {
-                const citationId = fieldMatch[1];
-                const itemDataStr = fieldMatch[2].replace(/\\"/g, '"');
-                const itemData = JSON.parse(itemDataStr);
-                foundCitations.push({
-                  trackingId: citationId,
-                  data: itemData,
-                  fieldIndex: i
-                });
-              }
-            } catch (parseError) {
-              console.error("Error parsing citation field:", parseError);
-            }
-          }
-        }
-      });
-
-      setStatus(`Found ${foundCitations.length} ResearchCollab citations in document`);
-      return foundCitations;
-    } catch (error) {
-      console.error("Document analysis failed:", error);
-      setStatus("Document analysis failed");
-      return [];
-    }
-  };
-
-  // Enhanced Smart Bibliography (Mendeley approach)
-  const generateSmartBibliography = async () => {
-    if (!isOfficeReady) {
-      setStatus("Word not available for bibliography generation");
-      return;
-    }
-
-    try {
-      setStatus("Analyzing document for citations...");
-      
-      // Get all citations from the document
-      const documentCitations = await analyzeCitationsInDocument();
-      
-      if (documentCitations.length === 0) {
-        setStatus("No ResearchCollab citations found in document");
-        return;
-      }
-
-      // Extract unique citations (remove duplicates)
-      const uniqueCitations = [];
-      const seenIds = new Set();
-      
-      for (const docCitation of documentCitations) {
-        if (!seenIds.has(docCitation.data.id)) {
-          seenIds.add(docCitation.data.id);
-          uniqueCitations.push(docCitation.data);
-        }
-      }
-
-      // Generate bibliography
-      const bibRaw = await formatBibliographyCiteproc(uniqueCitations, citationStyle);
-      const styleFont = getCitationStyleFont(citationStyle);
-
-      await Word.run(async (context) => {
-        const body = context.document.body;
-        
-        // Find existing bibliography or create new one
-        const ranges = body.search(bibliographyTitle);
-        ranges.load("items");
-        await context.sync();
-
-        let insertLocation;
-        if (ranges.items.length > 0) {
-          // Update existing bibliography
-          const existingTitle = ranges.items[0];
-          existingTitle.paragraphs.getLast().getNext().clear();
-          insertLocation = existingTitle.paragraphs.getLast();
-        } else {
-          // Create new bibliography at end
-          body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
-          const title = body.insertParagraph(bibliographyTitle, Word.InsertLocation.end);
-          title.style = "Heading 1";
-          title.font.bold = true;
-          title.font.size = 16;
-          title.font.name = styleFont.family;
-          insertLocation = title;
-        }
-
-        // Insert bibliography entries
-        const bibEntries = bibRaw.split("\n").filter(entry => entry.trim());
-        for (let i = 0; i < bibEntries.length; i++) {
-          const entry = bibEntries[i].trim();
-          if (!entry) continue;
-
-          const para = insertLocation.insertParagraph("", Word.InsertLocation.after);
-          para.font.name = styleFont.family;
-          para.font.size = styleFont.size;
-          para.leftIndent = 36;
-          para.firstLineIndent = -36;
-
-          if (entry.includes("*")) {
-            await parseAndFormatText(para, entry, citationStyle);
-          } else {
-            const range = para.insertText(entry, Word.InsertLocation.end);
-            range.font.name = styleFont.family;
-            range.font.size = styleFont.size;
-          }
-        }
-
-        await context.sync();
-      });
-
-      setBibliography(bibRaw);
-      setStatus(
-        `✅ Smart Bibliography: ${uniqueCitations.length} citations from ${documentCitations.length} references in document`
-      );
-    } catch (error) {
-      console.error("Smart bibliography generation failed:", error);
-      setStatus(`❌ Smart bibliography error: ${error.message || "Unknown error"}`);
-    }
-  };
-
-  // Mendeley-style citation style switching with auto-update
-  const changeCitationStyle = async (newStyle) => {
-    const oldStyle = citationStyle;
-    setCitationStyle(newStyle);
-    
-    if (isOfficeReady) {
-      try {
-        setStatus(`Switching citation style to ${newStyle.toUpperCase()}...`);
-        
-        // Auto-refresh all citations in the document with new style
-        await Word.run(async (context) => {
-          const fields = context.document.body.fields;
-          fields.load("items");
-          await context.sync();
-
-          let updatedCount = 0;
-          for (let i = 0; i < fields.items.length; i++) {
-            const field = fields.items[i];
-            field.load("code");
-            await context.sync();
-
-            if (field.code.text.includes("ADDIN RCLIB.CitationField")) {
-              try {
-                const fieldMatch = field.code.text.match(/\{"citationID":"([^"]+)".*"itemData":(\{.*?\})\}/);
-                if (fieldMatch) {
-                  const itemDataStr = fieldMatch[2].replace(/\\"/g, '"');
-                  const itemData = JSON.parse(itemDataStr);
-
-                  // Reformat with new style
-                  const newFormatted = await formatCitationCiteproc(itemData, newStyle, citationFormat);
-                  
-                  if (newFormatted && !newFormatted.includes("Error")) {
-                    field.load("result");
-                    await context.sync();
-                    
-                    const range = field.result;
-                    range.clear();
-                    range.insertText(newFormatted, Word.InsertLocation.start);
-                    
-                    // Update field code
-                    const newFieldCode = field.code.text.replace(
-                      /"style":"[^"]+"/,
-                      `"style":"${newStyle}"`
-                    );
-                    
-                    field.code.clear();
-                    field.code.insertText(newFieldCode, Word.InsertLocation.start);
-                    
-                    updatedCount++;
-                  }
-                }
-              } catch (fieldError) {
-                console.error("Error updating citation field:", fieldError);
-              }
-            }
-          }
-          await context.sync();
-          
-          if (updatedCount > 0) {
-            setStatus(`✅ Updated ${updatedCount} citations to ${newStyle.toUpperCase()} style`);
-          } else {
-            setStatus(`Citation style changed to ${newStyle.toUpperCase()}`);
-          }
-        });
-      } catch (error) {
-        console.error("Style switching failed:", error);
-        setStatus(`Style changed to ${newStyle.toUpperCase()} (auto-update failed)`);
-      }
-    } else {
-      setStatus(`Citation style changed to ${newStyle.toUpperCase()}`);
-    }
-  };
-
-  // Enhanced citation library with Mendeley-like features
-  const getCitationsInDocument = async () => {
-    if (!isOfficeReady) return [];
-    
-    try {
-      const documentCitations = await analyzeCitationsInDocument();
-      return documentCitations.map(dc => dc.data);
-    } catch (error) {
-      console.error("Error getting document citations:", error);
-      return [];
-    }
-  };
-
-  // Mendeley-like citation editing
-  const editCitation = async (citationId, updatedData) => {
-    if (!isOfficeReady) {
-      setStatus("Word not available for citation editing");
-      return;
-    }
-
-    try {
-      setStatus("Updating citation...");
-      
-      await Word.run(async (context) => {
-        const fields = context.document.body.fields;
-        fields.load("items");
-        await context.sync();
-
-        for (let i = 0; i < fields.items.length; i++) {
-          const field = fields.items[i];
-          field.load("code");
-          await context.sync();
-
-          if (field.code.text.includes("ADDIN RCLIB.CitationField")) {
-            const fieldMatch = field.code.text.match(/\{"citationID":"([^"]+)"/);
-            if (fieldMatch && fieldMatch[1].includes(citationId)) {
-              // Update field with new citation data
-              const newFieldCode = field.code.text.replace(
-                /"itemData":\{.*?\}/,
-                `"itemData":${JSON.stringify(updatedData).replace(/"/g, '\\"')}`
-              );
-              
-              field.code.clear();
-              field.code.insertText(newFieldCode, Word.InsertLocation.start);
-              
-              // Reformat citation
-              const newFormatted = await formatCitationCiteproc(updatedData, citationStyle, citationFormat);
-              if (newFormatted) {
-                field.load("result");
-                await context.sync();
-                
-                field.result.clear();
-                field.result.insertText(newFormatted, Word.InsertLocation.start);
-              }
-              
-              break;
-            }
-          }
-        }
-        
-        await context.sync();
-      });
-
-      setStatus("✅ Citation updated successfully");
-    } catch (error) {
-      console.error("Citation editing failed:", error);
-      setStatus("❌ Citation update failed");
-    }
-  };
-
-  // Legacy bibliography generation function (for backward compatibility)
-  const generateLegacyBibliography = async () => {
+  const generateBibliography = async () => {
     if (!isOfficeReady) {
       return;
     }
@@ -2499,70 +2141,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
     return (maxLen - distance) / maxLen;
   };
 
-  // Original bibliography generation function (for manual/traditional use)
-  const generateBibliography = async () => {
-    if (!isOfficeReady) {
-      setStatus("Word not available for bibliography generation");
-      return;
-    }
-
-    const used = citations.filter((c) => c.used);
-    if (used.length === 0) {
-      setStatus("No citations marked as used - try using Smart Bibliography instead");
-      return;
-    }
-
-    try {
-      const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
-      const styleFont = getCitationStyleFont(citationStyle);
-
-      await Word.run(async (context) => {
-        const body = context.document.body;
-        body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
-        
-        // Insert bibliography title
-        const title = body.insertParagraph(bibliographyTitle, Word.InsertLocation.end);
-        title.style = "Heading 1";
-        title.font.bold = true;
-        title.font.size = 16;
-        title.font.name = styleFont.family;
-
-        // Process each bibliography entry individually
-        const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
-        for (let i = 0; i < bibEntries.length; i++) {
-          const entry = bibEntries[i].trim();
-          if (!entry) continue;
-
-          const para = body.insertParagraph("", Word.InsertLocation.end);
-          para.font.name = styleFont.family;
-          para.font.size = styleFont.size;
-          para.leftIndent = 36;
-          para.firstLineIndent = -36;
-
-          if (entry.includes("*")) {
-            await parseAndFormatText(para, entry, citationStyle);
-          } else {
-            const range = para.insertText(entry, Word.InsertLocation.end);
-            range.font.name = styleFont.family;
-            range.font.size = styleFont.size;
-          }
-        }
-
-        await context.sync();
-      });
-
-      setBibliography(bibRaw);
-      setStatus(
-        `✅ Bibliography inserted: ${used.length} citation${
-          used.length !== 1 ? "s" : ""
-        } in ${citationStyle.toUpperCase()} style`
-      );
-    } catch (e) {
-      console.error("❌ Bibliography generation failed:", e);
-      setStatus(`❌ Bibliography error: ${e.message || "Unknown error"}`);
-    }
-  };
-
   // Function to test duplicate text removal
   const testDuplicateRemoval = () => {
     const problematicTexts = [
@@ -2639,13 +2217,12 @@ const Home = ({ handleLogout, status, setStatus }) => {
       };
 
       const cleaned = cleanEntry(text);
-      console.log(`Test ${index + 1}:`);
-      console.log("Original:", text.substring(0, 100) + "...");
-      console.log("Cleaned:", cleaned.substring(0, 100) + "...");
-      console.log("---");
+    
     });
 
-    setStatus("Duplicate removal test completed - check browser console for results");
+    setStatus(
+      "Duplicate removal test completed - check browser console for results"
+    );
   };
 
   return (
@@ -2749,22 +2326,17 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
         <CitationSettings
           citationStyle={citationStyle}
-          setCitationStyle={changeCitationStyle}
+          setCitationStyle={setCitationStyle}
           citationStyles={citationStyles}
           citationFormat={citationFormat}
           setCitationFormat={setCitationFormat}
           bibliographyTitle={bibliographyTitle}
           setBibliographyTitle={setBibliographyTitle}
           previewCitationStyle={previewCitationStyle}
-          refreshCitations={refreshCitations}
-          isOfficeReady={isOfficeReady}
         />
 
         <BibliographySection
           generateBibliography={generateBibliography}
-          generateSmartBibliography={generateSmartBibliography}
-          analyzeCitationsInDocument={analyzeCitationsInDocument}
-          refreshCitations={refreshCitations}
           isOfficeReady={isOfficeReady}
           citations={citations}
           testAPACitationFormatting={testAPACitationFormatting}
