@@ -555,7 +555,7 @@ const CitationSearch = ({
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="">
                   {searchResults.map((result, index) => {
                     const citationInLibrary = citations.find(c => String(c.id) === String(result.id));
                     const isInLibrary = !!citationInLibrary;

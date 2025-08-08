@@ -2270,18 +2270,19 @@ const Home = ({ handleLogout, status, setStatus }) => {
     if (citationToRemove) {
       await removeCitationFromDocument(citationToRemove);
       
-      // Always regenerate the bibliography to ensure it's clean
-      setStatus("Updating bibliography...");
+      // Remove only the specific citation's bibliography entry (not entire bibliography)
+      setStatus("Removing citation from bibliography...");
       setTimeout(async () => {
         try {
-          await clearBibliography();
+          await removeSpecificBibliographyEntry(citationToRemove);
           
           // Check if there are still used citations
           const remainingUsedCitations = updated.filter(c => c.used);
           if (remainingUsedCitations.length > 0) {
-            await generateBibliography();
-            setStatus(`✅ Citation removed. Bibliography updated with ${remainingUsedCitations.length} remaining citations.`);
+            setStatus(`✅ Citation removed. ${remainingUsedCitations.length} citations remaining in bibliography.`);
           } else {
+            // Only clear entire bibliography if NO citations remain
+            await clearBibliography();
             setStatus("✅ Citation removed. Bibliography cleared (no citations remaining).");
           }
         } catch (error) {
@@ -2291,6 +2292,111 @@ const Home = ({ handleLogout, status, setStatus }) => {
       }, 1000);
     } else {
       setStatus("Citation removed from document");
+    }
+  };
+
+  // Remove only specific citation's bibliography entry (not entire bibliography)
+  const removeSpecificBibliographyEntry = async (citation) => {
+    if (!isOfficeReady || !citation) {
+      console.log('❌ Office not ready or no citation provided');
+      return;
+    }
+
+    try {
+      await Word.run(async (context) => {
+        console.log('🗑️ Removing specific bibliography entry for:', citation);
+        
+        // Get citation info for searching
+        const normalized = normalizeCitation(citation);
+        const firstAuthor = normalized?.author?.[0]?.family || 
+                           citation.authors?.split(',')[0]?.trim() || 
+                           citation.pdf_search_data?.Authors?.split(',')[0]?.trim() || '';
+        const year = normalized?.issued?.["date-parts"]?.[0]?.[0] || 
+                    citation.year || 
+                    citation.pdf_search_data?.year || '';
+        const title = normalized?.title || citation.title || citation.pdf_search_data?.title || '';
+        
+        console.log(`🔍 Looking for bibliography entry: ${firstAuthor}, ${year}`);
+        
+        // More specific search patterns for bibliography entries
+        const searchPatterns = [
+          `${firstAuthor}, ${year}`, // Author, Year
+          `${firstAuthor} (${year})`, // Author (Year)
+          `${firstAuthor} et al., ${year}`, // Author et al., Year
+          `${firstAuthor} et al. (${year})`, // Author et al. (Year)
+          title.substring(0, 30), // First 30 chars of title
+          firstAuthor // Just author name
+        ].filter(pattern => pattern && pattern.length > 2);
+
+        let entryFound = false;
+        let removedCount = 0;
+
+        for (const pattern of searchPatterns) {
+          if (entryFound) break; // Stop if we already found and removed an entry
+          
+          try {
+            console.log(`🔍 Searching for pattern: "${pattern}"`);
+            const searchResults = context.document.body.search(pattern, {
+              matchCase: false,
+              matchWholeWord: false
+            });
+            searchResults.load('items');
+            await context.sync();
+
+            console.log(`📋 Found ${searchResults.items.length} matches for: "${pattern}"`);
+
+            if (searchResults.items.length > 0) {
+              // Look for bibliography entries (typically longer paragraphs with citation characteristics)
+              for (let i = 0; i < searchResults.items.length; i++) {
+                try {
+                  const item = searchResults.items[i];
+                  const paragraph = item.paragraphs.getFirst();
+                  paragraph.load(['text']);
+                  await context.sync();
+                  
+                  const text = paragraph.text || '';
+                  console.log(`📄 Checking paragraph: "${text.substring(0, 80)}..."`);
+                  
+                  // Check if this looks like a bibliography entry
+                  const isBibliographyEntry = (
+                    text.length > 50 && // Substantial length
+                    (text.includes(firstAuthor) || text.includes(title.substring(0, 20))) && // Contains author or title
+                    (text.includes(year) || text.match(/\d{4}/)) && // Contains year
+                    (text.includes('.') || text.includes(',')) && // Has punctuation (typical of citations)
+                    !text.toLowerCase().includes('references') && // Not the "References" title
+                    !text.toLowerCase().includes('bibliography') // Not the "Bibliography" title
+                  );
+                  
+                  if (isBibliographyEntry) {
+                    console.log(`✅ Found bibliography entry to remove: "${text.substring(0, 60)}..."`);
+                    paragraph.delete();
+                    removedCount++;
+                    entryFound = true;
+                    break; // Stop after removing one entry
+                  }
+                } catch (paragraphError) {
+                  console.log(`⚠️ Could not process paragraph ${i}:`, paragraphError);
+                }
+              }
+            }
+          } catch (patternError) {
+            console.log(`⚠️ Search pattern "${pattern}" failed:`, patternError);
+          }
+        }
+
+        await context.sync();
+        
+        if (entryFound) {
+          console.log(`✅ Successfully removed ${removedCount} bibliography entry for ${firstAuthor}`);
+          setStatus(`🗑️ Bibliography entry removed for "${firstAuthor}" (${year})`);
+        } else {
+          console.log(`⚠️ Bibliography entry not found for ${firstAuthor}, ${year}`);
+          setStatus(`⚠️ Bibliography entry for "${firstAuthor}" not found (may have been already removed)`);
+        }
+      });
+    } catch (error) {
+      console.error('❌ Error removing specific bibliography entry:', error);
+      setStatus(`❌ Error removing bibliography entry: ${error.message}`);
     }
   };
 
