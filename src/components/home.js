@@ -1972,7 +1972,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
     );
     setCitations(updated);
     saveCitations(updated);
-    setStatus("Citation marked as unused");
+    setStatus("Citation removed from bibliography");
   };
 
   const formatCitationPreview = (citation) => {
