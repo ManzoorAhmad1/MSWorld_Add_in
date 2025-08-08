@@ -2375,7 +2375,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
     try {
       await Word.run(async (context) => {
-        console.log('🧹 Starting bibliography cleanup...');
+        console.log('🧹 Starting comprehensive bibliography cleanup...');
         
         // Find existing bibliography by title
         const searchResults = context.document.body.search(bibliographyTitle, { 
@@ -2388,60 +2388,74 @@ const Home = ({ handleLogout, status, setStatus }) => {
         console.log(`📋 Found ${searchResults.items.length} bibliography sections`);
 
         if (searchResults.items.length > 0) {
-          // Get the paragraph containing the bibliography title
-          const firstResult = searchResults.items[0];
-          const bibTitleParagraph = firstResult.parentParagraph;
-          bibTitleParagraph.load(['text']);
-          await context.sync();
-          
-          console.log(`📄 Bibliography title paragraph: "${bibTitleParagraph.text}"`);
-          
-          // Find all paragraphs after the bibliography title and delete them
-          let currentParagraph = bibTitleParagraph;
-          let deletedCount = 0;
-          
-          // Delete the title paragraph first
-          currentParagraph.delete();
-          deletedCount++;
-          
-          // Try to delete subsequent paragraphs that might be bibliography entries
+          // Get the paragraph containing the bibliography title - SAFE VERSION
           try {
-            const allParagraphs = context.document.body.paragraphs;
-            allParagraphs.load(['items']);
-            await context.sync();
+            const firstResult = searchResults.items[0];
+            let bibTitleParagraph = null;
             
-            let foundBibTitle = false;
-            for (let i = 0; i < allParagraphs.items.length; i++) {
-              const para = allParagraphs.items[i];
-              para.load(['text']);
+            // Try multiple methods to get the paragraph safely
+            try {
+              bibTitleParagraph = firstResult.paragraphs.getFirst();
+              bibTitleParagraph.load(['text']);
               await context.sync();
-              
-              // If we found the bibliography title, delete following paragraphs until we hit another heading
-              if (para.text.toLowerCase().includes(bibliographyTitle.toLowerCase())) {
-                foundBibTitle = true;
-                continue; // Skip the title itself
-              }
-              
-              if (foundBibTitle) {
-                const paraText = para.text.trim();
-                // Stop if we hit another heading or empty paragraphs
-                if (paraText.length > 0 && !paraText.match(/^[A-Z][a-z]+\s*$/)) {
-                  para.delete();
-                  deletedCount++;
-                } else if (paraText.length === 0) {
-                  // Delete empty paragraphs too
-                  para.delete();
-                  deletedCount++;
-                }
-              }
+              console.log(`📄 Bibliography title paragraph: "${bibTitleParagraph.text}"`);
+              bibTitleParagraph.delete();
+            } catch (paragraphAccessError) {
+              console.log('⚠️ Could not access paragraph, trying direct deletion...');
+              firstResult.delete();
             }
             
             await context.sync();
-          } catch (cleanupError) {
-            console.log('Bibliography cleanup completed with partial success:', cleanupError);
+          } catch (titleDeletionError) {
+            console.log('⚠️ Title deletion failed, trying pattern-based cleanup...', titleDeletionError);
           }
           
-          console.log(`✅ Deleted ${deletedCount} bibliography paragraphs`);
+          // Try pattern-based bibliography cleanup as backup
+          console.log('🔍 Trying pattern-based bibliography cleanup...');
+          const citationPatterns = [
+            "[A-Za-z]+, [A-Z]\\. \\([0-9]{4}\\)", // Author, A. (2023)
+            "\\([0-9]{4}\\)\\.",                   // (2023).
+            "et al\\.",                             // et al.
+            "DOI:",
+            "Retrieved from"
+          ];
+          
+          for (const pattern of citationPatterns) {
+            try {
+              const patternResults = context.document.body.search(pattern, {
+                matchCase: false,
+                matchWholeWord: false
+              });
+              patternResults.load('items');
+              await context.sync();
+
+              if (patternResults.items.length > 0) {
+                console.log(`🔍 Found ${patternResults.items.length} matches for pattern: ${pattern}`);
+                for (let i = 0; i < Math.min(patternResults.items.length, 5); i++) {
+                  try {
+                    const item = patternResults.items[i];
+                    const paragraph = item.paragraphs.getFirst();
+                    paragraph.load(['text']);
+                    await context.sync();
+                    
+                    const text = paragraph.text || '';
+                    if (text.length > 50) {
+                      console.log(`🗑️ Deleting bibliography entry: "${text.substring(0, 60)}..."`);
+                      paragraph.delete();
+                    }
+                  } catch (patternItemError) {
+                    console.log(`⚠️ Could not process pattern item ${i}:`, patternItemError);
+                  }
+                }
+                await context.sync();
+                break; // Stop after first successful pattern
+              }
+            } catch (patternError) {
+              console.log(`⚠️ Pattern "${pattern}" failed:`, patternError);
+            }
+          }
+          
+          console.log(`✅ Bibliography cleanup attempted`);
         } else {
           console.log('� No existing bibliography found to clear');
         }
