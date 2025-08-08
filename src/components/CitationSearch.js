@@ -33,6 +33,7 @@ const CitationSearch = ({
   handleNextPage,
   // Citation insertion
   insertCitation,
+  markCitationAsUnused,
 }) => {
   console.log(searchResults,'searchResults')
   // State for folder navigation
@@ -64,6 +65,8 @@ const CitationSearch = ({
       }
     } else {
       newSelected.delete(resultId);
+      // Mark citation as unused when unchecked
+      removeCitationFromDocument(resultId);
     }
     setSelectedSearchResults(newSelected);
   };
@@ -75,20 +78,38 @@ const CitationSearch = ({
     }
   };
 
+  // Remove citation from document (mark as unused)
+  const removeCitationFromDocument = (resultId) => {
+    // Use the markCitationAsUnused function from home.js
+    if (markCitationAsUnused) {
+      markCitationAsUnused(resultId);
+    }
+  };
+
   // Handle select all search results with automatic insertion
   const handleSelectAllSearchResults = (checked) => {
     if (checked) {
-      const availableResults = searchResults.filter(result => {
-        const citationInLibrary = citations.find(c => String(c.id) === String(result.id));
-        return !citationInLibrary || !citationInLibrary.used;
-      });
-      const allIds = new Set(availableResults.map(r => r.id));
+      // Select all citations and insert/use them
+      const allIds = new Set(searchResults.map(r => r.id));
       setSelectedSearchResults(allIds);
-      // Insert all available citations directly - they will be added to library and marked as used
-      availableResults.forEach(result => {
-        insertCitationToWord(result);
+      // Insert all citations that are not already used
+      searchResults.forEach(result => {
+        const citationInLibrary = citations.find(c => String(c.id) === String(result.id));
+        const isUsed = citationInLibrary?.used || false;
+        if (!isUsed) {
+          insertCitationToWord(result);
+        }
       });
     } else {
+      // Uncheck all - mark all currently selected or used citations as unused
+      searchResults.forEach(result => {
+        const citationInLibrary = citations.find(c => String(c.id) === String(result.id));
+        const isUsed = citationInLibrary?.used || false;
+        const isSelected = selectedSearchResults.has(result.id);
+        if (isUsed || isSelected) {
+          removeCitationFromDocument(result.id);
+        }
+      });
       setSelectedSearchResults(new Set());
     }
   };
@@ -120,18 +141,29 @@ const CitationSearch = ({
       .filter(c => c.used)
       .map(c => c.id);
     
+    const unusedCitationIds = citations
+      .filter(c => !c.used)
+      .map(c => c.id);
+    
     const currentSearchResultIds = searchResults.map(r => r.id);
     const usedSearchResultIds = usedCitationIds.filter(id => 
       currentSearchResultIds.includes(id)
     );
+    const unusedSearchResultIds = unusedCitationIds.filter(id => 
+      currentSearchResultIds.includes(id)
+    );
     
-    if (usedSearchResultIds.length > 0) {
-      setSelectedSearchResults(prev => {
-        const newSelected = new Set(prev);
-        usedSearchResultIds.forEach(id => newSelected.add(id));
-        return newSelected;
-      });
-    }
+    setSelectedSearchResults(prev => {
+      const newSelected = new Set(prev);
+      
+      // Add used citations to selected
+      usedSearchResultIds.forEach(id => newSelected.add(id));
+      
+      // Remove unused citations from selected
+      unusedSearchResultIds.forEach(id => newSelected.delete(id));
+      
+      return newSelected;
+    });
   }, [citations, searchResults]);
 
   const getAvailableProjects = () => {
@@ -454,32 +486,36 @@ const CitationSearch = ({
                         <input
                           type="checkbox"
                           checked={(() => {
-                            const availableResults = searchResults.filter(result => {
+                            // Check if all search results are selected (either in selectedSearchResults or used)
+                            const allSelected = searchResults.every(result => {
                               const citationInLibrary = citations.find(c => String(c.id) === String(result.id));
-                              return !citationInLibrary || !citationInLibrary.used;
+                              const isUsed = citationInLibrary?.used || false;
+                              const isSelected = selectedSearchResults.has(result.id);
+                              return isSelected || isUsed;
                             });
-                            return selectedSearchResults.size > 0 && 
-                              selectedSearchResults.size === availableResults.length;
+                            return searchResults.length > 0 && allSelected;
                           })()}
                           ref={(el) => {
                             if (el) {
-                              const availableResults = searchResults.filter(result => {
+                              // Set indeterminate if some but not all are selected
+                              const someSelected = searchResults.some(result => {
                                 const citationInLibrary = citations.find(c => String(c.id) === String(result.id));
-                                return !citationInLibrary || !citationInLibrary.used;
+                                const isUsed = citationInLibrary?.used || false;
+                                const isSelected = selectedSearchResults.has(result.id);
+                                return isSelected || isUsed;
                               });
-                              el.indeterminate = selectedSearchResults.size > 0 && 
-                                selectedSearchResults.size < availableResults.length;
+                              const allSelected = searchResults.every(result => {
+                                const citationInLibrary = citations.find(c => String(c.id) === String(result.id));
+                                const isUsed = citationInLibrary?.used || false;
+                                const isSelected = selectedSearchResults.has(result.id);
+                                return isSelected || isUsed;
+                              });
+                              el.indeterminate = someSelected && !allSelected;
                             }
                           }}
                           onChange={(e) => handleSelectAllSearchResults(e.target.checked)}
                           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                          disabled={(() => {
-                            const availableResults = searchResults.filter(result => {
-                              const citationInLibrary = citations.find(c => String(c.id) === String(result.id));
-                              return !citationInLibrary || !citationInLibrary.used;
-                            });
-                            return availableResults.length === 0;
-                          })()}
+                          disabled={searchResults.length === 0}
                         />
                       </div>
                     </th>
@@ -501,9 +537,9 @@ const CitationSearch = ({
                     const isUsed = citationInLibrary?.used || false;
                     const isSelected = selectedSearchResults.has(result.id);
                     
-                    // Determine checkbox state
+                    // Determine checkbox state - allow unchecking even if used
                     const checkboxChecked = isSelected || isUsed;
-                    const checkboxDisabled = isInLibrary && isUsed;
+                    const checkboxDisabled = false; // Never disable checkbox - allow unchecking
                     
                     return (
                       <React.Fragment key={result.id || index}>

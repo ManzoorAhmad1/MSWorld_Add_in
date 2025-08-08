@@ -1960,6 +1960,21 @@ const Home = ({ handleLogout, status, setStatus }) => {
     setStatus("Citation removed from library");
   };
 
+  const markCitationAsUnused = (id) => {
+    const updated = citations.map((c) =>
+      String(c.id) === String(id)
+        ? {
+            ...c,
+            used: false,
+            inTextCitations: [],
+          }
+        : c
+    );
+    setCitations(updated);
+    saveCitations(updated);
+    setStatus("Citation marked as unused");
+  };
+
   const formatCitationPreview = (citation) => {
     const normalized = normalizeCitation(citation);
     if (!normalized) return "Invalid Citation";
@@ -2324,6 +2339,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
           handlePreviousPage={handlePreviousPage}
           handleNextPage={handleNextPage}
           insertCitation={insertCitation}
+          markCitationAsUnused={markCitationAsUnused}
         />
 
         <CitationSettings
