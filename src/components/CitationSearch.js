@@ -43,10 +43,6 @@ const CitationSearch = ({
   // State for bulk selection in search results
   const [selectedSearchResults, setSelectedSearchResults] = useState(new Set());
   
-  // State for citation editor
-  const [isEditingCitation, setIsEditingCitation] = useState(false);
-  const [currentEditingCitation, setCurrentEditingCitation] = useState(null);
-  
   // State for sync status
   const [isSyncing, setIsSyncing] = useState(false);
 
@@ -129,22 +125,6 @@ const CitationSearch = ({
       });
       setSelectedSearchResults(new Set());
     }
-  };
-
-  // Handle edit citation
-  const handleEditCitation = (result) => {
-    setCurrentEditingCitation(result);
-    setIsEditingCitation(true);
-  };
-
-  // Handle save citation changes
-  const handleSaveCitationChanges = (updatedCitation) => {
-    // Insert citation directly - it will add to library and mark as used
-    insertCitationToWord(updatedCitation);
-    // Also mark this result as selected in the UI
-    setSelectedSearchResults(prev => new Set([...prev, updatedCitation.id]));
-    setIsEditingCitation(false);
-    setCurrentEditingCitation(null);
   };
 
   // Clear selections when search results change
@@ -616,8 +596,6 @@ const CitationSearch = ({
                               <Text className="text-xs text-gray-600 mb-2">
                                 <strong>Authors:</strong> {result?.authors}
                               </Text>
-                              {/* Insert/Remove Citation Button under authors */}
-                              
                             </div>
                           </td>
                           <td className="px-4 py-4">

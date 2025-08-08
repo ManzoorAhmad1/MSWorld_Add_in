@@ -2447,7 +2447,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
         }
       });
 
-      setStatus(`🧹 Bibliography section cleared`);
+      setStatus(`🧹 Bibliography section cleared completely`);
     } catch (error) {
       console.error("Clear bibliography failed:", error);
       setStatus("⚠️ Bibliography clearing attempted with errors");
@@ -2837,6 +2837,14 @@ const Home = ({ handleLogout, status, setStatus }) => {
               </p>
             </div>
           </div>
+          <button
+            onClick={clearBibliography}
+            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition-colors"
+            disabled={!isOfficeReady}
+          >
+            🧹 Test Clear Bibliography
+          </button>
+          
           <button
             onClick={handleLogout}
             className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 mt-2 md:mt-0 rounded-lg text-sm font-medium transition-colors flex items-center space-x-2 flex-shrink-0"
