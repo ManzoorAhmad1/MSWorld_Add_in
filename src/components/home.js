@@ -2030,13 +2030,31 @@ const Home = ({ handleLogout, status, setStatus }) => {
     setCitations(updated);
     saveCitations(updated);
     
-    // Remove citation from Word document and bibliography
+    // Remove citation from Word document and regenerate bibliography
     if (citationToRemove) {
       await removeCitationFromDocument(citationToRemove);
-      await removeBibliographyEntry(citationToRemove);
+      
+      // Regenerate bibliography with remaining citations
+      const remainingUsedCitations = updated.filter(c => c.used);
+      if (remainingUsedCitations.length > 0) {
+        setStatus("Regenerating bibliography after citation removal...");
+        setTimeout(async () => {
+          try {
+            await clearBibliography();
+            await generateBibliography();
+            setStatus(`Citation completely removed (${remainingUsedCitations.length} citations remaining in bibliography)`);
+          } catch (error) {
+            setStatus("Citation removed, but bibliography may need manual update");
+          }
+        }, 500);
+      } else {
+        // No citations left, clear the bibliography
+        await clearBibliography();
+        setStatus("Citation completely removed and bibliography cleared");
+      }
+    } else {
+      setStatus("Citation completely removed from library and document");
     }
-    
-    setStatus("Citation completely removed from library and document");
   };
 
   // Function to remove citation from Word document
@@ -2100,54 +2118,94 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
     try {
       await Word.run(async (context) => {
-        const authorYear = getAuthorYearFromCitation(citation);
-        const title = citation.title || citation.pdf_search_data?.title || '';
+        // First, try to find the "References" or "Bibliography" section
+        const referencesSearch = context.document.body.search("References", {
+          matchCase: false,
+          matchWholeWord: true
+        });
+        referencesSearch.load('items');
+        await context.sync();
+
+        const bibliographySearch = context.document.body.search("Bibliography", {
+          matchCase: false,
+          matchWholeWord: true
+        });
+        bibliographySearch.load('items');
+        await context.sync();
+
+        // Determine search area (after References/Bibliography heading or entire document)
+        let searchRange = context.document.body;
+        if (referencesSearch.items.length > 0) {
+          const refParagraph = referencesSearch.items[0].parentParagraph;
+          searchRange = refParagraph.getNext().getRange();
+        } else if (bibliographySearch.items.length > 0) {
+          const bibParagraph = bibliographySearch.items[0].parentParagraph;
+          searchRange = bibParagraph.getNext().getRange();
+        }
+
+        // Create more specific search patterns
         const firstAuthor = citation.authors?.split(',')[0]?.trim() || 
                            citation.pdf_search_data?.Authors?.split(',')[0]?.trim() || '';
+        const year = citation.year || citation.pdf_search_data?.year || '';
+        const title = citation.title || citation.pdf_search_data?.title || '';
         
-        // Search for bibliography entry by different patterns
+        // Search patterns (more specific for bibliography entries)
         const searchPatterns = [
-          firstAuthor, // First author's last name
-          authorYear, // Author, year format
-          title.substring(0, 25) // Part of title
-        ].filter(pattern => pattern.length > 2);
+          `${firstAuthor}.*, .*${year}`, // Author pattern with year
+          `${firstAuthor} `, // Author name followed by space (start of entry)
+          title.substring(0, 30).replace(/[^\w\s]/g, ''), // Clean title fragment
+        ].filter(pattern => pattern.length > 3);
 
         let found = false;
         let removedCount = 0;
-        
-        for (const pattern of searchPatterns) {
-          const searchResults = context.document.body.search(pattern, {
-            matchCase: false,
-            matchWholeWord: false
-          });
-          searchResults.load('items');
-          await context.sync();
 
-          if (searchResults.items.length > 0) {
-            // Look for bibliography entries (usually in separate paragraphs)
-            searchResults.items.forEach(item => {
-              try {
-                // Try to get the paragraph containing this text
-                const paragraph = item.parentParagraph;
-                if (paragraph && paragraph.text && paragraph.text.length > 20) {
-                  // Only delete if it looks like a bibliography entry (longer text)
-                  paragraph.delete();
-                  removedCount++;
-                }
-              } catch (e) {
-                // Fallback: just delete the found item
-                item.delete();
-                removedCount++;
-              }
+        for (const pattern of searchPatterns) {
+          try {
+            const searchResults = searchRange.search(pattern, {
+              matchCase: false,
+              matchWholeWord: false
             });
-            found = true;
+            searchResults.load('items');
             await context.sync();
-            break; // Stop after first successful match
+
+            if (searchResults.items.length > 0) {
+              // Find the bibliography entry paragraph
+              for (let i = 0; i < searchResults.items.length; i++) {
+                const item = searchResults.items[i];
+                const paragraph = item.parentParagraph;
+                
+                if (paragraph) {
+                  paragraph.load(['text', 'styleBuiltIn']);
+                  await context.sync();
+                  
+                  // Check if this looks like a bibliography entry
+                  const paragraphText = paragraph.text || '';
+                  const containsAuthor = firstAuthor && paragraphText.toLowerCase().includes(firstAuthor.toLowerCase());
+                  const containsYear = year && paragraphText.includes(year);
+                  const isLongEnough = paragraphText.length > 30; // Bibliography entries are usually longer
+                  
+                  if ((containsAuthor || containsYear) && isLongEnough) {
+                    paragraph.delete();
+                    removedCount++;
+                    found = true;
+                    break; // Remove only the first matching entry
+                  }
+                }
+              }
+              
+              await context.sync();
+              if (found) break; // Stop searching once we found and removed an entry
+            }
+          } catch (e) {
+            console.log(`Search pattern "${pattern}" failed:`, e);
+            continue; // Try next pattern
           }
         }
 
         if (found) {
-          setStatus(`Bibliography entry for "${authorYear}" removed (${removedCount} entries)`);
+          setStatus(`Bibliography entry removed for "${firstAuthor || 'citation'}" (${removedCount} entries)`);
+        } else {
+          setStatus(`Bibliography entry not found for "${firstAuthor || 'citation'}" (may need manual removal)`);
         }
       });
     } catch (error) {
@@ -2174,10 +2232,28 @@ const Home = ({ handleLogout, status, setStatus }) => {
     // Remove citation from Word document
     if (citationToRemove) {
       await removeCitationFromDocument(citationToRemove);
-      await removeBibliographyEntry(citationToRemove);
+      
+      // Instead of trying to remove individual entries, regenerate the entire bibliography
+      const remainingUsedCitations = updated.filter(c => c.used);
+      if (remainingUsedCitations.length > 0) {
+        setStatus("Regenerating bibliography without removed citation...");
+        setTimeout(async () => {
+          try {
+            await clearBibliography();
+            await generateBibliography();
+            setStatus(`Citation removed and bibliography updated (${remainingUsedCitations.length} citations remaining)`);
+          } catch (error) {
+            setStatus("Citation removed, but bibliography may need manual update");
+          }
+        }, 500);
+      } else {
+        // No citations left, clear the bibliography
+        await clearBibliography();
+        setStatus("Citation removed and bibliography cleared (no citations remaining)");
+      }
+    } else {
+      setStatus("Citation removed from document and bibliography");
     }
-    
-    setStatus("Citation removed from document and bibliography");
   };
 
   // Auto-regenerate bibliography with updated citations
