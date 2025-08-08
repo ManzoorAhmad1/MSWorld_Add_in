@@ -568,17 +568,7 @@ const CitationSearch = ({
                     
                     return (
                       <React.Fragment key={result.id || index}>
-                        <tr
-                          className={`transition-colors ${
-                            checkboxChecked
-                              ? isUsed 
-                                ? "bg-green-50 hover:bg-green-100" // Used in document
-                                : "bg-blue-50 hover:bg-blue-100"   // Selected for insertion
-                              : isInLibrary
-                              ? "bg-yellow-50 hover:bg-yellow-100" // In library but not used
-                              : "hover:bg-gray-50"                 // Not in library
-                          }`}
-                        >
+                        <tr className="transition-colors">
                           <td className="px-4 py-4">
                             <input
                               type="checkbox"

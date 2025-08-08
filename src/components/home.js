@@ -1231,6 +1231,9 @@ const Home = ({ handleLogout, status, setStatus }) => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalResults, setTotalResults] = useState(0);
   const [pageSize] = useState(10);
+  
+  // Tab state for switching between References and Citation Settings
+  const [activeTab, setActiveTab] = useState("references");
 
   // Fetch user files on component mount
   useEffect(() => {
@@ -3052,61 +3055,94 @@ const Home = ({ handleLogout, status, setStatus }) => {
           </span>
         </div>
 
-        <CitationSearch
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-          handleCitationSearch={handleCitationSearch}
-          isSearching={isSearching}
-          searchResults={searchResults}
-          fetchPaperLoader={fetchPaperLoader}
-          addCitationToLibrary={addCitationToLibrary}
-          getCitationTitle={getCitationTitle}
-          getCitationAuthors={getCitationAuthors}
-          citations={citations}
-          userWorkSpaces={userWorkSpaces}
-          isWorkSpaceLoading={isWorkSpaceLoading}
-          setSelectedProject={setSelectedProject}
-          selectedProject={selectedProject}
-          setSelectedWorkSpace={setSelectedWorkSpace}
-          selectedWorkSpace={selectedWorkSpace}
-          isFolderLoading={isFolderLoading}
-          fetchFolder={fetchFolder}
-          isSelectedFolder={isSelectedFolder}
-          setIsSelectedFolder={setIsSelectedFolder}
-          setSearchResults={setSearchResults}    
-          setFetchPaperLoader={setFetchPaperLoader}
-          // Pagination props
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalResults={totalResults}
-          pageSize={pageSize}
-          handlePageChange={handlePageChange}
-          handlePreviousPage={handlePreviousPage}
-          handleNextPage={handleNextPage}
-          insertCitation={insertCitation}
-          markCitationAsUnused={markCitationAsUnused}
-          syncCitationsWithDocument={syncCitationsWithDocument}
-        />
+        {/* Tab Header */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+          <div className="flex">
+            <button
+              onClick={() => setActiveTab("references")}
+              className={`flex-1 px-4 py-3 text-sm font-medium rounded-l-lg transition-colors ${
+                activeTab === "references"
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-50 text-gray-700 hover:bg-gray-100"
+              }`}
+            >
+              📚 References
+            </button>
+            <button
+              onClick={() => setActiveTab("settings")}
+              className={`flex-1 px-4 py-3 text-sm font-medium rounded-r-lg transition-colors ${
+                activeTab === "settings"
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-50 text-gray-700 hover:bg-gray-100"
+              }`}
+            >
+              ⚙️ Citation Settings
+            </button>
+          </div>
+        </div>
 
-        <CitationSettings
-          citationStyle={citationStyle}
-          setCitationStyle={setCitationStyle}
-          citationStyles={citationStyles}
-          citationFormat={citationFormat}
-          setCitationFormat={setCitationFormat}
-          bibliographyTitle={bibliographyTitle}
-          setBibliographyTitle={setBibliographyTitle}
-          previewCitationStyle={previewCitationStyle}
-        />
+        {/* Conditional Content Based on Active Tab */}
+        {activeTab === "references" && (
+          <>
+            <CitationSearch
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              handleCitationSearch={handleCitationSearch}
+              isSearching={isSearching}
+              searchResults={searchResults}
+              fetchPaperLoader={fetchPaperLoader}
+              addCitationToLibrary={addCitationToLibrary}
+              getCitationTitle={getCitationTitle}
+              getCitationAuthors={getCitationAuthors}
+              citations={citations}
+              userWorkSpaces={userWorkSpaces}
+              isWorkSpaceLoading={isWorkSpaceLoading}
+              setSelectedProject={setSelectedProject}
+              selectedProject={selectedProject}
+              setSelectedWorkSpace={setSelectedWorkSpace}
+              selectedWorkSpace={selectedWorkSpace}
+              isFolderLoading={isFolderLoading}
+              fetchFolder={fetchFolder}
+              isSelectedFolder={isSelectedFolder}
+              setIsSelectedFolder={setIsSelectedFolder}
+              setSearchResults={setSearchResults}    
+              setFetchPaperLoader={setFetchPaperLoader}
+              // Pagination props
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalResults={totalResults}
+              pageSize={pageSize}
+              handlePageChange={handlePageChange}
+              handlePreviousPage={handlePreviousPage}
+              handleNextPage={handleNextPage}
+              insertCitation={insertCitation}
+              markCitationAsUnused={markCitationAsUnused}
+              syncCitationsWithDocument={syncCitationsWithDocument}
+            />
 
-        <BibliographySection
-          generateBibliography={generateBibliography}
-          autoRegenerateBibliography={autoRegenerateBibliography}
-          isOfficeReady={isOfficeReady}
-          citations={citations}
-          testAPACitationFormatting={testAPACitationFormatting}
-          testDuplicateRemoval={testDuplicateRemoval}
-        />
+            <BibliographySection
+              generateBibliography={generateBibliography}
+              autoRegenerateBibliography={autoRegenerateBibliography}
+              isOfficeReady={isOfficeReady}
+              citations={citations}
+              testAPACitationFormatting={testAPACitationFormatting}
+              testDuplicateRemoval={testDuplicateRemoval}
+            />
+          </>
+        )}
+
+        {activeTab === "settings" && (
+          <CitationSettings
+            citationStyle={citationStyle}
+            setCitationStyle={setCitationStyle}
+            citationStyles={citationStyles}
+            citationFormat={citationFormat}
+            setCitationFormat={setCitationFormat}
+            bibliographyTitle={bibliographyTitle}
+            setBibliographyTitle={setBibliographyTitle}
+            previewCitationStyle={previewCitationStyle}
+          />
+        )}
       </header>
     </div>
   );
