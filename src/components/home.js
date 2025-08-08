@@ -1362,6 +1362,24 @@ const Home = ({ handleLogout, status, setStatus }) => {
     }
   }, []);
 
+  // Periodic sync with Word document to detect manually removed citations
+  useEffect(() => {
+    let syncInterval;
+    
+    if (isOfficeReady && citations.length > 0) {
+      // Sync every 10 seconds when citations exist
+      syncInterval = setInterval(() => {
+        syncCitationsWithDocument();
+      }, 10000);
+    }
+
+    return () => {
+      if (syncInterval) {
+        clearInterval(syncInterval);
+      }
+    };
+  }, [isOfficeReady, citations]);
+
   // Pagination handlers
   const handlePageChange = async (page) => {
     try {
@@ -1551,6 +1569,13 @@ const Home = ({ handleLogout, status, setStatus }) => {
     }
 
     try {
+      // Check if citation is already used to prevent duplicates
+      const existingCitation = citations.find((c) => String(c.id) === String(citation.id));
+      if (existingCitation && existingCitation.used) {
+        setStatus("Citation is already used in document");
+        return;
+      }
+
       // Ensure citation is properly formatted
       const normalizedCitation = normalizeCitation(citation);
       if (!normalizedCitation) {
@@ -1975,6 +2000,74 @@ const Home = ({ handleLogout, status, setStatus }) => {
     setStatus("Citation removed from bibliography");
   };
 
+  // Sync citations with Word document content
+  const syncCitationsWithDocument = async () => {
+    if (!isOfficeReady) return;
+
+    try {
+      await Word.run(async (context) => {
+        const body = context.document.body;
+        const footnotes = context.document.body.footnotes;
+        
+        // Load the content to check
+        body.load('text');
+        footnotes.load('items');
+        await context.sync();
+
+        const documentText = body.text;
+        const footnotesText = footnotes.items.map(f => {
+          f.body.load('text');
+          return f;
+        });
+        
+        if (footnotesText.length > 0) {
+          await context.sync();
+        }
+
+        // Check which citations are still in the document
+        const citationsInDoc = citations.filter(citation => {
+          if (!citation.used) return false;
+          
+          // Check if any of the citation's in-text citations are still in the document
+          return citation.inTextCitations?.some(inTextCit => {
+            // Remove formatting characters for comparison
+            const cleanedCitation = inTextCit.replace(/[*_]/g, '').trim();
+            const isInBody = documentText.includes(cleanedCitation);
+            const isInFootnotes = footnotesText.some(fn => 
+              fn.body.text.includes(cleanedCitation)
+            );
+            return isInBody || isInFootnotes;
+          });
+        });
+
+        // Find citations that were used but are no longer in document
+        const removedCitations = citations.filter(citation => 
+          citation.used && !citationsInDoc.find(c => String(c.id) === String(citation.id))
+        );
+
+        // Mark removed citations as unused
+        if (removedCitations.length > 0) {
+          const updated = citations.map(citation => {
+            const isRemoved = removedCitations.find(rc => String(rc.id) === String(citation.id));
+            return isRemoved ? { ...citation, used: false, inTextCitations: [] } : citation;
+          });
+          
+          setCitations(updated);
+          saveCitations(updated);
+          
+          // More detailed status message
+          const citationTitles = removedCitations.map(c => 
+            c.title ? c.title.substring(0, 30) + '...' : 'Untitled'
+          ).join(', ');
+          
+          setStatus(`🔄 Auto-sync: ${removedCitations.length} citation(s) unchecked after manual removal: ${citationTitles}`);
+        }
+      });
+    } catch (error) {
+      console.error("Failed to sync citations with document:", error);
+    }
+  };
+
   const formatCitationPreview = (citation) => {
     const normalized = normalizeCitation(citation);
     if (!normalized) return "Invalid Citation";
@@ -2340,6 +2433,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
           handleNextPage={handleNextPage}
           insertCitation={insertCitation}
           markCitationAsUnused={markCitationAsUnused}
+          syncCitationsWithDocument={syncCitationsWithDocument}
         />
 
         <CitationSettings
