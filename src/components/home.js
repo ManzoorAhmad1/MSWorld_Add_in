@@ -1385,28 +1385,147 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
   // Auto-update bibliography when citation style changes
   useEffect(() => {
-    const autoUpdateBibliography = async () => {
+    const autoUpdateExistingBibliography = async () => {
       // Only auto-update if Office is ready and there are used citations
       const usedCitations = citations.filter(c => c.used);
       
       if (isOfficeReady && usedCitations.length > 0) {
         try {
-          console.log(`🔄 Auto-updating bibliography for style change to: ${citationStyle}`);
-          await generateBibliography();
-          console.log(`✅ Bibliography auto-updated to ${citationStyle.toUpperCase()} style`);
+          console.log(`🔄 Auto-updating existing bibliography for style change to: ${citationStyle}`);
+          
+          // Check if bibliography exists first
+          await Word.run(async (context) => {
+            const searchResults = context.document.body.search(bibliographyTitle, { matchCase: false, matchWholeWord: false });
+            searchResults.load('items');
+            await context.sync();
+
+            if (searchResults.items.length > 0) {
+              // Bibliography exists, update it in-place
+              const bibRaw = await formatBibliographyCiteproc(usedCitations, citationStyle);
+              const styleFont = getCitationStyleFont(citationStyle);
+
+              // Find the bibliography section and update entries
+              const bibTitleRange = searchResults.items[0];
+              let currentParagraph = bibTitleRange.parentOrNullObject;
+              currentParagraph.load('text');
+              await context.sync();
+
+              // Navigate to the paragraph after the bibliography title
+              let nextParagraph = currentParagraph.getNext();
+              nextParagraph.load('text');
+              await context.sync();
+
+              // Clear existing bibliography entries (find and remove paragraphs that look like citations)
+              const allParagraphs = context.document.body.paragraphs;
+              allParagraphs.load('text');
+              await context.sync();
+
+              let titleFound = false;
+              const paragraphsToDelete = [];
+
+              // Collect paragraphs to delete (those after bibliography title that contain citations)
+              for (let i = 0; i < allParagraphs.items.length; i++) {
+                const paragraph = allParagraphs.items[i];
+                const text = paragraph.text.trim();
+
+                if (text === bibliographyTitle) {
+                  titleFound = true;
+                  continue;
+                }
+
+                if (titleFound) {
+                  // Stop if we hit another major heading or empty paragraph after citations
+                  if (text.length === 0) {
+                    // Check if this is just spacing between entries
+                    if (i < allParagraphs.items.length - 1) {
+                      const nextText = allParagraphs.items[i + 1]?.text?.trim();
+                      if (nextText && !nextText.match(/^[A-Z][^.]*\(/)) {
+                        break; // This empty paragraph marks end of bibliography
+                      }
+                    }
+                    paragraphsToDelete.push(paragraph);
+                    continue;
+                  }
+
+                  // If this looks like a citation (starts with author name pattern), delete it
+                  if (text.match(/^[A-Z][^.]*\(/)) {
+                    paragraphsToDelete.push(paragraph);
+                  } else {
+                    // If it doesn't look like a citation, we've reached the end of bibliography
+                    break;
+                  }
+                }
+              }
+
+              // Delete old bibliography entries
+              for (const paragraph of paragraphsToDelete) {
+                paragraph.delete();
+              }
+
+              await context.sync();
+
+              // Find the bibliography title again and insert updated entries after it
+              const updatedSearchResults = context.document.body.search(bibliographyTitle, { matchCase: false, matchWholeWord: false });
+              updatedSearchResults.load('items');
+              await context.sync();
+
+              if (updatedSearchResults.items.length > 0) {
+                const titleRange = updatedSearchResults.items[0];
+                let insertionPoint = titleRange.getRange(Word.RangeLocation.after);
+
+                // Insert updated bibliography entries
+                const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
+                for (let i = 0; i < bibEntries.length; i++) {
+                  const entry = bibEntries[i].trim();
+                  if (!entry) continue;
+
+                  // Insert paragraph after the previous entry
+                  const para = insertionPoint.insertParagraph("", Word.InsertLocation.after);
+                  para.font.name = styleFont.family;
+                  para.font.size = styleFont.size;
+                  para.leftIndent = 36; // Hanging indent for citations
+                  para.firstLineIndent = -36;
+
+                  // Format the entry text
+                  if (entry.includes("*")) {
+                    await parseAndFormatText(para, entry, citationStyle);
+                  } else {
+                    para.insertText(entry, Word.InsertLocation.start);
+                  }
+
+                  // Update insertion point for next entry
+                  insertionPoint = para.getRange(Word.RangeLocation.after);
+                }
+
+                await context.sync();
+                
+                console.log(`✅ Existing bibliography updated to ${citationStyle.toUpperCase()} style`);
+                setStatus(`✅ Bibliography updated to ${citationStyle.toUpperCase()} style`);
+              } else {
+                console.warn('⚠️ Could not find bibliography title after deletion');
+                // Fallback to full regeneration if we can't find the title
+                await generateBibliography();
+              }
+            } else {
+              console.log('📝 No existing bibliography found, skipping auto-update');
+              // Don't create new bibliography automatically, let user do it manually
+            }
+          });
+
         } catch (error) {
-          console.error('❌ Auto-update bibliography failed:', error);
+          console.error('❌ Auto-update existing bibliography failed:', error);
+          setStatus('❌ Bibliography update failed');
         }
       }
     };
 
     // Add a small delay to avoid too frequent updates during rapid style changes
-    const timeoutId = setTimeout(autoUpdateBibliography, 300);
+    const timeoutId = setTimeout(autoUpdateExistingBibliography, 300);
     
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [citationStyle, isOfficeReady]); // Dependencies: citation style and Office ready state
+  }, [citationStyle, isOfficeReady, citations]); // Added citations as dependency to access current state
 
   // Pagination handlers
   const handlePageChange = async (page) => {
