@@ -1434,25 +1434,53 @@ const Home = ({ handleLogout, status, setStatus }) => {
                 }
 
                 if (titleFound) {
-                  // Stop if we hit another major heading or empty paragraph after citations
+                  // Stop if we hit another major heading (all caps, or starts with number)
+                  if (text.match(/^[A-Z\s]+$/) && text.length > 10) {
+                    break; // Hit another section title
+                  }
+                  
+                  // Stop if we hit a numbered section
+                  if (text.match(/^\d+\.|^\d+\s/)) {
+                    break; // Hit a numbered section
+                  }
+
+                  // If it's empty, check if it's between citations or end of bibliography
                   if (text.length === 0) {
-                    // Check if this is just spacing between entries
-                    if (i < allParagraphs.items.length - 1) {
-                      const nextText = allParagraphs.items[i + 1]?.text?.trim();
-                      if (nextText && !nextText.match(/^[A-Z][^.]*\(/)) {
-                        break; // This empty paragraph marks end of bibliography
+                    // Look ahead to see if there are more citations coming
+                    let hasMoreCitations = false;
+                    for (let j = i + 1; j < Math.min(i + 3, allParagraphs.items.length); j++) {
+                      const nextText = allParagraphs.items[j]?.text?.trim();
+                      if (nextText && (nextText.match(/^[A-Z][^.]*\(/) || nextText.includes("("))) {
+                        hasMoreCitations = true;
+                        break;
                       }
                     }
-                    paragraphsToDelete.push(paragraph);
+                    if (hasMoreCitations) {
+                      paragraphsToDelete.push(paragraph); // Delete empty lines between citations
+                    } else {
+                      break; // End of bibliography
+                    }
                     continue;
                   }
 
-                  // If this looks like a citation (starts with author name pattern), delete it
-                  if (text.match(/^[A-Z][^.]*\(/)) {
+                  // Enhanced citation detection patterns
+                  const isCitation = 
+                    text.match(/^[A-Z][^.]*\(\d{4}\)/) ||  // Author (Year) pattern
+                    text.match(/^[A-Z][^.]*\d{4}/) ||      // Author Year pattern  
+                    text.match(/^\[[0-9]+\]/) ||           // [1] numbered reference
+                    text.match(/^[A-Z][a-z]+,\s*[A-Z]\./) || // Author, A. pattern
+                    text.includes("doi:") ||               // DOI reference
+                    text.includes("http") ||               // URL reference
+                    text.match(/\.\s*\*[^*]+\*/) ||        // Italicized journal name
+                    (text.length > 50 && text.includes("(") && text.includes(")"));
+
+                  if (isCitation) {
                     paragraphsToDelete.push(paragraph);
                   } else {
-                    // If it doesn't look like a citation, we've reached the end of bibliography
-                    break;
+                    // If it doesn't look like a citation and we've been collecting citations, we've reached the end
+                    if (paragraphsToDelete.length > 0) {
+                      break;
+                    }
                   }
                 }
               }
