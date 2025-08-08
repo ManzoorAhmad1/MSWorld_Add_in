@@ -2736,6 +2736,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
   const syncCitationsWithDocument = async () => {
     if (!isOfficeReady) return;
 
+    console.log('🔄 Starting sync with Word document...');
+    
     try {
       await Word.run(async (context) => {
         const body = context.document.body;
@@ -2747,6 +2749,9 @@ const Home = ({ handleLogout, status, setStatus }) => {
         await context.sync();
 
         const documentText = body.text;
+        console.log(`📄 Document text length: ${documentText.length}`);
+        console.log(`📝 Document preview: ${documentText.substring(0, 200)}...`);
+        
         const footnotesText = footnotes.items.map(f => {
           f.body.load('text');
           return f;
@@ -2754,7 +2759,10 @@ const Home = ({ handleLogout, status, setStatus }) => {
         
         if (footnotesText.length > 0) {
           await context.sync();
+          console.log(`📝 Found ${footnotesText.length} footnotes`);
         }
+
+        console.log(`📚 Checking ${citations.length} citations, ${citations.filter(c => c.used).length} are marked as used`);
 
         // Check which citations are still in the document
         const citationsInDoc = citations.filter(citation => {
@@ -2769,6 +2777,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
                       citation.year || 
                       citation.pdf_search_data?.year || '';
           
+          console.log(`🔍 Checking citation: ${firstAuthor}, ${year}`);
+          
           // Multiple detection patterns
           const detectionPatterns = [
             `${firstAuthor}, ${year}`,        // Author, Year
@@ -2778,13 +2788,17 @@ const Home = ({ handleLogout, status, setStatus }) => {
             firstAuthor,                       // Just author name
           ].filter(pattern => pattern && pattern.length > 2);
           
+          console.log(`🔍 Detection patterns for ${firstAuthor}:`, detectionPatterns);
+          
           // Check if any pattern is found in document or footnotes
           const isStillInDocument = detectionPatterns.some(pattern => {
             const isInBody = documentText.includes(pattern);
             const isInFootnotes = footnotesText.some(fn => 
               fn.body.text.includes(pattern)
             );
-            return isInBody || isInFootnotes;
+            const found = isInBody || isInFootnotes;
+            console.log(`📋 Pattern "${pattern}": Body=${isInBody}, Footnotes=${isInFootnotes}, Found=${found}`);
+            return found;
           });
           
           // Also check original inTextCitations if they exist
@@ -2795,16 +2809,31 @@ const Home = ({ handleLogout, status, setStatus }) => {
             const isInFootnotes = footnotesText.some(fn => 
               fn.body.text.includes(cleanedCitation)
             );
-            return isInBody || isInFootnotes;
+            const found = isInBody || isInFootnotes;
+            console.log(`📋 Original citation "${cleanedCitation}": Body=${isInBody}, Footnotes=${isInFootnotes}, Found=${found}`);
+            return found;
           });
           
-          return isStillInDocument || hasOriginalCitations;
+          const stillExists = isStillInDocument || hasOriginalCitations;
+          console.log(`✅ Citation ${firstAuthor} still exists: ${stillExists}`);
+          return stillExists;
         });
+
+        console.log(`📊 Citations still in document: ${citationsInDoc.length}`);
 
         // Find citations that were used but are no longer in document
         const removedCitations = citations.filter(citation => 
           citation.used && !citationsInDoc.find(c => String(c.id) === String(citation.id))
         );
+
+        console.log(`🗑️ Removed citations detected: ${removedCitations.length}`);
+        if (removedCitations.length > 0) {
+          console.log('🗑️ Removed citations:', removedCitations.map(c => ({
+            id: c.id,
+            title: c.title || 'No title',
+            author: c.authors || 'No author'
+          })));
+        }
 
         // Mark removed citations as unused and remove their bibliography entries
         if (removedCitations.length > 0) {
