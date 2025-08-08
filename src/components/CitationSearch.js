@@ -1,7 +1,8 @@
-import { Loader, Folder, ChevronLeft, Home, ChevronRight, Plus } from "lucide-react";
+import { Loader, Folder, ChevronLeft, Home, ChevronRight } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { Text, Button } from "rizzui";
 import TableSkeleton from "./TableSkeleton";
+import CitationEditor from "./CitationEditor";
 
 const CitationSearch = ({
   searchResults,
@@ -30,6 +31,8 @@ const CitationSearch = ({
   handlePageChange,
   handlePreviousPage,
   handleNextPage,
+  // Citation insertion
+  insertCitation,
 }) => {
   console.log(searchResults,'searchResults')
   // State for folder navigation
@@ -38,7 +41,10 @@ const CitationSearch = ({
   
   // State for bulk selection in search results
   const [selectedSearchResults, setSelectedSearchResults] = useState(new Set());
-  const [showSearchBulkActions, setShowSearchBulkActions] = useState(false);
+  
+  // State for citation editor
+  const [isEditingCitation, setIsEditingCitation] = useState(false);
+  const [currentEditingCitation, setCurrentEditingCitation] = useState(null);
 
   const isCitationInLibrary = (citationId) => {
     return citations.some(
@@ -46,47 +52,67 @@ const CitationSearch = ({
     );
   };
 
-  // Handle search result selection
+  // Handle search result selection with automatic insertion
   const handleSearchResultSelect = (resultId, checked) => {
     const newSelected = new Set(selectedSearchResults);
     if (checked) {
       newSelected.add(resultId);
+      // First add citation to library, then insert into Word
+      const selectedResult = searchResults.find(r => r.id === resultId);
+      if (selectedResult) {
+        // Add to library first
+        addCitationToLibrary(selectedResult);
+        // Then insert into Word (this will mark it as used)
+        insertCitationToWord(selectedResult);
+      }
     } else {
       newSelected.delete(resultId);
     }
     setSelectedSearchResults(newSelected);
-    setShowSearchBulkActions(newSelected.size > 0);
   };
 
-  // Handle select all search results
+  // Insert citation directly to Word
+  const insertCitationToWord = (result) => {
+    if (insertCitation) {
+      insertCitation(result);
+    }
+  };
+
+  // Handle select all search results with automatic insertion
   const handleSelectAllSearchResults = (checked) => {
     if (checked) {
       const availableResults = searchResults.filter(result => !isCitationInLibrary(result.id));
       const allIds = new Set(availableResults.map(r => r.id));
       setSelectedSearchResults(allIds);
-      setShowSearchBulkActions(allIds.size > 0);
+      // First add all citations to library, then insert them into Word
+      availableResults.forEach(result => {
+        addCitationToLibrary(result);
+        insertCitationToWord(result);
+      });
     } else {
       setSelectedSearchResults(new Set());
-      setShowSearchBulkActions(false);
     }
   };
 
-  // Bulk add to library
-  const handleBulkAddToLibrary = () => {
-    const selectedResults = searchResults.filter(r => selectedSearchResults.has(r.id));
-    selectedResults.forEach(result => {
-      if (!isCitationInLibrary(result.id)) {
-        addCitationToLibrary(result);
-      }
-    });
-    setSelectedSearchResults(new Set());
-    setShowSearchBulkActions(false);
+  // Handle edit citation
+  const handleEditCitation = (result) => {
+    setCurrentEditingCitation(result);
+    setIsEditingCitation(true);
+  };
+
+  // Handle save citation changes
+  const handleSaveCitationChanges = (updatedCitation) => {
+    // Add citation to library with updated details
+    addCitationToLibrary(updatedCitation);
+    // Also insert into Word to mark as used
+    insertCitationToWord(updatedCitation);
+    setIsEditingCitation(false);
+    setCurrentEditingCitation(null);
   };
 
   // Clear selections when search results change
   useEffect(() => {
     setSelectedSearchResults(new Set());
-    setShowSearchBulkActions(false);
   }, [searchResults]);
 
   const getAvailableProjects = () => {
@@ -396,37 +422,6 @@ const CitationSearch = ({
           </Text>
         </div>
 
-        {/* Bulk Actions Bar for Search Results */}
-        {showSearchBulkActions && (
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-blue-900 font-medium">
-                  {selectedSearchResults.size} selected
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleBulkAddToLibrary}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Selected to Library ({selectedSearchResults.size})
-                </button>
-                <button
-                  onClick={() => {
-                    setSelectedSearchResults(new Set());
-                    setShowSearchBulkActions(false);
-                  }}
-                  className="px-3 py-1.5 text-gray-600 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Clear Selection
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {fetchPaperLoader ? (
           <TableSkeleton rows={5} />
         ) : searchResults.length > 0 ? (
@@ -461,10 +456,7 @@ const CitationSearch = ({
                       Journal & Year
                     </th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Citations
-                    </th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Action
+                      Status
                     </th>
                   </tr>
                 </thead>
@@ -474,76 +466,75 @@ const CitationSearch = ({
                     const isSelected = selectedSearchResults.has(result.id);
                     
                     return (
-                      <tr
-                        key={result.id || index}
-                        className={`transition-colors ${
-                          isSelected
-                            ? "bg-blue-50 hover:bg-blue-100"
-                            : isInLibrary
-                            ? "bg-green-50 hover:bg-green-100"
-                            : "hover:bg-gray-50"
-                        }`}
-                      >
-                        <td className="px-4 py-4">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={(e) => handleSearchResultSelect(result.id, e.target.checked)}
-                            disabled={isInLibrary}
-                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50"
-                          />
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="space-y-1">
-                            <Text className="font-semibold text-gray-900 text-sm leading-tight">
-                              {getCitationTitle(result)}
-                            </Text>
-                            <Text className="text-xs text-gray-600">
-                              <strong>Authors:</strong> {result?.authors}
-                            </Text>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="space-y-1">
-                            {result["container-title"] && (
-                              <Text className="text-sm text-gray-900">
-                                {result["container-title"]}
+                      <React.Fragment key={result.id || index}>
+                        <tr
+                          className={`transition-colors ${
+                            isSelected
+                              ? "bg-blue-50 hover:bg-blue-100"
+                              : isInLibrary
+                              ? "bg-green-50 hover:bg-green-100"
+                              : "hover:bg-gray-50"
+                          }`}
+                        >
+                          <td className="px-4 py-4">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => handleSearchResultSelect(result.id, e.target.checked)}
+                              disabled={isInLibrary}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50"
+                            />
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="space-y-2">
+                              <Text className="font-semibold text-gray-900 text-sm leading-tight">
+                                {getCitationTitle(result)}
                               </Text>
-                            )}
-                            {result.issued?.["date-parts"]?.[0]?.[0] && (
-                              <Text className="text-xs text-gray-600">
-                                Year: {result.issued["date-parts"][0][0]}
+                              <Text className="text-xs text-gray-600 mb-2">
+                                <strong>Authors:</strong> {result?.authors}
                               </Text>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 text-center">
-                          <div className="flex items-center justify-center">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                              {result.CitationCount || 0}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 text-center">
-                          {isInLibrary ? (
-                            <Button
-                              disabled
-                              size="sm"
-                              className="bg-green-100 text-green-800 cursor-not-allowed text-xs px-3 py-1"
-                            >
-                              ✅ In Library
-                            </Button>
-                          ) : (
-                            <Button
-                              onClick={() => addCitationToLibrary(result)}
-                              size="sm"
-                              className="bg-blue-500 hover:bg-blue-600 border-white whitespace-nowrap text-white text-xs px-3 py-1 transition-colors"
-                            >
-                              Add to Library
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
+                              {/* Insert Citation Button under authors */}
+                              <div>
+                                <Button
+                                  onClick={() => handleEditCitation(result)}
+                                  disabled={isSelected}
+                                  size="sm"
+                                  className={`${
+                                    isSelected 
+                                      ? "bg-gray-200 text-gray-500 cursor-not-allowed" 
+                                      : "bg-blue-500 hover:bg-blue-600 text-white"
+                                  } text-xs px-3 py-1 transition-colors`}
+                                >
+                                  {isSelected ? "✅ Inserted" : "📝 Insert Citation"}
+                                </Button>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="space-y-1">
+                              {result["container-title"] && (
+                                <Text className="text-sm text-gray-900">
+                                  {result["container-title"]}
+                                </Text>
+                              )}
+                              {result.issued?.["date-parts"]?.[0]?.[0] && (
+                                <Text className="text-xs text-gray-600">
+                                  Year: {result.issued["date-parts"][0][0]}
+                                </Text>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 text-center">
+                            <div className="flex items-center justify-center">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                isSelected ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+                              }`}>
+                                {isSelected ? "✅ Selected" : (result.CitationCount || 0)}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
@@ -661,6 +652,18 @@ const CitationSearch = ({
           </div>
         )}
       </div>
+
+      {/* Citation Editor Modal */}
+      <CitationEditor
+        isOpen={isEditingCitation}
+        onClose={() => {
+          setIsEditingCitation(false);
+          setCurrentEditingCitation(null);
+        }}
+        citation={currentEditingCitation}
+        onSave={handleSaveCitationChanges}
+        citationFormat="Author, Year"
+      />
     </>
   );
 };

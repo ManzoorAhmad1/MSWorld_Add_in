@@ -1,5 +1,4 @@
 import CitationSearch from "../components/CitationSearch";
-import CitationLibrary from "../components/CitationLibrary";
 import CitationSettings from "../components/CitationSettings";
 import BibliographySection from "../components/BibliographySection";
 import CSL from "citeproc";
@@ -2308,19 +2307,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
           handlePageChange={handlePageChange}
           handlePreviousPage={handlePreviousPage}
           handleNextPage={handleNextPage}
-        />
-
-        <CitationLibrary
-          citations={citations}
-          fileInputRef={fileInputRef}
-          exportCitations={exportCitations}
-          handleImportCitations={handleImportCitations}
           insertCitation={insertCitation}
-          removeCitationFromLibrary={removeCitationFromLibrary}
-          getCitationTitle={getCitationTitle}
-          getCitationAuthors={getCitationAuthors}
-          isOfficeReady={isOfficeReady}
-          formatCitationPreview={formatCitationPreview}
         />
 
         <CitationSettings
