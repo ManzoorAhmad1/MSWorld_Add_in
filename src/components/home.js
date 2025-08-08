@@ -2678,7 +2678,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
           citation.used && !citationsInDoc.find(c => String(c.id) === String(citation.id))
         );
 
-        // Mark removed citations as unused
+        // Mark removed citations as unused and remove their bibliography entries
         if (removedCitations.length > 0) {
           const updated = citations.map(citation => {
             const isRemoved = removedCitations.find(rc => String(rc.id) === String(citation.id));
@@ -2688,12 +2688,18 @@ const Home = ({ handleLogout, status, setStatus }) => {
           setCitations(updated);
           saveCitations(updated);
           
+          // Remove bibliography entries for manually removed citations
+          console.log(`📚 Auto-removing bibliography entries for ${removedCitations.length} manually removed citations`);
+          for (const removedCitation of removedCitations) {
+            await removeSpecificBibliographyEntry(removedCitation);
+          }
+          
           // More detailed status message
           const citationTitles = removedCitations.map(c => 
             c.title ? c.title.substring(0, 30) + '...' : 'Untitled'
           ).join(', ');
           
-          setStatus(`🔄 Auto-sync: ${removedCitations.length} citation(s) unchecked after manual removal: ${citationTitles}`);
+          setStatus(`🔄 Auto-sync: ${removedCitations.length} citation(s) and bibliography entries removed: ${citationTitles}`);
           
           // NOTE: Auto-regenerate bibliography removed - only manual generation via button
           // Auto-regenerate bibliography
@@ -3015,15 +3021,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
                 Professional Citation Management for Microsoft Word
               </p>
             </div>
-          </div>
-          <button
-            onClick={clearBibliography}
-            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition-colors"
-            disabled={!isOfficeReady}
-          >
-            🧹 Test Clear Bibliography
-          </button>
-          
+          </div>          
           <button
             onClick={handleLogout}
             className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 mt-2 md:mt-0 rounded-lg text-sm font-medium transition-colors flex items-center space-x-2 flex-shrink-0"
