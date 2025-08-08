@@ -1619,16 +1619,32 @@ const Home = ({ handleLogout, status, setStatus }) => {
         await context.sync();
       });
 
-      // Update citation library
-      const updated = citations.map((c) =>
-        String(c.id) === String(normalizedCitation.id)
-          ? {
-              ...c,
-              used: true,
-              inTextCitations: [...(c.inTextCitations || []), formatted],
-            }
-          : c
-      );
+      // Update citation library - handle both existing and new citations
+      const existingCitationIndex = citations.findIndex((c) => String(c.id) === String(normalizedCitation.id));
+      
+      let updated;
+      if (existingCitationIndex >= 0) {
+        // Citation exists, mark it as used
+        updated = citations.map((c) =>
+          String(c.id) === String(normalizedCitation.id)
+            ? {
+                ...c,
+                used: true,
+                inTextCitations: [...(c.inTextCitations || []), formatted],
+              }
+            : c
+        );
+      } else {
+        // Citation doesn't exist, add it and mark as used
+        const newCitation = {
+          ...normalizedCitation,
+          addedDate: new Date().toISOString(),
+          used: true,
+          inTextCitations: [formatted],
+        };
+        updated = [...citations, newCitation];
+      }
+      
       setCitations(updated);
       saveCitations(updated);
       setStatus(

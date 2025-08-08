@@ -57,12 +57,9 @@ const CitationSearch = ({
     const newSelected = new Set(selectedSearchResults);
     if (checked) {
       newSelected.add(resultId);
-      // First add citation to library, then insert into Word
+      // Insert citation directly - it will add to library and mark as used
       const selectedResult = searchResults.find(r => r.id === resultId);
       if (selectedResult) {
-        // Add to library first
-        addCitationToLibrary(selectedResult);
-        // Then insert into Word (this will mark it as used)
         insertCitationToWord(selectedResult);
       }
     } else {
@@ -81,12 +78,14 @@ const CitationSearch = ({
   // Handle select all search results with automatic insertion
   const handleSelectAllSearchResults = (checked) => {
     if (checked) {
-      const availableResults = searchResults.filter(result => !isCitationInLibrary(result.id));
+      const availableResults = searchResults.filter(result => {
+        const citationInLibrary = citations.find(c => String(c.id) === String(result.id));
+        return !citationInLibrary || !citationInLibrary.used;
+      });
       const allIds = new Set(availableResults.map(r => r.id));
       setSelectedSearchResults(allIds);
-      // First add all citations to library, then insert them into Word
+      // Insert all available citations directly - they will be added to library and marked as used
       availableResults.forEach(result => {
-        addCitationToLibrary(result);
         insertCitationToWord(result);
       });
     } else {
@@ -102,10 +101,10 @@ const CitationSearch = ({
 
   // Handle save citation changes
   const handleSaveCitationChanges = (updatedCitation) => {
-    // Add citation to library with updated details
-    addCitationToLibrary(updatedCitation);
-    // Also insert into Word to mark as used
+    // Insert citation directly - it will add to library and mark as used
     insertCitationToWord(updatedCitation);
+    // Also mark this result as selected in the UI
+    setSelectedSearchResults(prev => new Set([...prev, updatedCitation.id]));
     setIsEditingCitation(false);
     setCurrentEditingCitation(null);
   };
@@ -114,6 +113,26 @@ const CitationSearch = ({
   useEffect(() => {
     setSelectedSearchResults(new Set());
   }, [searchResults]);
+
+  // Sync selectedSearchResults with citations that are used
+  useEffect(() => {
+    const usedCitationIds = citations
+      .filter(c => c.used)
+      .map(c => c.id);
+    
+    const currentSearchResultIds = searchResults.map(r => r.id);
+    const usedSearchResultIds = usedCitationIds.filter(id => 
+      currentSearchResultIds.includes(id)
+    );
+    
+    if (usedSearchResultIds.length > 0) {
+      setSelectedSearchResults(prev => {
+        const newSelected = new Set(prev);
+        usedSearchResultIds.forEach(id => newSelected.add(id));
+        return newSelected;
+      });
+    }
+  }, [citations, searchResults]);
 
   const getAvailableProjects = () => {
     if (!selectedWorkSpace || !userWorkSpaces?.workspaces) return [];
@@ -434,18 +453,33 @@ const CitationSearch = ({
                       <div className="flex items-center">
                         <input
                           type="checkbox"
-                          checked={selectedSearchResults.size > 0 && 
-                            selectedSearchResults.size === searchResults.filter(r => !isCitationInLibrary(r.id)).length}
+                          checked={(() => {
+                            const availableResults = searchResults.filter(result => {
+                              const citationInLibrary = citations.find(c => String(c.id) === String(result.id));
+                              return !citationInLibrary || !citationInLibrary.used;
+                            });
+                            return selectedSearchResults.size > 0 && 
+                              selectedSearchResults.size === availableResults.length;
+                          })()}
                           ref={(el) => {
                             if (el) {
-                              const availableCount = searchResults.filter(r => !isCitationInLibrary(r.id)).length;
+                              const availableResults = searchResults.filter(result => {
+                                const citationInLibrary = citations.find(c => String(c.id) === String(result.id));
+                                return !citationInLibrary || !citationInLibrary.used;
+                              });
                               el.indeterminate = selectedSearchResults.size > 0 && 
-                                selectedSearchResults.size < availableCount;
+                                selectedSearchResults.size < availableResults.length;
                             }
                           }}
                           onChange={(e) => handleSelectAllSearchResults(e.target.checked)}
                           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                          disabled={searchResults.filter(r => !isCitationInLibrary(r.id)).length === 0}
+                          disabled={(() => {
+                            const availableResults = searchResults.filter(result => {
+                              const citationInLibrary = citations.find(c => String(c.id) === String(result.id));
+                              return !citationInLibrary || !citationInLibrary.used;
+                            });
+                            return availableResults.length === 0;
+                          })()}
                         />
                       </div>
                     </th>
@@ -462,26 +496,34 @@ const CitationSearch = ({
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {searchResults.map((result, index) => {
-                    const isInLibrary = isCitationInLibrary(result.id);
+                    const citationInLibrary = citations.find(c => String(c.id) === String(result.id));
+                    const isInLibrary = !!citationInLibrary;
+                    const isUsed = citationInLibrary?.used || false;
                     const isSelected = selectedSearchResults.has(result.id);
+                    
+                    // Determine checkbox state
+                    const checkboxChecked = isSelected || isUsed;
+                    const checkboxDisabled = isInLibrary && isUsed;
                     
                     return (
                       <React.Fragment key={result.id || index}>
                         <tr
                           className={`transition-colors ${
-                            isSelected
-                              ? "bg-blue-50 hover:bg-blue-100"
+                            checkboxChecked
+                              ? isUsed 
+                                ? "bg-green-50 hover:bg-green-100" // Used in document
+                                : "bg-blue-50 hover:bg-blue-100"   // Selected for insertion
                               : isInLibrary
-                              ? "bg-green-50 hover:bg-green-100"
-                              : "hover:bg-gray-50"
+                              ? "bg-yellow-50 hover:bg-yellow-100" // In library but not used
+                              : "hover:bg-gray-50"                 // Not in library
                           }`}
                         >
                           <td className="px-4 py-4">
                             <input
                               type="checkbox"
-                              checked={isSelected}
+                              checked={checkboxChecked}
                               onChange={(e) => handleSearchResultSelect(result.id, e.target.checked)}
-                              disabled={isInLibrary}
+                              disabled={checkboxDisabled}
                               className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50"
                             />
                           </td>
@@ -497,15 +539,15 @@ const CitationSearch = ({
                               <div>
                                 <Button
                                   onClick={() => handleEditCitation(result)}
-                                  disabled={isSelected}
+                                  disabled={isUsed}
                                   size="sm"
                                   className={`${
-                                    isSelected 
+                                    isUsed 
                                       ? "bg-gray-200 text-gray-500 cursor-not-allowed" 
                                       : "bg-blue-500 hover:bg-blue-600 text-white"
                                   } text-xs px-3 py-1 transition-colors`}
                                 >
-                                  {isSelected ? "✅ Inserted" : "📝 Insert Citation"}
+                                  {isUsed ? "✅ Used in Document" : "📝 Insert Citation"}
                                 </Button>
                               </div>
                             </div>
@@ -526,10 +568,8 @@ const CitationSearch = ({
                           </td>
                           <td className="px-4 py-4 text-center">
                             <div className="flex items-center justify-center">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                isSelected ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
-                              }`}>
-                                {isSelected ? "✅ Selected" : (result.CitationCount || 0)}
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium`}>
+                                {result.CitationCount || 0}
                               </span>
                             </div>
                           </td>
