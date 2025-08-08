@@ -85,7 +85,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
     if (!raw) return null;
     // Handle authors from different sources
     let authors = [];
-     console.log(raw,'raw')
     // Check pdf_metadata first, then pdf_search_data, then direct author field
     const pdfAuthors =
       raw.pdf_metadata?.Authors ||

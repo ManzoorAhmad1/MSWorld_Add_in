@@ -146,6 +146,68 @@ const CitationSearch = ({
       setSelectedProject(null);
     }
   };
+    if (!selectedWorkSpace || !userWorkSpaces?.workspaces) return [];
+    const workspace = userWorkSpaces.workspaces.find(
+      (ws) => ws.id === selectedWorkSpace
+    );
+    return workspace?.projects || [];
+  };
+    if (!selectedWorkSpace || !userWorkSpaces?.workspaces) return [];
+    const workspace = userWorkSpaces.workspaces.find(
+      (ws) => ws.id === selectedWorkSpace
+    );
+    return workspace?.projects || [];
+  };
+
+  const workspaceOptions =
+    userWorkSpaces?.workspaces?.map((workspace) => ({
+      label: `${workspace.name}${workspace.is_default_workspace ? "" : ""}`,
+      value: workspace.id,
+    })) || [];
+
+  const projectOptions = getAvailableProjects().map((project) => ({
+    label: `${project.name}${project.is_default_project ? "" : ""}`,
+    value: project.id,
+  }));
+
+  useEffect(() => {
+    if (
+      userWorkSpaces?.workspaces &&
+      userWorkSpaces.workspaces.length > 0 &&
+      !selectedWorkSpace
+    ) {
+      const defaultWorkspace =
+        userWorkSpaces.workspaces.find((ws) => ws.is_default_workspace) ||
+        userWorkSpaces.workspaces[0];
+      setSelectedWorkSpace(defaultWorkspace.id);
+
+      if (defaultWorkspace.projects && defaultWorkspace.projects.length > 0) {
+        const defaultProject =
+          defaultWorkspace.projects.find((p) => p.is_default_project) ||
+          defaultWorkspace.projects[0];
+        setSelectedProject(defaultProject.id);
+      }
+    }
+  }, [
+    userWorkSpaces,
+    selectedWorkSpace,
+    setSelectedWorkSpace,
+    setSelectedProject,
+  ]);
+
+  const handleWorkspaceChange = (workspaceId) => {
+    setSelectedWorkSpace(workspaceId);
+
+    const workspace = userWorkSpaces.workspaces.find(
+      (ws) => ws.id === workspaceId
+    );
+    if (workspace?.projects && workspace.projects.length > 0) {
+      const firstProject = workspace.projects[0];
+      setSelectedProject(firstProject.id);
+    } else {
+      setSelectedProject(null);
+    }
+  };
 
   // Handle project change
   const handleProjectChange = (projectId) => {
