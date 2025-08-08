@@ -1394,8 +1394,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
           console.log(`🔄 Auto-updating existing bibliography for style change to: ${citationStyle}`);
           setStatus(`🔄 Updating bibliography to ${citationStyle.toUpperCase()} style...`);
           
-          // Call the existing generateBibliography function which handles everything
-          await generateBibliography();
+          // Find and replace existing bibliography in-place
+          await replaceExistingBibliographyInPlace(usedCitations);
           
           console.log(`✅ Bibliography auto-updated to ${citationStyle.toUpperCase()} style`);
         } catch (error) {
@@ -1821,6 +1821,147 @@ const Home = ({ handleLogout, status, setStatus }) => {
     } catch (e) {
       console.error("❌ Bibliography generation failed:", e);
       setStatus(`❌ Bibliography error: ${e.message || "Unknown error"}`);
+    }
+  };
+
+  // NEW: Function to replace existing bibliography in-place
+  const replaceExistingBibliographyInPlace = async (usedCitations) => {
+    if (!isOfficeReady || !usedCitations || usedCitations.length === 0) {
+      return;
+    }
+
+    try {
+      const bibRaw = await formatBibliographyCiteproc(usedCitations, citationStyle);
+      const styleFont = getCitationStyleFont(citationStyle);
+
+      await Word.run(async (context) => {
+        // Find the bibliography title
+        const searchResults = context.document.body.search(bibliographyTitle, { matchCase: false, matchWholeWord: false });
+        searchResults.load('items');
+        await context.sync();
+
+        if (searchResults.items.length === 0) {
+          console.log('📝 No existing bibliography found, skipping in-place replacement');
+          return;
+        }
+
+        // Get all paragraphs to work with
+        const allParagraphs = context.document.body.paragraphs;
+        allParagraphs.load('text');
+        await context.sync();
+
+        // Find the bibliography title paragraph
+        const titleRange = searchResults.items[0];
+        let titleParagraphIndex = -1;
+
+        // Find the index of the title paragraph
+        for (let i = 0; i < allParagraphs.items.length; i++) {
+          const paragraph = allParagraphs.items[i];
+          if (paragraph.text.trim() === bibliographyTitle) {
+            titleParagraphIndex = i;
+            break;
+          }
+        }
+
+        if (titleParagraphIndex === -1) {
+          console.log('❌ Could not find bibliography title paragraph');
+          return;
+        }
+
+        console.log(`📍 Found bibliography at paragraph index: ${titleParagraphIndex}`);
+
+        // Collect all bibliography entry paragraphs to delete
+        const paragraphsToDelete = [];
+        for (let i = titleParagraphIndex + 1; i < allParagraphs.items.length; i++) {
+          const paragraph = allParagraphs.items[i];
+          const text = paragraph.text.trim();
+
+          // Stop if we hit another major heading or empty line that indicates end of bibliography
+          if (text.length === 0) {
+            // Check if this is just spacing between citations or end of bibliography
+            let hasMoreCitations = false;
+            for (let j = i + 1; j < Math.min(i + 3, allParagraphs.items.length); j++) {
+              const nextText = allParagraphs.items[j]?.text?.trim();
+              if (nextText && (nextText.match(/^[A-Z]/))) {
+                hasMoreCitations = true;
+                break;
+              }
+            }
+            if (!hasMoreCitations) break;
+          }
+
+          // Stop if we hit another section (all caps or starts with number)
+          if (text.match(/^[A-Z\s]+$/) && text.length > 10) {
+            break;
+          }
+          if (text.match(/^\d+\.|^\d+\s/)) {
+            break;
+          }
+
+          // This looks like a citation entry, mark for deletion
+          const isCitation = 
+            text.match(/^[A-Z]/) ||  // Starts with capital letter
+            text.includes('(') ||    // Contains parentheses (likely year)
+            text.includes('.') ||    // Contains periods (formatting)
+            text.length > 20;       // Reasonable length for citation
+
+          if (isCitation) {
+            paragraphsToDelete.push(paragraph);
+          } else if (paragraphsToDelete.length > 0) {
+            // If we've been collecting citations and hit non-citation, we're done
+            break;
+          }
+        }
+
+        console.log(`🗑️ Found ${paragraphsToDelete.length} bibliography entries to replace`);
+
+        // Delete all old bibliography entries
+        for (const paragraph of paragraphsToDelete) {
+          paragraph.delete();
+        }
+
+        await context.sync();
+
+        // Now insert new bibliography entries at the same position
+        const titleParagraph = allParagraphs.items[titleParagraphIndex];
+        let insertionPoint = titleParagraph.getRange(Word.RangeLocation.after);
+
+        const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
+        console.log(`📝 Inserting ${bibEntries.length} new bibliography entries`);
+
+        for (let i = 0; i < bibEntries.length; i++) {
+          const entry = bibEntries[i].trim();
+          if (!entry) continue;
+
+          // Insert paragraph after the previous entry
+          const para = insertionPoint.insertParagraph("", Word.InsertLocation.after);
+          para.font.name = styleFont.family;
+          para.font.size = styleFont.size;
+          para.leftIndent = 36; // Hanging indent for citations
+          para.firstLineIndent = -36;
+
+          // Format the entry text
+          if (entry.includes("*")) {
+            await parseAndFormatText(para, entry, citationStyle);
+          } else {
+            para.insertText(entry, Word.InsertLocation.start);
+          }
+
+          // Update insertion point for next entry
+          insertionPoint = para.getRange(Word.RangeLocation.after);
+        }
+
+        await context.sync();
+        
+        console.log(`✅ Bibliography replaced in-place with ${citationStyle.toUpperCase()} style`);
+        setStatus(`✅ Bibliography updated in-place to ${citationStyle.toUpperCase()} style`);
+      });
+
+      setBibliography(bibRaw);
+    } catch (error) {
+      console.error('❌ In-place bibliography replacement failed:', error);
+      setStatus('❌ Bibliography in-place update failed');
+      throw error;
     }
   };
 
