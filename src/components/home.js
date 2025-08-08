@@ -2013,14 +2013,152 @@ const Home = ({ handleLogout, status, setStatus }) => {
     );
   };
 
-  const removeCitationFromLibrary = (id) => {
+  const getAuthorYearFromCitation = (citation) => {
+    const normalized = normalizeCitation(citation);
+    const author = normalized?.author?.[0]?.family || "Unknown";
+    const year = normalized?.issued?.["date-parts"]?.[0]?.[0] || 
+                 citation.year || 
+                 citation.pdf_search_data?.year || 
+                 "n.d.";
+    return `${author}, ${year}`;
+  };
+
+  const removeCitationFromLibrary = async (id) => {
+    const citationToRemove = citations.find(c => String(c.id) === String(id));
+    
     const updated = citations.filter((c) => String(c.id) !== String(id));
     setCitations(updated);
     saveCitations(updated);
-    setStatus("Citation removed from library");
+    
+    // Remove citation from Word document and bibliography
+    if (citationToRemove) {
+      await removeCitationFromDocument(citationToRemove);
+      await removeBibliographyEntry(citationToRemove);
+    }
+    
+    setStatus("Citation completely removed from library and document");
+  };
+
+  // Function to remove citation from Word document
+  const removeCitationFromDocument = async (citation) => {
+    if (!isOfficeReady || !citation) return;
+
+    try {
+      await Word.run(async (context) => {
+        // Create search patterns for this citation
+        const authorYear = getAuthorYearFromCitation(citation);
+        const title = citation.title || citation.pdf_search_data?.title || '';
+        const firstAuthor = citation.authors?.split(',')[0]?.trim() || 
+                           citation.pdf_search_data?.Authors?.split(',')[0]?.trim() || '';
+        
+        const possiblePatterns = [
+          `(${authorYear})`, // (Author, Year)
+          `${authorYear}`, // Author, Year
+          `(${firstAuthor}, ${citation.year || citation.pdf_search_data?.year || 'n.d.'})`,
+          title?.substring(0, 40) || '', // Partial title
+          firstAuthor // Just first author name
+        ].filter(pattern => pattern.length > 2);
+
+        let found = false;
+        let removedCount = 0;
+        
+        for (const pattern of possiblePatterns) {
+          const searchResults = context.document.body.search(pattern, {
+            matchCase: false,
+            matchWholeWord: false
+          });
+          searchResults.load('items');
+          await context.sync();
+
+          if (searchResults.items.length > 0) {
+            // Remove all instances of this citation
+            searchResults.items.forEach(item => {
+              item.delete();
+              removedCount++;
+            });
+            found = true;
+            await context.sync();
+            break; // Stop after finding the first matching pattern
+          }
+        }
+
+        if (found) {
+          setStatus(`Citation "${authorYear}" removed from document (${removedCount} instances)`);
+        } else {
+          setStatus(`Citation "${authorYear}" not found in document (may have been manually edited)`);
+        }
+      });
+    } catch (error) {
+      console.error('Error removing citation from document:', error);
+      setStatus('Error removing citation from document');
+    }
+  };
+
+  // Function to remove bibliography entry
+  const removeBibliographyEntry = async (citation) => {
+    if (!isOfficeReady || !citation) return;
+
+    try {
+      await Word.run(async (context) => {
+        const authorYear = getAuthorYearFromCitation(citation);
+        const title = citation.title || citation.pdf_search_data?.title || '';
+        const firstAuthor = citation.authors?.split(',')[0]?.trim() || 
+                           citation.pdf_search_data?.Authors?.split(',')[0]?.trim() || '';
+        
+        // Search for bibliography entry by different patterns
+        const searchPatterns = [
+          firstAuthor, // First author's last name
+          authorYear, // Author, year format
+          title.substring(0, 25) // Part of title
+        ].filter(pattern => pattern.length > 2);
+
+        let found = false;
+        let removedCount = 0;
+        
+        for (const pattern of searchPatterns) {
+          const searchResults = context.document.body.search(pattern, {
+            matchCase: false,
+            matchWholeWord: false
+          });
+          searchResults.load('items');
+          await context.sync();
+
+          if (searchResults.items.length > 0) {
+            // Look for bibliography entries (usually in separate paragraphs)
+            searchResults.items.forEach(item => {
+              try {
+                // Try to get the paragraph containing this text
+                const paragraph = item.parentParagraph;
+                if (paragraph && paragraph.text && paragraph.text.length > 20) {
+                  // Only delete if it looks like a bibliography entry (longer text)
+                  paragraph.delete();
+                  removedCount++;
+                }
+              } catch (e) {
+                // Fallback: just delete the found item
+                item.delete();
+                removedCount++;
+              }
+            });
+            found = true;
+            await context.sync();
+            break; // Stop after first successful match
+          }
+        }
+
+        if (found) {
+          setStatus(`Bibliography entry for "${authorYear}" removed (${removedCount} entries)`);
+        }
+      });
+    } catch (error) {
+      console.error('Error removing bibliography entry:', error);
+      setStatus('Error removing bibliography entry');
+    }
   };
 
   const markCitationAsUnused = async (id) => {
+    const citationToRemove = citations.find(c => String(c.id) === String(id));
+    
     const updated = citations.map((c) =>
       String(c.id) === String(id)
         ? {
@@ -2032,22 +2170,14 @@ const Home = ({ handleLogout, status, setStatus }) => {
     );
     setCitations(updated);
     saveCitations(updated);
-    setStatus("Citation removed from bibliography");
     
-    // NOTE: Auto-regenerate bibliography removed - only manual generation via button
-    // Auto-regenerate bibliography if there are still used citations
-    // const stillUsed = updated.filter(c => c.used);
-    // if (stillUsed.length > 0) {
-    //   // Small delay to ensure state is updated
-    //   setTimeout(async () => {
-    //     await autoRegenerateBibliography(updated);
-    //   }, 100);
-    // } else {
-    //   // If no citations are used, clear bibliography
-    //   setTimeout(async () => {
-    //     await clearBibliography();
-    //   }, 100);
-    // }
+    // Remove citation from Word document
+    if (citationToRemove) {
+      await removeCitationFromDocument(citationToRemove);
+      await removeBibliographyEntry(citationToRemove);
+    }
+    
+    setStatus("Citation removed from document and bibliography");
   };
 
   // Auto-regenerate bibliography with updated citations

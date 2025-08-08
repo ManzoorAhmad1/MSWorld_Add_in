@@ -10,6 +10,7 @@ const CitationLibrary = ({
   handleImportCitations,
   insertCitation,
   removeCitationFromLibrary,
+  markCitationAsUnused,
   getCitationTitle,
   getCitationAuthors,
   isOfficeReady,
@@ -311,6 +312,17 @@ const CitationLibrary = ({
                             <FileText className="h-3 w-3" />
                           )}
                         </button>
+                        
+                        {citation.used && (
+                          <button
+                            onClick={() => markCitationAsUnused(citation.id)}
+                            className="p-2 text-orange-600 hover:bg-orange-100 rounded-lg transition-colors"
+                            title="Remove from document and bibliography"
+                          >
+                            <span className="text-xs font-bold">✗</span>
+                          </button>
+                        )}
+                        
                         <button
                           onClick={() => handleEditCitation(citation)}
                           className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
