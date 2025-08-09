@@ -1265,26 +1265,27 @@ const Home = ({ handleLogout, status, setStatus }) => {
   const [bibliographyTitle, setBibliographyTitle] = useState("References");
   const [recentCitations, setRecentCitations] = useState([]);
 
-  // Auto-regenerate bibliography when citation style changes - IMPROVED with reset logic
+  // Auto-regenerate bibliography when citation style changes - ENHANCED with style-based updates
   useEffect(() => {
     const usedCitations = citations.filter(c => c.used);
     if (usedCitations.length > 0 && isOfficeReady && !isUpdatingBibliography) {
-      console.log(`🔄 Citation style changed to ${citationStyle.toUpperCase()}, checking for auto-regeneration...`);
+      console.log(`🔄 Citation style changed to ${citationStyle.toUpperCase()}, will delete old references and create new ones...`);
       
       // Check if user recently performed manual bibliography generation
       const timeSinceLastManual = Date.now() - lastManualBibliographyTime;
-      if (timeSinceLastManual < 5000) { // Increased to 5 seconds
+      if (timeSinceLastManual < 3000) { // Reduced to 3 seconds for faster response
         console.log(`⏸️ Skipping auto-regeneration - manual operation performed ${timeSinceLastManual}ms ago`);
         return;
       }
       
-      // Add a longer delay to ensure state has updated and avoid conflicts with manual operations
+      // Automatically regenerate bibliography with new style
       const timer = setTimeout(() => {
         // Triple-check to avoid conflicts with ongoing operations
         if (!isUpdatingBibliography && citations.filter(c => c.used).length > 0) {
           const timeSinceLastManualCheck = Date.now() - lastManualBibliographyTime;
-          if (timeSinceLastManualCheck >= 5000) { // Still safe to proceed after 5 seconds
-            console.log(`🔄 Executing auto-regeneration for style ${citationStyle.toUpperCase()}`);
+          if (timeSinceLastManualCheck >= 3000) { // Proceed after 3 seconds
+            console.log(`🔄 Auto-executing bibliography regeneration for style ${citationStyle.toUpperCase()}`);
+            console.log(`📚 This will delete old references and create new ones with ${citationStyle.toUpperCase()} style`);
             generateBibliography();
           } else {
             console.log(`⏸️ Skipping delayed auto-regeneration - manual operation too recent (${timeSinceLastManualCheck}ms ago)`);
@@ -1292,7 +1293,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
         } else {
           console.log(`🔄 Skipping auto-regeneration - bibliography update in progress or no used citations`);
         }
-      }, 2000); // Increased delay to 2 seconds to avoid conflicts
+      }, 1500); // Reduced delay to 1.5 seconds for faster response
       return () => clearTimeout(timer);
     } else {
       console.log(`🔄 Auto-regeneration conditions not met:`, {
@@ -1831,7 +1832,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
     try {
       setIsUpdatingBibliography(true);
-      setStatus("🔄 Updating bibliography...");
+      setStatus("🔄 Creating bibliography with selected citation style...");
       
       console.log("🔧 Formatting bibliography with used citations:", used);
       const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
@@ -1850,19 +1851,25 @@ const Home = ({ handleLogout, status, setStatus }) => {
           console.log("✅ Using fallback bibliography:", fallbackBib);
           await createBibliographyInWord(fallbackBib, getCitationStyleFont(citationStyle));
           
-          // SOLUTION: Clear the "used" status after successful fallback bibliography creation
-          console.log("🧹 Clearing citation 'used' status after fallback bibliography creation");
-          const clearedCitations = citations.map(citation => ({
-            ...citation,
-            used: false, // Reset used status
-            inTextCitations: [] // Clear in-text citation history
-          }));
+          // SOLUTION: Smart citation clearing for fallback as well
+          console.log("🧹 Smart clearing (fallback): Preserving citation selection but resetting bibliography button state");
+          const smartClearedCitations = citations.map(citation => {
+            if (citation.used) {
+              return {
+                ...citation,
+                used: false, // Reset used status for bibliography button
+                inTextCitations: [], // Clear in-text citation history
+                previouslyUsed: true // Track that it was used
+              };
+            }
+            return citation;
+          });
           
-          setCitations(clearedCitations);
-          saveCitations(clearedCitations);
-          console.log(`✅ Cleared 'used' status for ${citations.length} citations - ready for next paper selection`);
+          setCitations(smartClearedCitations);
+          saveCitations(smartClearedCitations);
+          console.log(`✅ Smart clearing (fallback) completed - citations preserved, bibliography button state reset`);
           
-          setStatus(`✅ Bibliography created with fallback formatting: ${used.length} citations (Ready for next paper)`);
+          setStatus(`✅ ${citationStyle.toUpperCase()} bibliography created: ${used.length} citations (Select new papers for next bibliography)`);
           return;
         } else {
           setStatus("❌ Both main and fallback bibliography formatting failed");
@@ -1872,24 +1879,31 @@ const Home = ({ handleLogout, status, setStatus }) => {
       
       await createBibliographyInWord(bibRaw, getCitationStyleFont(citationStyle));
 
-      // SOLUTION: Clear the "used" status after successful bibliography creation
-      // This prevents previous papers from appearing in next bibliography
-      console.log("🧹 Clearing citation 'used' status after bibliography creation");
-      const clearedCitations = citations.map(citation => ({
-        ...citation,
-        used: false, // Reset used status
-        inTextCitations: [] // Clear in-text citation history
-      }));
+      // SOLUTION: Smart citation clearing - preserve paper selection but reset bibliography button state
+      // This allows users to keep first paper selected while being ready for second paper bibliography
+      console.log("🧹 Smart clearing: Preserving citation selection but resetting bibliography button state");
+      const smartClearedCitations = citations.map(citation => {
+        if (citation.used) {
+          // Keep the citation in library but mark as not used for bibliography
+          return {
+            ...citation,
+            used: false, // Reset used status for bibliography button
+            inTextCitations: [], // Clear in-text citation history
+            previouslyUsed: true // Track that it was used (for reference)
+          };
+        }
+        return citation; // Keep unused citations as they are
+      });
       
-      setCitations(clearedCitations);
-      saveCitations(clearedCitations);
-      console.log(`✅ Cleared 'used' status for ${citations.length} citations - ready for next paper selection`);
+      setCitations(smartClearedCitations);
+      saveCitations(smartClearedCitations);
+      console.log(`✅ Smart clearing completed - citations preserved, bibliography button state reset`);
 
       setBibliography(bibRaw);
       setStatus(
-        `✅ Bibliography created: ${used.length} citation${
+        `✅ ${citationStyle.toUpperCase()} bibliography created: ${used.length} citation${
           used.length !== 1 ? "s" : ""
-        } in ${citationStyle.toUpperCase()} style (Ready for next paper)`
+        } (Select new papers for next bibliography)`
       );
     } catch (e) {
       console.error("❌ Bibliography generation failed:", e);
