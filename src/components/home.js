@@ -1269,17 +1269,30 @@ const Home = ({ handleLogout, status, setStatus }) => {
   useEffect(() => {
     const usedCitations = citations.filter(c => c.used);
     if (usedCitations.length > 0 && isOfficeReady && !isUpdatingBibliography) {
-      console.log(`🔄 Citation style changed to ${citationStyle.toUpperCase()}, auto-regenerating bibliography in 1 second`);
+      console.log(`🔄 Citation style changed to ${citationStyle.toUpperCase()}, checking for auto-regeneration...`);
+      
+      // Check if user recently performed manual bibliography generation
+      const timeSinceLastManual = Date.now() - lastManualBibliographyTime;
+      if (timeSinceLastManual < 3000) { // Within 3 seconds of manual operation
+        console.log(`⏸️ Skipping auto-regeneration - manual operation performed ${timeSinceLastManual}ms ago`);
+        return;
+      }
+      
       // Add a longer delay to ensure state has updated and avoid conflicts with manual operations
       const timer = setTimeout(() => {
         // Triple-check to avoid conflicts with ongoing operations
         if (!isUpdatingBibliography && citations.filter(c => c.used).length > 0) {
-          console.log(`🔄 Executing auto-regeneration for style ${citationStyle.toUpperCase()}`);
-          generateBibliography();
+          const timeSinceLastManualCheck = Date.now() - lastManualBibliographyTime;
+          if (timeSinceLastManualCheck >= 3000) { // Still safe to proceed
+            console.log(`🔄 Executing auto-regeneration for style ${citationStyle.toUpperCase()}`);
+            generateBibliography();
+          } else {
+            console.log(`⏸️ Skipping delayed auto-regeneration - manual operation too recent`);
+          }
         } else {
           console.log(`🔄 Skipping auto-regeneration - bibliography update in progress or no used citations`);
         }
-      }, 1000); // Increased delay to 1 second
+      }, 1200); // Increased delay to 1.2 seconds to avoid conflicts
       return () => clearTimeout(timer);
     }
   }, [citationStyle]); // Only trigger when citation style changes
@@ -1303,6 +1316,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
   // Visual indicator states
   const [isSyncing, setIsSyncing] = useState(false);
   const [isUpdatingBibliography, setIsUpdatingBibliography] = useState(false);
+  const [lastManualBibliographyTime, setLastManualBibliographyTime] = useState(0);
 
   // Fetch user files on component mount
   useEffect(() => {
@@ -1790,6 +1804,10 @@ const Home = ({ handleLogout, status, setStatus }) => {
       return;
     }
 
+    // Record manual bibliography generation time
+    setLastManualBibliographyTime(Date.now());
+    console.log("🔖 Manual bibliography generation started - setting timestamp");
+
     console.log("📋 Bibliography generation started");
     console.log("All citations:", citations);
     
@@ -1834,9 +1852,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
       
       await createBibliographyInWord(bibRaw, getCitationStyleFont(citationStyle));
 
-      const styleFont = getCitationStyleFont(citationStyle);
-      await createBibliographyInWord(bibRaw, styleFont);
-
       setBibliography(bibRaw);
       setStatus(
         `✅ Bibliography updated: ${used.length} citation${
@@ -1858,14 +1873,41 @@ const Home = ({ handleLogout, status, setStatus }) => {
     console.log("Style font:", styleFont);
     
     await Word.run(async (context) => {
-      // STEP 1: Remove existing bibliographies
+      // STEP 1: Remove existing bibliographies - IMPROVED VERSION
       console.log("🗑️ Removing existing bibliography sections...");
       
       try {
         const possibleTitles = [bibliographyTitle, "References", "Bibliography", "Works Cited", "Works cited", "REFERENCES", "BIBLIOGRAPHY"];
-        const allHeadingStyles = [Word.Style.heading1, Word.Style.heading2, Word.Style.heading3, Word.Style.heading4];
         
-        // Get ALL paragraphs for removal
+        // Multiple removal strategies for maximum reliability
+        
+        // Strategy 1: Search and remove by text content
+        for (const title of possibleTitles) {
+          const searchResults = context.document.body.search(title, {
+            matchCase: false,
+            matchWholeWord: false
+          });
+          searchResults.load('items');
+          await context.sync();
+          
+          if (searchResults.items.length > 0) {
+            console.log(`🗑️ Found ${searchResults.items.length} instances of "${title}" to remove`);
+            
+            for (let i = 0; i < searchResults.items.length; i++) {
+              try {
+                const item = searchResults.items[i];
+                const paragraph = item.parentParagraph;
+                paragraph.delete();
+              } catch (deleteError) {
+                console.log(`Error deleting paragraph for "${title}":`, deleteError);
+              }
+            }
+            await context.sync();
+          }
+        }
+        
+        // Strategy 2: Remove by paragraph scanning (fallback)
+        const allHeadingStyles = [Word.Style.heading1, Word.Style.heading2, Word.Style.heading3, Word.Style.heading4];
         const paragraphs = context.document.body.paragraphs;
         paragraphs.load(['text', 'style', 'styleBuiltIn']);
         await context.sync();
@@ -1882,8 +1924,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
           const isBibliographyHeading = possibleTitles.some(title => 
             text === title.toLowerCase() || 
             text.startsWith(title.toLowerCase()) ||
-            (allHeadingStyles.includes(para.styleBuiltIn) && text.includes('reference')) ||
-            (allHeadingStyles.includes(para.styleBuiltIn) && text.includes('bibliograph'))
+            (allHeadingStyles.includes(para.styleBuiltIn) && (text.includes('reference') || text.includes('bibliograph')))
           );
           
           if (isBibliographyHeading) {
@@ -1894,8 +1935,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
             const toDelete = [para];
             let currentIndex = i;
             
-            // Look ahead for bibliography entries (up to 100 paragraphs)
-            for (let j = 1; j <= 100 && (currentIndex + j) < paragraphs.items.length; j++) {
+            // Look ahead for bibliography entries (up to 50 paragraphs)
+            for (let j = 1; j <= 50 && (currentIndex + j) < paragraphs.items.length; j++) {
               const nextPara = paragraphs.items[currentIndex + j];
               const nextText = nextPara.text.trim().toLowerCase();
               
@@ -1937,9 +1978,10 @@ const Home = ({ handleLogout, status, setStatus }) => {
         console.log('Bibliography removal encountered errors, continuing with creation:', removeError);
       }
       
-      // STEP 2: Wait and verify cleanup
+      // STEP 2: Wait longer to ensure cleanup is complete
       await context.sync();
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 300)); // Increased delay
+      console.log("⏳ Cleanup delay completed, proceeding with bibliography creation");
       
       // STEP 3: Create NEW bibliography
       console.log(`📚 Creating fresh bibliography with ${citationStyle.toUpperCase()} style`);
