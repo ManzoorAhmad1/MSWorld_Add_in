@@ -1220,10 +1220,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
   
   // Separate state for bibliography generation tracking (to prevent duplication)
   const [bibliographyCitations, setBibliographyCitations] = useState([]);
-  
-  // Track if bibliography exists in document
-  const [bibliographyExists, setBibliographyExists] = useState(false);
-  
   const [recentCitations, setRecentCitations] = useState([]);
   const [userWorkSpaces, setUserWorkSpaces] = useState({});
   const [selectedWorkSpace, setSelectedWorkSpace] = useState(null);
@@ -1389,28 +1385,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
       }
     };
   }, [isOfficeReady, citations]);
-
-  // Simple auto-update bibliography when citation style changes
-  useEffect(() => {
-    const updateBibliographyOnStyleChange = async () => {
-      // Only update if bibliography exists and we have used citations
-      const usedCitations = citations.filter(c => c.used);
-      if (bibliographyExists && usedCitations.length > 0 && isOfficeReady) {
-        console.log(`🔄 Citation style changed to ${citationStyle}, updating bibliography...`);
-        setStatus(`Updating bibliography to ${citationStyle.toUpperCase()} style...`);
-        
-        // First: Clear existing bibliography completely
-        await clearExistingBibliography();
-        
-        // Second: Regenerate with new style
-        await regenerateBibliographyWithNewStyle(usedCitations);
-      }
-    };
-
-    // Add small delay to avoid rapid updates
-    const timeoutId = setTimeout(updateBibliographyOnStyleChange, 500);
-    return () => clearTimeout(timeoutId);
-  }, [citationStyle]); // Only depend on citation style change
 
   // Pagination handlers
   const handlePageChange = async (page) => {
@@ -1827,8 +1801,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
       setBibliography(bibRaw);
       
-      // Set bibliography exists flag and clear bibliography citations after successful generation
-      setBibliographyExists(true);
+      // Clear bibliography citations after successful generation to prevent duplication
       setBibliographyCitations([]);
       
       setStatus(
@@ -2527,215 +2500,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
       console.error("Auto-regenerate bibliography failed:", error);
       // Fallback: just show status without failing
       setStatus(`Bibliography update attempted - ${used.length} citation(s)`);
-    }
-  };
-
-  // Simple function to clear existing bibliography
-  const clearExistingBibliography = async () => {
-    if (!isOfficeReady) return;
-
-    try {
-      await Word.run(async (context) => {
-        console.log('🧹 Clearing ALL existing bibliography content...');
-        
-        // Method 1: Remove all "References" headings
-        const referencesSearch = context.document.body.search("References", { 
-          matchCase: false, 
-          matchWholeWord: false 
-        });
-        referencesSearch.load('items');
-        await context.sync();
-
-        // Method 2: Remove all "Bibliography" headings  
-        const bibliographySearch = context.document.body.search("Bibliography", { 
-          matchCase: false, 
-          matchWholeWord: false 
-        });
-        bibliographySearch.load('items');
-        await context.sync();
-
-        console.log(`📋 Found ${referencesSearch.items.length} "References" and ${bibliographySearch.items.length} "Bibliography" headings`);
-        
-        // Remove all References sections
-        for (let i = 0; i < referencesSearch.items.length; i++) {
-          try {
-            const titleParagraph = referencesSearch.items[i].parentParagraph;
-            titleParagraph.load(['next', 'isLast']);
-            await context.sync();
-            
-            console.log(`🗑️ Removing References section ${i + 1}`);
-            
-            // Delete the heading
-            titleParagraph.delete();
-            
-            // Delete subsequent bibliography entries
-            let currentPara = titleParagraph.getNextOrNullObject();
-            let deletedCount = 0;
-            
-            while (currentPara && !currentPara.isNullObject && deletedCount < 20) { // Safety limit
-              currentPara.load(['text', 'style', 'next', 'isLast']);
-              await context.sync();
-              
-              // Stop if we hit another heading
-              if (currentPara.style && (currentPara.style.includes('Heading') || currentPara.style.includes('Title'))) {
-                break;
-              }
-              
-              // Stop if paragraph is empty or very short
-              if (!currentPara.text || currentPara.text.trim().length < 10) {
-                const nextPara = currentPara.getNextOrNullObject();
-                currentPara.delete();
-                await context.sync();
-                currentPara = nextPara;
-                break;
-              }
-              
-              const nextPara = currentPara.getNextOrNullObject();
-              currentPara.delete();
-              await context.sync();
-              
-              currentPara = nextPara;
-              deletedCount++;
-            }
-            
-            console.log(`✅ Deleted ${deletedCount} bibliography entries`);
-          } catch (error) {
-            console.error(`❌ Error removing References section ${i + 1}:`, error);
-          }
-        }
-        
-        // Remove all Bibliography sections
-        for (let i = 0; i < bibliographySearch.items.length; i++) {
-          try {
-            const titleParagraph = bibliographySearch.items[i].parentParagraph;
-            titleParagraph.load(['next', 'isLast']);
-            await context.sync();
-            
-            console.log(`🗑️ Removing Bibliography section ${i + 1}`);
-            
-            // Delete the heading
-            titleParagraph.delete();
-            
-            // Delete subsequent bibliography entries
-            let currentPara = titleParagraph.getNextOrNullObject();
-            let deletedCount = 0;
-            
-            while (currentPara && !currentPara.isNullObject && deletedCount < 20) { // Safety limit
-              currentPara.load(['text', 'style', 'next', 'isLast']);
-              await context.sync();
-              
-              // Stop if we hit another heading
-              if (currentPara.style && (currentPara.style.includes('Heading') || currentPara.style.includes('Title'))) {
-                break;
-              }
-              
-              // Stop if paragraph is empty or very short
-              if (!currentPara.text || currentPara.text.trim().length < 10) {
-                const nextPara = currentPara.getNextOrNullObject();
-                currentPara.delete();
-                await context.sync();
-                currentPara = nextPara;
-                break;
-              }
-              
-              const nextPara = currentPara.getNextOrNullObject();
-              currentPara.delete();
-              await context.sync();
-              
-              currentPara = nextPara;
-              deletedCount++;
-            }
-            
-            console.log(`✅ Deleted ${deletedCount} bibliography entries`);
-          } catch (error) {
-            console.error(`❌ Error removing Bibliography section ${i + 1}:`, error);
-          }
-        }
-        
-        // Method 3: Also search and remove citation patterns (backup cleanup)
-        console.log('🧹 Performing backup cleanup for citation patterns...');
-        const citationPatterns = [
-          "Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv Preprint",
-          "arXiv Preprint"
-        ];
-        
-        for (const pattern of citationPatterns) {
-          const patternSearch = context.document.body.search(pattern, { 
-            matchCase: false, 
-            matchWholeWord: false 
-          });
-          patternSearch.load('items');
-          await context.sync();
-          
-          for (let i = 0; i < patternSearch.items.length; i++) {
-            try {
-              const citationPara = patternSearch.items[i].parentParagraph;
-              citationPara.delete();
-              await context.sync();
-              console.log(`�️ Removed citation pattern: ${pattern.substring(0, 50)}...`);
-            } catch (error) {
-              console.error(`❌ Error removing citation pattern:`, error);
-            }
-          }
-        }
-        
-        console.log('✅ All bibliography content cleared successfully');
-      });
-    } catch (error) {
-      console.error('❌ Error clearing bibliography:', error);
-    }
-  };
-
-  // Simple function to regenerate bibliography with new style
-  const regenerateBibliographyWithNewStyle = async (usedCitations) => {
-    if (!isOfficeReady || !usedCitations.length) return;
-
-    try {
-      console.log(`📝 Regenerating bibliography with ${citationStyle} style for ${usedCitations.length} citations`);
-      
-      const bibRaw = await formatBibliographyCiteproc(usedCitations, citationStyle);
-      const styleFont = getCitationStyleFont(citationStyle);
-
-      await Word.run(async (context) => {
-        // Create bibliography title
-        const title = context.document.body.insertParagraph(
-          bibliographyTitle,
-          Word.InsertLocation.end
-        );
-        title.style = "Heading 1";
-        title.font.bold = true;
-        title.font.size = 16;
-        title.font.name = styleFont.family;
-
-        // Process each bibliography entry
-        const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
-        for (let i = 0; i < bibEntries.length; i++) {
-          const entry = bibEntries[i].trim();
-          if (!entry) continue;
-
-          const para = context.document.body.insertParagraph("", Word.InsertLocation.end);
-          para.font.name = styleFont.family;
-          para.font.size = styleFont.size;
-          para.leftIndent = 36;
-          para.firstLineIndent = -36;
-
-          if (entry.includes("*")) {
-            await parseAndFormatText(para, entry, citationStyle);
-          } else {
-            const range = para.insertText(entry, Word.InsertLocation.end);
-            range.font.name = styleFont.family;
-            range.font.size = styleFont.size;
-          }
-        }
-
-        await context.sync();
-      });
-
-      setBibliographyExists(true);
-      setStatus(`✅ Bibliography updated with ${citationStyle.toUpperCase()} style: ${usedCitations.length} citations`);
-    } catch (error) {
-      console.error('❌ Error regenerating bibliography:', error);
-      setStatus(`❌ Failed to update bibliography: ${error.message}`);
     }
   };
 
