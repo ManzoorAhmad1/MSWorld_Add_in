@@ -1220,6 +1220,10 @@ const Home = ({ handleLogout, status, setStatus }) => {
   
   // Separate state for bibliography generation tracking (to prevent duplication)
   const [bibliographyCitations, setBibliographyCitations] = useState([]);
+  
+  // Track if bibliography exists in document for auto-update
+  const [bibliographyExists, setBibliographyExists] = useState(false);
+  
   const [recentCitations, setRecentCitations] = useState([]);
   const [userWorkSpaces, setUserWorkSpaces] = useState({});
   const [selectedWorkSpace, setSelectedWorkSpace] = useState(null);
@@ -1385,6 +1389,23 @@ const Home = ({ handleLogout, status, setStatus }) => {
       }
     };
   }, [isOfficeReady, citations]);
+
+  // Auto-update bibliography when citation style changes
+  useEffect(() => {
+    const updateBibliographyOnStyleChange = async () => {
+      // Only update if bibliography exists and we have used citations
+      const usedCitations = citations.filter(c => c.used);
+      if (bibliographyExists && usedCitations.length > 0 && isOfficeReady) {
+        console.log(`🔄 Citation style changed to ${citationStyle}, updating bibliography...`);
+        setStatus(`Updating bibliography to ${citationStyle.toUpperCase()} style...`);
+        await autoRegenerateBibliography(citations);
+      }
+    };
+
+    // Add small delay to avoid rapid updates
+    const timeoutId = setTimeout(updateBibliographyOnStyleChange, 500);
+    return () => clearTimeout(timeoutId);
+  }, [citationStyle, isOfficeReady, bibliographyExists]); // Run when citation style or bibliography existence changes
 
   // Pagination handlers
   const handlePageChange = async (page) => {
@@ -1801,7 +1822,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
       setBibliography(bibRaw);
       
-      // Clear bibliography citations after successful generation to prevent duplication
+      // Set bibliography exists flag and clear bibliography citations after successful generation
+      setBibliographyExists(true);
       setBibliographyCitations([]);
       
       setStatus(
@@ -2039,6 +2061,22 @@ const Home = ({ handleLogout, status, setStatus }) => {
         ?.map((a) => `${a.given || ""} ${a.family || ""}`.trim())
         .join(", ") || "Unknown"
     );
+  };
+
+  // Helper function to get font settings for different citation styles
+  const getCitationStyleFont = (styleName) => {
+    const fontSettings = {
+      apa: { family: "Times New Roman", size: 12 },
+      mla: { family: "Times New Roman", size: 12 },
+      chicago: { family: "Times New Roman", size: 12 },
+      harvard: { family: "Times New Roman", size: 12 },
+      ieee: { family: "Times New Roman", size: 10 },
+      vancouver: { family: "Arial", size: 11 },
+      nature: { family: "Arial", size: 10 },
+      science: { family: "Times New Roman", size: 10 },
+    };
+    
+    return fontSettings[styleName] || fontSettings.apa; // Default to APA
   };
 
   const getAuthorYearFromCitation = (citation) => {
@@ -2428,78 +2466,127 @@ const Home = ({ handleLogout, status, setStatus }) => {
     }
   };
 
-  // Auto-regenerate bibliography with updated citations
+  // Auto-regenerate bibliography with updated citations and style
   const autoRegenerateBibliography = async (updatedCitations) => {
     if (!isOfficeReady) return;
 
     const used = updatedCitations.filter((c) => c.used);
-    if (used.length === 0) return;
+    if (used.length === 0) {
+      // Clear bibliography if no citations are used
+      await clearExistingBibliography();
+      return;
+    }
 
     try {
+      // Clear existing bibliography first to avoid duplicates
+      await clearExistingBibliography();
+      
+      // Generate new bibliography with current style
       const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
       const styleFont = getCitationStyleFont(citationStyle);
 
       await Word.run(async (context) => {
-        // Find existing bibliography by searching for the title
-        const searchResults = context.document.body.search(bibliographyTitle, { matchCase: false, matchWholeWord: false });
-        searchResults.load('items');
-        await context.sync();
-
-        if (searchResults.items.length > 0) {
-          // Find the bibliography title paragraph
-          const bibTitleParagraph = searchResults.items[0].paragraphs.getFirst();
-          bibTitleParagraph.load(['next', 'isLast']);
-          await context.sync();
-
-          // Delete all content from the bibliography title onwards
-          let currentPara = bibTitleParagraph.getNext();
-          const parasToDelete = [];
-          
-          while (!currentPara.isLast) {
-            parasToDelete.push(currentPara);
-            currentPara = currentPara.getNext();
-            currentPara.load('isLast');
-            await context.sync();
-          }
-          
-          // Delete the collected paragraphs
-          parasToDelete.forEach(para => para.delete());
-          
-          // Also delete the last paragraph if it's not empty
-          if (!currentPara.isEmpty) {
-            currentPara.delete();
-          }
-          
-          await context.sync();
-        }
-
-        // Insert bibliography (either new or replacement)
-        const title = context.document.body.insertParagraph(bibliographyTitle, Word.InsertLocation.end);
+        // Create bibliography title
+        const title = context.document.body.insertParagraph(
+          bibliographyTitle,
+          Word.InsertLocation.end
+        );
         title.style = "Heading 1";
         title.font.bold = true;
         title.font.size = 16;
         title.font.name = styleFont.family;
 
-        // Process bibliography entries
+        // Process each bibliography entry
         const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
         for (let i = 0; i < bibEntries.length; i++) {
           const entry = bibEntries[i].trim();
           if (!entry) continue;
 
           const para = context.document.body.insertParagraph("", Word.InsertLocation.end);
-          await parseAndFormatText(para, entry, citationStyle);
           para.font.name = styleFont.family;
           para.font.size = styleFont.size;
+          para.leftIndent = 36;
+          para.firstLineIndent = -36;
+
+          if (entry.includes("*")) {
+            await parseAndFormatText(para, entry, citationStyle);
+          } else {
+            const range = para.insertText(entry, Word.InsertLocation.end);
+            range.font.name = styleFont.family;
+            range.font.size = styleFont.size;
+          }
         }
 
         await context.sync();
       });
 
-      setStatus(`📚 Bibliography updated - ${used.length} citation(s)`);
+      setBibliographyExists(true);
+      setStatus(`✅ Bibliography auto-updated: ${used.length} citations in ${citationStyle.toUpperCase()} style`);
     } catch (error) {
       console.error("Auto-regenerate bibliography failed:", error);
-      // Fallback: just show status without failing
-      setStatus(`Bibliography update attempted - ${used.length} citation(s)`);
+      setStatus(`❌ Failed to update bibliography: ${error.message}`);
+    }
+  };
+
+  // Clear existing bibliography from document
+  const clearExistingBibliography = async () => {
+    if (!isOfficeReady) return;
+
+    try {
+      await Word.run(async (context) => {
+        console.log('🧹 Clearing existing bibliography...');
+        
+        // Search for bibliography title
+        const searchResults = context.document.body.search(bibliographyTitle, {
+          matchCase: false,
+          matchWholeWord: false
+        });
+        searchResults.load(['items']);
+        await context.sync();
+
+        if (searchResults.items.length > 0) {
+          // Find the bibliography section and delete it
+          const titleParagraph = searchResults.items[0].parentParagraph;
+          
+          // Delete title paragraph
+          titleParagraph.delete();
+
+          // Delete subsequent bibliography entries
+          let currentPara = titleParagraph.getNextOrNullObject();
+          let maxEntries = 50; // Safety limit
+          let entryCount = 0;
+
+          while (entryCount < maxEntries) {
+            try {
+              currentPara.load(['text', 'isEmpty']);
+              await context.sync();
+
+              if (currentPara.isNullObject || currentPara.isEmpty) {
+                break;
+              }
+
+              // Stop if we hit another heading or section
+              if (currentPara.text.match(/^(References|Bibliography|Works Cited|Conclusion|Introduction)/i)) {
+                break;
+              }
+
+              const nextPara = currentPara.getNextOrNullObject();
+              currentPara.delete();
+              currentPara = nextPara;
+              entryCount++;
+            } catch (e) {
+              break; // End of document or error
+            }
+          }
+
+          await context.sync();
+          setBibliographyExists(false);
+          console.log('✅ Bibliography cleared successfully');
+        }
+      });
+    } catch (error) {
+      console.error("Clear bibliography failed:", error);
+      setBibliographyExists(false);
     }
   };
 
@@ -2836,76 +2923,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
     setStatus("APA Citation formatting tested - check console for results");
   };
 
-  // Function to get font family and formatting based on citation style
-  const getCitationStyleFont = (styleName) => {
-    const fontMap = {
-      apa: {
-        family: "Times New Roman",
-        size: 12,
-        titleFormat: "italic", // Journal titles in italic
-        bookFormat: "italic", // Book titles in italic
-        emphasis: "italic",
-      },
-      mla: {
-        family: "Times New Roman",
-        size: 12,
-        titleFormat: "italic", // Journal/book titles in italic
-        bookFormat: "italic",
-        emphasis: "italic",
-      },
-      ieee: {
-        family: "Times New Roman",
-        size: 10,
-        titleFormat: "italic", // Journal titles in italic
-        bookFormat: "italic",
-        emphasis: "italic",
-      },
-      harvard: {
-        family: "Times New Roman",
-        size: 12,
-        titleFormat: "italic", // Journal titles in italic
-        bookFormat: "italic",
-        emphasis: "italic",
-      },
-      vancouver: {
-        family: "Arial",
-        size: 11,
-        titleFormat: "normal", // No italics for journal titles
-        bookFormat: "normal",
-        emphasis: "bold",
-      },
-      chicago: {
-        family: "Times New Roman",
-        size: 12,
-        titleFormat: "italic", // Journal titles in italic
-        bookFormat: "italic",
-        emphasis: "italic",
-      },
-      nature: {
-        family: "Arial",
-        size: 8,
-        titleFormat: "italic", // Journal titles in italic
-        bookFormat: "italic",
-        emphasis: "bold",
-      },
-      science: {
-        family: "Times New Roman",
-        size: 10,
-        titleFormat: "italic", // Journal titles in italic
-        bookFormat: "italic",
-        emphasis: "italic",
-      },
-    };
-    return (
-      fontMap[styleName] || {
-        family: "Times New Roman",
-        size: 12,
-        titleFormat: "italic",
-        bookFormat: "italic",
-        emphasis: "italic",
-      }
-    );
-  };
   // Helper function to calculate text similarity (Levenshtein distance based)
   const calculateSimilarity = (str1, str2) => {
     if (str1 === str2) return 1;
