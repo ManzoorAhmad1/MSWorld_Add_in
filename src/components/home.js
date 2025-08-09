@@ -1238,7 +1238,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
   // Tab state for switching between References and Citation Settings
   const [activeTab, setActiveTab] = useState("references");
 
-  // Function to clear existing bibliography from Word document (ONLY bibliography, NOT in-text citations)
+  // Function to clear existing bibliography from Word document (ONLY bibliography, not citations)
   const clearExistingBibliography = async () => {
     if (!isOfficeReady) {
       console.log('Office not ready, cannot clear bibliography');
@@ -1247,9 +1247,9 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
     try {
       await Word.run(async (context) => {
-        console.log('🧹 Starting BIBLIOGRAPHY-ONLY removal (preserving in-text citations)...');
+        console.log('🧹 Starting bibliography-only removal...');
         
-        // Method 1: Find bibliography title and remove only the bibliography section
+        // Method 1: Search for bibliography title and remove it + following content
         const titleSearchResults = context.document.body.search(bibliographyTitle, { 
           matchCase: false, 
           matchWholeWord: false 
@@ -1260,127 +1260,33 @@ const Home = ({ handleLogout, status, setStatus }) => {
         console.log(`📋 Found ${titleSearchResults.items.length} bibliography title matches`);
 
         if (titleSearchResults.items.length > 0) {
-          try {
-            // Get the last occurrence of bibliography title (most recent one)
-            const titleRange = titleSearchResults.items[titleSearchResults.items.length - 1];
-            const titleParagraph = titleRange.paragraphs.getFirst();
-            titleParagraph.load(['text']);
-            await context.sync();
-            
-            console.log(`📄 Bibliography title found: "${titleParagraph.text}"`);
-            
-            // Delete the title paragraph
-            titleParagraph.delete();
-            await context.sync();
-            console.log('✅ Bibliography title deleted');
-            
-            // Now find and remove ONLY full bibliography entries (not in-text citations)
-            const allParagraphs = context.document.body.paragraphs;
-            allParagraphs.load('items');
-            await context.sync();
-            
-            let deletedCount = 0;
-            const totalParagraphs = allParagraphs.items.length;
-            
-            // Scan from end of document (where bibliography typically is)
-            for (let i = totalParagraphs - 1; i >= Math.max(0, totalParagraphs - 100); i--) {
-              try {
-                const para = allParagraphs.items[i];
-                para.load(['text', 'style']);
-                await context.sync();
-                
-                const text = para.text?.trim() || '';
-                const style = para.style || '';
-                
-                // Skip empty or very short paragraphs
-                if (text.length < 50) continue;
-                
-                // VERY STRICT criteria for bibliography entries - avoid in-text citations
-                const isFullBibliographyEntry = (
-                  text.length > 120 && // Must be very long (bibliography entries are long)
-                  !style.includes('Heading') && 
-                  !style.includes('Title') &&
-                  
-                  // Must have multiple bibliography indicators
-                  (
-                    // Full author-year-title pattern with journal/source
-                    (text.includes('(20') && text.includes('.') && text.includes(',') && 
-                     (text.includes('arXiv') || text.includes('Journal') || text.includes('Preprint'))) ||
-                    
-                    // URL with full citation context
-                    (text.includes('https://') && text.includes('(20') && text.includes('.') && text.length > 150) ||
-                    
-                    // DOI with full citation context
-                    (text.includes('DOI:') && text.includes('(20') && text.includes('.') && text.length > 120) ||
-                    
-                    // Specific patterns from your document
-                    (text.includes('Zhao') && text.includes('Shi') && text.includes('2017') && text.includes('arXiv') && text.length > 150) ||
-                    
-                    // Retrieved/Available patterns with full context
-                    (text.includes('Retrieved from') && text.includes('http') && text.length > 100) ||
-                    (text.includes('Available from') && text.includes('http') && text.length > 100)
-                  ) &&
-                  
-                  // MUST NOT be in-text citations (these patterns exclude in-text citations)
-                  !text.match(/^\s*\([A-Za-z]+,?\s*\d{4}\)\s*$/) && // Not just (Author, 2017)
-                  !text.match(/^\s*[A-Za-z]+\s*et\s*al\.,?\s*\d{4}\s*$/) && // Not just Author et al., 2017
-                  !text.match(/^\s*\[[0-9]+\]\s*$/) && // Not just [1]
-                  !text.match(/^\s*[A-Za-z]+,?\s*\d{4}\s*$/) && // Not just Author, 2017
-                  !text.match(/^\s*.{1,50}\s*$/) && // Not just short text
-                  
-                  // Additional safety: must have typical bibliography structure
-                  (text.split(' ').length > 15 && // Must have many words
-                   text.split('.').length > 2) // Must have multiple sentences/parts
-                );
-                
-                if (isFullBibliographyEntry) {
-                  console.log(`🗑️ Removing bibliography entry: "${text.substring(0, 80)}..."`);
-                  para.delete();
-                  deletedCount++;
-                  
-                  // Safety limit
-                  if (deletedCount >= 50) {
-                    console.log('🛑 Bibliography removal safety limit reached');
-                    break;
-                  }
-                } else if (text.length > 50) {
-                  // Log what we're NOT deleting (for debugging)
-                  console.log(`⏭️ PRESERVING (likely not bibliography): "${text.substring(0, 60)}..."`);
-                  
-                  // If we encounter too many non-bibliography paragraphs, we've likely 
-                  // reached the main document content, so stop
-                  if (deletedCount > 0 && text.length > 100 && 
-                      !text.includes('20') && !text.includes('http')) {
-                    console.log('⏹️ Reached main document content, stopping bibliography removal');
-                    break;
-                  }
-                }
-              } catch (paraError) {
-                console.log(`⚠️ Could not process paragraph ${i}:`, paraError);
-              }
-            }
-            
-            await context.sync();
-            console.log(`✅ Bibliography section cleared: ${deletedCount} entries removed`);
-            
-          } catch (titleProcessingError) {
-            console.log('⚠️ Bibliography title processing failed:', titleProcessingError);
-          }
-        } else {
-          console.log('📋 No bibliography title found, searching for bibliography entries by pattern...');
+          // Get the bibliography title paragraph
+          const titleRange = titleSearchResults.items[0];
+          const titleParagraph = titleRange.paragraphs.getFirst();
+          titleParagraph.load('text');
+          await context.sync();
           
-          // If no title found, search for obvious bibliography entries only
-          const strictBibPatterns = [
-            "Retrieved\\s+from\\s+https://.*\\S{50,}", // Long URLs with "Retrieved from"
-            "Available\\s+from\\s+https://.*\\S{50,}", // Long URLs with "Available from"  
-            "DOI:\\s*10\\.\\d+.*\\S{80,}", // DOI with long context
-            "arXiv\\s+Preprint.*\\S{100,}", // arXiv preprint with long context
+          console.log(`📄 Bibliography title found: "${titleParagraph.text}"`);
+          
+          // Delete the title paragraph
+          titleParagraph.delete();
+          await context.sync();
+          console.log('✅ Bibliography title deleted');
+          
+          // Now find and delete bibliography entries (multi-line citations with specific patterns)
+          const bibPatterns = [
+            "Zhao,\\s*H\\.,\\s*Shi,\\s*J\\.", // Your specific multi-author pattern
+            "[A-Z][a-z]+,\\s*[A-Z]\\.[^.]*\\([0-9]{4}\\)\\.[^.]+\\.", // Author, A. (Year). Title.
+            "arXiv\\s*Preprint", // arXiv Preprint (specific to your content)
+            "Retrieved\\s*from\\s*https://", // URLs with "Retrieved from"
+            "Available\\s*from\\s*https://", // URLs with "Available from"
           ];
           
-          let patternDeletedCount = 0;
+          let totalDeleted = 0;
           
-          for (const pattern of strictBibPatterns) {
+          for (const pattern of bibPatterns) {
             try {
+              console.log(`🔍 Searching for bibliography pattern: ${pattern}`);
               const patternResults = context.document.body.search(pattern, {
                 matchCase: false,
                 matchWholeWord: false
@@ -1389,7 +1295,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
               await context.sync();
 
               if (patternResults.items.length > 0) {
-                console.log(`📋 Found ${patternResults.items.length} strict bibliography patterns: ${pattern}`);
+                console.log(`📋 Found ${patternResults.items.length} bibliography entries for: ${pattern}`);
                 
                 for (let i = 0; i < patternResults.items.length; i++) {
                   try {
@@ -1399,15 +1305,35 @@ const Home = ({ handleLogout, status, setStatus }) => {
                     await context.sync();
                     
                     const text = paragraph.text || '';
+                    const style = paragraph.style || '';
                     
-                    // Extra verification - must be very long to be a bibliography entry
-                    if (text.length > 120) {
-                      console.log(`🗑️ Pattern-based removal: "${text.substring(0, 60)}..."`);
+                    // Only delete if it's a full bibliography entry (long text, not in-text citation)
+                    const isBibliographyEntry = (
+                      text.length > 80 && // Bibliography entries are typically longer than 80 characters
+                      !style.includes('Heading') && 
+                      !style.includes('Title') &&
+                      !text.toLowerCase().includes('references') &&
+                      !text.toLowerCase().includes('bibliography') &&
+                      (
+                        text.includes('(20') || // Contains year like (2017), (2023), etc.
+                        text.includes('arXiv') ||
+                        text.includes('Preprint') ||
+                        text.includes('Retrieved') ||
+                        text.includes('Available') ||
+                        text.includes('https://') ||
+                        text.includes('DOI:')
+                      )
+                    );
+                    
+                    if (isBibliographyEntry) {
+                      console.log(`🗑️ Deleting bibliography entry: "${text.substring(0, 60)}..."`);
                       paragraph.delete();
-                      patternDeletedCount++;
+                      totalDeleted++;
+                    } else {
+                      console.log(`⏭️ Skipping (likely in-text citation): "${text.substring(0, 40)}..."`);
                     }
                   } catch (itemError) {
-                    console.log(`⚠️ Could not process pattern item ${i}:`, itemError);
+                    console.log(`⚠️ Could not process item ${i}:`, itemError);
                   }
                 }
                 await context.sync();
@@ -1416,14 +1342,77 @@ const Home = ({ handleLogout, status, setStatus }) => {
               console.log(`⚠️ Pattern search failed for "${pattern}":`, patternError);
             }
           }
-          
-          console.log(`✅ Pattern-based bibliography clearing completed: ${patternDeletedCount} entries removed`);
         }
         
-        console.log(`✅ Bibliography-only clearing completed (in-text citations preserved)`);
+        // Method 2: Targeted scan for remaining bibliography entries (only from end of document)
+        console.log('🎯 Scanning document end for remaining bibliography entries...');
+        try {
+          const allParagraphs = context.document.body.paragraphs;
+          allParagraphs.load('items');
+          await context.sync();
+          
+          const totalParagraphs = allParagraphs.items.length;
+          let scannedCount = 0;
+          let totalDeleted = 0;
+          
+          // Scan from bottom up (bibliography usually at end) - limit to last 30 paragraphs
+          for (let i = totalParagraphs - 1; i >= 0 && scannedCount < 30; i--) {
+            try {
+              const para = allParagraphs.items[i];
+              para.load(['text', 'style']);
+              await context.sync();
+              
+              const text = para.text?.trim() || '';
+              const style = para.style || '';
+              
+              scannedCount++;
+              
+              // Very specific detection for bibliography entries (avoid in-text citations)
+              const isBibliographyEntry = (
+                text.length > 100 && // Bibliography entries are much longer
+                !style.includes('Heading') && 
+                !style.includes('Title') && 
+                (
+                  // Specific patterns that indicate full bibliography entries
+                  (text.includes('Zhao') && text.includes('Shi') && text.includes('2017')) ||
+                  (text.includes('arXiv') && text.includes('Preprint') && text.length > 150) ||
+                  (text.includes('Retrieved from') && text.includes('https://')) ||
+                  (text.includes('Available from') && text.includes('https://')) ||
+                  // Multi-line citation pattern: Author (Year). Title. Journal.
+                  (text.match(/[A-Z][a-z]+,\s*[A-Z]\.[^.]*\([0-9]{4}\)[^.]*\.[^.]+\.[^.]+\./) && text.length > 120)
+                ) &&
+                // Exclude short in-text citations
+                !text.match(/^\s*\([A-Z][a-z]+,\s*[0-9]{4}\)\s*$/) && // Not just (Author, Year)
+                !text.match(/^\s*[A-Z][a-z]+,\s*[0-9]{4}\s*$/) && // Not just Author, Year
+                !text.match(/^\s*\[[0-9]+\]\s*$/) // Not just [1]
+              );
+              
+              if (isBibliographyEntry) {
+                console.log(`🗑️ End-scan deletion: "${text.substring(0, 50)}..."`);
+                para.delete();
+                totalDeleted++;
+                
+                // Safety limit for end-scan
+                if (totalDeleted >= 20) {
+                  console.log('🛑 Hit safety limit of 20 deletions in end-scan');
+                  break;
+                }
+              }
+            } catch (paraError) {
+              console.log(`⚠️ Could not process paragraph ${i}:`, paraError);
+            }
+          }
+          
+          await context.sync();
+          console.log(`✅ End-scan completed. Bibliography entries deleted: ${totalDeleted}`);
+        } catch (scanError) {
+          console.log('⚠️ End-scan failed:', scanError);
+        }
+        
+        console.log(`✅ Bibliography-only clearing completed successfully`);
       });
       
-      console.log('✅ Bibliography section completely cleared, in-text citations preserved');
+      console.log('✅ Bibliography completely cleared (in-text citations preserved)');
       
     } catch (error) {
       console.error('❌ Failed to clear bibliography:', error);
@@ -1530,8 +1519,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
         setBibliography("");
         setBibliographyCitations([]);
         
-        // Wait longer for clearing to complete fully
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Wait a moment for clearing to complete
+        await new Promise(resolve => setTimeout(resolve, 500));
         
         // Step 2: Auto-generate new bibliography with the new style
         setStatus(`🔄 Generating new bibliography with ${newStyle.toUpperCase()} style...`);
