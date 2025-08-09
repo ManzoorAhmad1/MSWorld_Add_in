@@ -1217,6 +1217,9 @@ const Home = ({ handleLogout, status, setStatus }) => {
   const [isSearching, setIsSearching] = useState(false);
   const [citationFormat, setCitationFormat] = useState("in-text");
   const [bibliographyTitle, setBibliographyTitle] = useState("References");
+  
+  // Separate state for bibliography generation tracking (to prevent duplication)
+  const [bibliographyCitations, setBibliographyCitations] = useState([]);
   const [recentCitations, setRecentCitations] = useState([]);
   const [userWorkSpaces, setUserWorkSpaces] = useState({});
   const [selectedWorkSpace, setSelectedWorkSpace] = useState(null);
@@ -1675,6 +1678,23 @@ const Home = ({ handleLogout, status, setStatus }) => {
       
       setCitations(updated);
       saveCitations(updated);
+      
+      // Add to bibliography citations for future bibliography generation
+      const citationForBibliography = {
+        ...normalizedCitation,
+        used: true,
+        addedDate: new Date().toISOString(),
+        inTextCitations: [formatted],
+      };
+      setBibliographyCitations(prev => {
+        // Check if citation already exists in bibliography citations
+        const exists = prev.find(c => String(c.id) === String(normalizedCitation.id));
+        if (exists) {
+          return prev; // Don't add duplicate
+        }
+        return [...prev, citationForBibliography];
+      });
+      
       setStatus(
         `Citation inserted successfully with ${citationStyle.toUpperCase()} style and proper formatting`
       );
@@ -1694,9 +1714,10 @@ const Home = ({ handleLogout, status, setStatus }) => {
       return;
     }
 
-    const used = citations.filter((c) => c.used);
+    // Use bibliographyCitations instead of all citations to prevent duplication
+    const used = bibliographyCitations.filter((c) => c.used);
     if (used.length === 0) {
-      setStatus("No citations used - insert citations first");
+      setStatus("No citations selected for bibliography - select citations first");
       return;
     }
 
@@ -1779,6 +1800,10 @@ const Home = ({ handleLogout, status, setStatus }) => {
       });
 
       setBibliography(bibRaw);
+      
+      // Clear bibliography citations after successful generation to prevent duplication
+      setBibliographyCitations([]);
+      
       setStatus(
         `✅ Bibliography ${bibliographyExists ? 'updated' : 'created'}: ${used.length} citation${
           used.length !== 1 ? "s" : ""
@@ -3124,7 +3149,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
               generateBibliography={generateBibliography}
               autoRegenerateBibliography={autoRegenerateBibliography}
               isOfficeReady={isOfficeReady}
-              citations={citations}
+              citations={bibliographyCitations}
               testAPACitationFormatting={testAPACitationFormatting}
               testDuplicateRemoval={testDuplicateRemoval}
             />
