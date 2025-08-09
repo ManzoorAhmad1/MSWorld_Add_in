@@ -1242,6 +1242,9 @@ const Home = ({ handleLogout, status, setStatus }) => {
   // Track if bibliography exists in document for auto-update
   const [bibliographyExists, setBibliographyExists] = useState(false);
   
+  // Track if auto-regeneration is in progress to prevent multiple calls
+  const [isAutoRegenerating, setIsAutoRegenerating] = useState(false);
+  
   const [recentCitations, setRecentCitations] = useState([]);
   const [userWorkSpaces, setUserWorkSpaces] = useState({});
   const [selectedWorkSpace, setSelectedWorkSpace] = useState(null);
@@ -1410,6 +1413,12 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
   // Auto-update bibliography when citation style changes
   useEffect(() => {
+    // Skip if auto-regeneration is already in progress
+    if (isAutoRegenerating) {
+      console.log(`⏳ Auto-regeneration in progress, skipping style change effect`);
+      return;
+    }
+    
     console.log(`📊 Style change effect triggered: ${citationStyle}`);
     console.log(`📚 Bibliography exists: ${bibliographyExists}`);
     console.log(`🏢 Office ready: ${isOfficeReady}`);
@@ -1423,8 +1432,9 @@ const Home = ({ handleLogout, status, setStatus }) => {
       console.log(`   - Bibliography exists: ${bibliographyExists}`);
       console.log(`   - Used citations count: ${usedCitations.length}`);
       console.log(`   - Office ready: ${isOfficeReady}`);
+      console.log(`   - Auto-regeneration in progress: ${isAutoRegenerating}`);
       
-      if (bibliographyExists && usedCitations.length > 0 && isOfficeReady) {
+      if (bibliographyExists && usedCitations.length > 0 && isOfficeReady && !isAutoRegenerating) {
         console.log(`🔄 Citation style changed to ${citationStyle}, updating bibliography...`);
         setStatus(`Updating bibliography to ${citationStyle.toUpperCase()} style...`);
         await autoRegenerateBibliography(citations);
@@ -1433,13 +1443,14 @@ const Home = ({ handleLogout, status, setStatus }) => {
         if (!bibliographyExists) console.log(`   - No bibliography exists yet`);
         if (usedCitations.length === 0) console.log(`   - No used citations`);
         if (!isOfficeReady) console.log(`   - Office not ready`);
+        if (isAutoRegenerating) console.log(`   - Auto-regeneration already in progress`);
       }
     };
 
     // Add small delay to avoid rapid updates
     const timeoutId = setTimeout(updateBibliographyOnStyleChange, 500);
     return () => clearTimeout(timeoutId);
-  }, [citationStyle, isOfficeReady, bibliographyExists, citations]); // Run when citation style or bibliography existence changes
+  }, [citationStyle, isOfficeReady, bibliographyExists, isAutoRegenerating]); // REMOVED citations from dependencies to prevent infinite loop
 
   // Pagination handlers
   const handlePageChange = async (page) => {
@@ -2510,36 +2521,60 @@ const Home = ({ handleLogout, status, setStatus }) => {
     console.log(`   - Office ready: ${isOfficeReady}`);
     console.log(`   - Total citations: ${citations.length}`);
     console.log(`   - Used citations: ${citations.filter(c => c.used).length}`);
+    console.log(`   - Auto-regeneration in progress: ${isAutoRegenerating}`);
     
     const usedCitations = citations.filter(c => c.used);
-    if (bibliographyExists && usedCitations.length > 0 && isOfficeReady) {
+    if (bibliographyExists && usedCitations.length > 0 && isOfficeReady && !isAutoRegenerating) {
       console.log(`✅ Conditions met, calling autoRegenerateBibliography...`);
       await autoRegenerateBibliography(citations);
     } else {
       console.log(`❌ Conditions not met for auto-update`);
+      if (isAutoRegenerating) console.log(`   - Auto-regeneration already running!`);
     }
+  };
+
+  // Reset auto-regeneration flag manually (emergency use)
+  const resetAutoRegenerationFlag = () => {
+    console.log(`🔧 Manually resetting auto-regeneration flag`);
+    setIsAutoRegenerating(false);
+    setStatus("Auto-regeneration flag reset");
   };
 
   const autoRegenerateBibliography = async (updatedCitations) => {
     console.log(`🔄 autoRegenerateBibliography called with ${updatedCitations.length} citations`);
+    
+    // Prevent multiple simultaneous calls
+    if (isAutoRegenerating) {
+      console.log(`⏳ Auto-regeneration already in progress, skipping...`);
+      return;
+    }
     
     if (!isOfficeReady) {
       console.log(`❌ Office not ready, aborting auto-regeneration`);
       return;
     }
 
-    const used = updatedCitations.filter((c) => c.used);
-    console.log(`📊 Found ${used.length} used citations for bibliography`);
+    setIsAutoRegenerating(true);
     
-    if (used.length === 0) {
-      console.log(`🗑️ No used citations, clearing bibliography`);
-      // Clear bibliography if no citations are used
-      await clearExistingBibliography();
-      setBibliographyExists(false);
-      return;
-    }
-
+    // Safety timeout to prevent stuck state
+    const safetyTimeout = setTimeout(() => {
+      console.log(`⚠️ Auto-regeneration timeout reached, resetting flag...`);
+      setIsAutoRegenerating(false);
+    }, 15000); // 15 seconds timeout
+    
     try {
+      const used = updatedCitations.filter((c) => c.used);
+      console.log(`📊 Found ${used.length} used citations for bibliography`);
+      
+      if (used.length === 0) {
+        console.log(`🗑️ No used citations, clearing bibliography`);
+        // Clear bibliography if no citations are used
+        await clearExistingBibliography();
+        setBibliographyExists(false);
+        setIsAutoRegenerating(false); // Reset flag
+        return;
+      }
+
       console.log(`🧹 Clearing existing bibliography first...`);
       // Clear existing bibliography first to avoid duplicates
       await clearExistingBibliography();
@@ -2589,6 +2624,10 @@ const Home = ({ handleLogout, status, setStatus }) => {
     } catch (error) {
       console.error("Auto-regenerate bibliography failed:", error);
       setStatus(`❌ Failed to update bibliography: ${error.message}`);
+    } finally {
+      // Clear safety timeout and reset flag
+      clearTimeout(safetyTimeout);
+      setIsAutoRegenerating(false);
     }
   };
 
@@ -3235,6 +3274,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
               testDuplicateRemoval={testDuplicateRemoval}
               testAutoUpdate={testAutoUpdate}
               bibliographyExists={bibliographyExists}
+              resetAutoRegenerationFlag={resetAutoRegenerationFlag}
+              isAutoRegenerating={isAutoRegenerating}
             />
           </>
         )}
