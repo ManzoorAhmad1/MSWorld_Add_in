@@ -1234,6 +1234,10 @@ const Home = ({ handleLogout, status, setStatus }) => {
   
   // Tab state for switching between References and Citation Settings
   const [activeTab, setActiveTab] = useState("references");
+  
+  // Visual indicator states
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isUpdatingBibliography, setIsUpdatingBibliography] = useState(false);
 
   // Fetch user files on component mount
   useEffect(() => {
@@ -1701,64 +1705,108 @@ const Home = ({ handleLogout, status, setStatus }) => {
     }
 
     try {
+      setIsUpdatingBibliography(true);
+      setStatus("🔄 Updating bibliography...");
+      
       const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
       const styleFont = getCitationStyleFont(citationStyle);
 
       await Word.run(async (context) => {
-        // Check if bibliography already exists
-        const searchResults = context.document.body.search(bibliographyTitle, { matchCase: false, matchWholeWord: false });
+        // Check if bibliography already exists and REMOVE it to prevent duplicates
+        const searchResults = context.document.body.search(bibliographyTitle, { 
+          matchCase: false, 
+          matchWholeWord: false 
+        });
         searchResults.load('items');
         await context.sync();
 
-        let bibliographyExists = searchResults.items.length > 0;
-        
-        if (!bibliographyExists) {
-          // No existing bibliography - create new one
-          try {
-            // Try to insert at cursor position
-            const selection = context.document.getSelection();
-            selection.load(['isEmpty']);
+        // Remove existing bibliography section completely
+        if (searchResults.items.length > 0) {
+          console.log(`🗑️ Found existing bibliography, removing to prevent duplicates`);
+          
+          // Find and remove the entire bibliography section
+          for (let i = 0; i < searchResults.items.length; i++) {
+            const item = searchResults.items[i];
+            const paragraph = item.parentParagraph;
+            paragraph.load(['text', 'next']);
             await context.sync();
             
-            let insertionPoint;
-            if (!selection.isEmpty) {
-              // Insert at cursor position
-              insertionPoint = selection;
-            } else {
-              // Insert at end of document
-              insertionPoint = context.document.body;
+            // Remove the title paragraph
+            if (paragraph.text.toLowerCase().includes(bibliographyTitle.toLowerCase())) {
+              let currentPara = paragraph;
+              const toDelete = [currentPara];
+              
+              // Collect all following paragraphs that look like bibliography entries
+              try {
+                let nextPara = currentPara.getNext();
+                nextPara.load(['text', 'styleBuiltIn']);
+                await context.sync();
+                
+                while (nextPara && !nextPara.isNullObject) {
+                  const text = nextPara.text.trim();
+                  
+                  // Stop if we hit another heading or empty line indicating end of bibliography
+                  if (text === '' || 
+                      nextPara.styleBuiltIn === Word.Style.heading1 ||
+                      nextPara.styleBuiltIn === Word.Style.heading2 ||
+                      text.toLowerCase().includes('reference') ||
+                      text.toLowerCase().includes('bibliography') ||
+                      text.toLowerCase().includes('works cited')) {
+                    break;
+                  }
+                  
+                  // If it looks like a bibliography entry, mark for deletion
+                  if (text.length > 20 && (
+                    text.match(/\(\d{4}\)/) || // Contains year in parentheses
+                    text.match(/\d{4}\./) ||   // Contains year with period
+                    text.includes('doi:') ||  // Contains DOI
+                    text.includes('http') ||  // Contains URL
+                    text.match(/^\s*[A-Z]/)   // Starts with capital letter (author name)
+                  )) {
+                    toDelete.push(nextPara);
+                    try {
+                      nextPara = nextPara.getNext();
+                      nextPara.load(['text', 'styleBuiltIn']);
+                      await context.sync();
+                    } catch (e) {
+                      break; // End of document
+                    }
+                  } else {
+                    break; // Not a bibliography entry
+                  }
+                }
+              } catch (e) {
+                console.log('End of document reached');
+              }
+              
+              // Delete all collected paragraphs
+              toDelete.forEach(para => para.delete());
+              await context.sync();
+              console.log(`✅ Removed existing bibliography (${toDelete.length} paragraphs)`);
+              break;
             }
-            
-            // Create bibliography title
-            const title = insertionPoint.insertParagraph(
-              bibliographyTitle,
-              Word.InsertLocation.end
-            );
-            title.style = "Heading 1";
-            title.font.bold = true;
-            title.font.size = 16;
-            title.font.name = styleFont.family;
-            
-          } catch (e) {
-            // Fallback: insert at end of document
-            const title = context.document.body.insertParagraph(
-              bibliographyTitle,
-              Word.InsertLocation.end
-            );
-            title.style = "Heading 1";
-            title.font.bold = true;
-            title.font.size = 16;
-            title.font.name = styleFont.family;
           }
         }
 
-        // Process each bibliography entry on new lines
+        // Now create the NEW bibliography with current style
+        console.log(`📚 Creating new bibliography with ${citationStyle.toUpperCase()} style`);
+        
+        // Create bibliography title
+        const title = context.document.body.insertParagraph(
+          bibliographyTitle,
+          Word.InsertLocation.end
+        );
+        title.style = "Heading 1";
+        title.font.bold = true;
+        title.font.size = 16;
+        title.font.name = styleFont.family;
+        // Process each bibliography entry
         const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
         for (let i = 0; i < bibEntries.length; i++) {
           const entry = bibEntries[i].trim();
           if (!entry) continue;
 
-          // Create paragraph for each entry (new line, not new page)
+          // Create paragraph for each entry
           const para = context.document.body.insertParagraph("", Word.InsertLocation.end);
           para.font.name = styleFont.family;
           para.font.size = styleFont.size;
@@ -1780,13 +1828,15 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
       setBibliography(bibRaw);
       setStatus(
-        `✅ Bibliography ${bibliographyExists ? 'updated' : 'created'}: ${used.length} citation${
+        `✅ Bibliography updated: ${used.length} citation${
           used.length !== 1 ? "s" : ""
         } in ${citationStyle.toUpperCase()} style`
       );
     } catch (e) {
       console.error("❌ Bibliography generation failed:", e);
       setStatus(`❌ Bibliography error: ${e.message || "Unknown error"}`);
+    } finally {
+      setIsUpdatingBibliography(false);
     }
   };
 
@@ -2641,6 +2691,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
     if (!isOfficeReady) return;
 
     try {
+      setIsSyncing(true);
       await Word.run(async (context) => {
         const body = context.document.body;
         const footnotes = context.document.body.footnotes;
@@ -2720,6 +2771,9 @@ const Home = ({ handleLogout, status, setStatus }) => {
       });
     } catch (error) {
       console.error("Failed to sync citations with document:", error);
+      setStatus('❌ Sync failed');
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -3118,6 +3172,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
               insertCitation={insertCitation}
               markCitationAsUnused={markCitationAsUnused}
               syncCitationsWithDocument={syncCitationsWithDocument}
+              isSyncing={isSyncing}
             />
 
             <BibliographySection
@@ -3127,6 +3182,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
               citations={citations}
               testAPACitationFormatting={testAPACitationFormatting}
               testDuplicateRemoval={testDuplicateRemoval}
+              isSyncing={isSyncing}
+              isUpdatingBibliography={isUpdatingBibliography}
             />
           </>
         )}
