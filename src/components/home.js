@@ -1238,6 +1238,195 @@ const Home = ({ handleLogout, status, setStatus }) => {
   // Tab state for switching between References and Citation Settings
   const [activeTab, setActiveTab] = useState("references");
 
+  // Function to clear existing bibliography from Word document
+  const clearExistingBibliography = async () => {
+    if (!isOfficeReady) {
+      console.log('Office not ready, cannot clear bibliography');
+      return;
+    }
+
+    try {
+      await Word.run(async (context) => {
+        // Search for the bibliography title
+        const searchResults = context.document.body.search(bibliographyTitle, { 
+          matchCase: false, 
+          matchWholeWord: false 
+        });
+        searchResults.load('items');
+        await context.sync();
+
+        if (searchResults.items.length > 0) {
+          // Find the bibliography section and remove all content after the title
+          const titleParagraph = searchResults.items[0].parentParagraph;
+          titleParagraph.load(['style', 'text']);
+          await context.sync();
+          
+          // Get all paragraphs in the document
+          const allParagraphs = context.document.body.paragraphs;
+          allParagraphs.load(['style', 'text']);
+          await context.sync();
+          
+          // Find the index of the bibliography title paragraph
+          let titleIndex = -1;
+          for (let i = 0; i < allParagraphs.items.length; i++) {
+            if (allParagraphs.items[i].text.toLowerCase().includes(bibliographyTitle.toLowerCase())) {
+              titleIndex = i;
+              break;
+            }
+          }
+          
+          if (titleIndex >= 0) {
+            // Remove all paragraphs after the bibliography title until we find another heading or end of document
+            let nextIndex = titleIndex + 1;
+            while (nextIndex < allParagraphs.items.length) {
+              const paragraph = allParagraphs.items[nextIndex];
+              
+              // Stop if we encounter another heading
+              if (paragraph.style && (
+                paragraph.style.includes('Heading') || 
+                paragraph.style.includes('Title')
+              )) {
+                break;
+              }
+              
+              // Stop if we encounter a paragraph that looks like a new section
+              const text = paragraph.text.trim();
+              if (text.length > 0 && !text.match(/^[A-Z]/)) {
+                // This might be bibliography content, remove it
+                paragraph.delete();
+                await context.sync();
+              } else if (text.length > 100) {
+                // This is likely bibliography content, remove it
+                paragraph.delete();
+                await context.sync();
+              } else if (text.length === 0) {
+                // Empty paragraph, remove it
+                paragraph.delete();
+                await context.sync();
+              } else {
+                // This might be a new section, stop here
+                break;
+              }
+              
+              nextIndex++;
+            }
+          }
+        }
+        
+        await context.sync();
+        console.log('✅ Existing bibliography cleared successfully');
+      });
+    } catch (error) {
+      console.error('❌ Failed to clear existing bibliography:', error);
+    }
+  };
+
+  // Function to regenerate bibliography with new citation style
+  const regenerateBibliographyWithNewStyle = async (newStyle) => {
+    console.log(`🔄 Regenerating bibliography with ${newStyle} style`);
+    
+    // Get all used citations
+    const usedCitations = citations.filter(c => c.used);
+    
+    if (usedCitations.length === 0) {
+      console.log('No used citations found, skipping bibliography regeneration');
+      setStatus('No bibliography to regenerate - please add and use citations first');
+      return;
+    }
+
+    try {
+      // Show progress
+      setStatus(`🔄 Clearing existing bibliography...`);
+      
+      // Clear existing bibliography first
+      await clearExistingBibliography();
+      
+      // Wait a moment for the clearing to complete
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Show next step
+      setStatus(`🔄 Generating new ${newStyle.toUpperCase()} bibliography...`);
+      
+      // Generate new bibliography with the new style
+      const bibRaw = await formatBibliographyCiteproc(usedCitations, newStyle);
+      const styleFont = getCitationStyleFont(newStyle);
+
+      await Word.run(async (context) => {
+        // Insert new bibliography at the end of document
+        const range = context.document.body.insertParagraph("", Word.InsertLocation.end);
+        
+        // Create bibliography title
+        const title = context.document.body.insertParagraph(
+          bibliographyTitle,
+          Word.InsertLocation.end
+        );
+        title.style = "Heading 1";
+        title.font.bold = true;
+        
+        // Process each bibliography entry
+        const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
+        for (let i = 0; i < bibEntries.length; i++) {
+          const entry = bibEntries[i].trim();
+          if (!entry) continue;
+
+          // Create paragraph for each entry
+          const para = context.document.body.insertParagraph("", Word.InsertLocation.end);
+          para.font.name = styleFont.family;
+          para.font.size = styleFont.size;
+          para.leftIndent = 36; // Hanging indent for citations
+          para.firstLineIndent = -36;
+
+          // Format the entry text
+          if (entry.includes("*")) {
+            await parseAndFormatText(para, entry, newStyle);
+          } else {
+            para.insertText(entry, Word.InsertLocation.end);
+          }
+        }
+
+        await context.sync();
+      });
+
+      setBibliography(bibRaw);
+      console.log(`✅ Bibliography regenerated successfully with ${newStyle} style`);
+      setStatus(`✅ Bibliography regenerated with ${newStyle.toUpperCase()} style (${usedCitations.length} citations)`);
+      
+    } catch (error) {
+      console.error(`❌ Failed to regenerate bibliography with ${newStyle} style:`, error);
+      setStatus(`❌ Failed to regenerate bibliography: ${error.message}`);
+      throw error; // Re-throw to allow caller to handle
+    }
+  };
+
+  // Enhanced citation style change handler
+  const handleCitationStyleChange = async (newStyle) => {
+    console.log(`🎨 Citation style changing from ${citationStyle} to ${newStyle}`);
+    
+    const previousStyle = citationStyle;
+    setCitationStyle(newStyle);
+    
+    // Get used citations to check if bibliography regeneration is needed
+    const usedCitations = citations.filter(c => c.used);
+    
+    if (usedCitations.length > 0 && isOfficeReady) {
+      // Show loading status
+      setStatus(`🔄 Updating bibliography to ${newStyle.toUpperCase()} style...`);
+      
+      try {
+        // Regenerate bibliography with new style
+        await regenerateBibliographyWithNewStyle(newStyle);
+        setStatus(`✅ Bibliography updated to ${newStyle.toUpperCase()} style successfully!`);
+      } catch (error) {
+        console.error('❌ Failed to update bibliography style:', error);
+        setStatus(`❌ Failed to update bibliography style: ${error.message}`);
+        // Revert to previous style on error
+        setCitationStyle(previousStyle);
+      }
+    } else {
+      setStatus(`Citation style changed to ${newStyle.toUpperCase()}`);
+    }
+  };
+
   // Fetch user files on component mount
   useEffect(() => {
     const fetchUserWorkSpaces = async () => {
@@ -1385,6 +1574,30 @@ const Home = ({ handleLogout, status, setStatus }) => {
       }
     };
   }, [isOfficeReady, citations]);
+
+  // Auto-regenerate bibliography when citation style changes (if citations exist)
+  useEffect(() => {
+    // Only auto-regenerate if we have used citations and Office is ready
+    const usedCitations = citations.filter(c => c.used);
+    
+    if (usedCitations.length > 0 && isOfficeReady && bibliography) {
+      // Debounce the regeneration to avoid multiple rapid calls
+      const timeoutId = setTimeout(async () => {
+        console.log(`🎨 Citation style changed, auto-regenerating bibliography with ${citationStyle} style`);
+        setStatus(`🔄 Auto-updating bibliography to ${citationStyle.toUpperCase()} style...`);
+        
+        try {
+          await regenerateBibliographyWithNewStyle(citationStyle);
+          setStatus(`✅ Bibliography auto-updated to ${citationStyle.toUpperCase()} style!`);
+        } catch (error) {
+          console.error('❌ Auto-regeneration failed:', error);
+          setStatus(`⚠️ Bibliography style changed to ${citationStyle.toUpperCase()}, but auto-update failed. Please regenerate manually.`);
+        }
+      }, 1000); // Wait 1 second before regenerating
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [citationStyle, isOfficeReady]); // Dependencies: only when citation style or Office readiness changes
 
   // Pagination handlers
   const handlePageChange = async (page) => {
@@ -3159,7 +3372,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
         {activeTab === "settings" && (
           <CitationSettings
             citationStyle={citationStyle}
-            setCitationStyle={setCitationStyle}
+            setCitationStyle={handleCitationStyleChange}
             citationStyles={citationStyles}
             citationFormat={citationFormat}
             setCitationFormat={setCitationFormat}

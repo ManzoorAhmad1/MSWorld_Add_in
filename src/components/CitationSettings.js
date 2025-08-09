@@ -13,7 +13,10 @@ const CitationSettings = ({
   const [stylePreview, setStylePreview] = useState(null);
 
   const handleStyleChange = async (newStyle) => {
-    setCitationStyle(newStyle);
+    console.log(`🎨 Changing citation style to: ${newStyle}`);
+    
+    // Call the parent's citation style change handler (which includes auto-regeneration)
+    await setCitationStyle(newStyle);
     
     // Generate preview if previewCitationStyle function is available
     if (previewCitationStyle) {
@@ -49,6 +52,16 @@ const CitationSettings = ({
               </option>
             ))}
           </select>
+          
+          {/* Info about auto-regeneration */}
+          <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-start">
+              <div className="text-blue-600 mr-2 mt-0.5">ℹ️</div>
+              <div className="text-sm text-blue-800">
+                <strong>Auto-regeneration:</strong> When you change the citation style, your existing bibliography will be automatically updated to match the new style format.
+              </div>
+            </div>
+          </div>
           
           {/* Enhanced Style Preview */}
           {stylePreview && (
