@@ -1497,14 +1497,14 @@ const Home = ({ handleLogout, status, setStatus }) => {
     }
   };
 
-  // Enhanced citation style change handler - ONLY clear bibliography, don't regenerate
+  // Enhanced citation style change handler - Clear bibliography and auto-regenerate with new style
   const handleCitationStyleChange = async (newStyle) => {
     console.log(`🎨 Citation style changing from ${citationStyle} to ${newStyle}`);
     
     const previousStyle = citationStyle;
     setCitationStyle(newStyle);
     
-    // Get used citations to check if bibliography clearing is needed
+    // Get used citations to check if bibliography regeneration is needed
     const usedCitations = citations.filter(c => c.used);
     
     if (usedCitations.length > 0 && isOfficeReady) {
@@ -1512,18 +1512,68 @@ const Home = ({ handleLogout, status, setStatus }) => {
       setStatus(`🧹 Clearing old bibliography (${previousStyle.toUpperCase()} style)...`);
       
       try {
-        // ONLY clear existing bibliography - don't regenerate automatically
+        // Step 1: Clear existing bibliography
         await clearExistingBibliography();
         
         // Clear the bibliography state as well
         setBibliography("");
         setBibliographyCitations([]);
         
-        setStatus(`✅ Old bibliography cleared. Citation style changed to ${newStyle.toUpperCase()}. Click "Generate Bibliography" to create new references.`);
+        // Wait a moment for clearing to complete
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Step 2: Auto-generate new bibliography with the new style
+        setStatus(`🔄 Generating new bibliography with ${newStyle.toUpperCase()} style...`);
+        
+        // Generate new bibliography with the new style
+        const bibRaw = await formatBibliographyCiteproc(usedCitations, newStyle);
+        const styleFont = getCitationStyleFont(newStyle);
+
+        await Word.run(async (context) => {
+          // Insert new bibliography at the end of document
+          const range = context.document.body.insertParagraph("", Word.InsertLocation.end);
+          
+          // Create bibliography title
+          const title = context.document.body.insertParagraph(
+            bibliographyTitle,
+            Word.InsertLocation.end
+          );
+          title.style = "Heading 1";
+          title.font.bold = true;
+          title.font.size = 16;
+          title.font.name = styleFont.family;
+          
+          // Process each bibliography entry
+          const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
+          for (let i = 0; i < bibEntries.length; i++) {
+            const entry = bibEntries[i].trim();
+            if (!entry) continue;
+
+            // Create paragraph for each entry
+            const para = context.document.body.insertParagraph("", Word.InsertLocation.end);
+            para.font.name = styleFont.family;
+            para.font.size = styleFont.size;
+            para.leftIndent = 36; // Hanging indent for citations
+            para.firstLineIndent = -36;
+
+            // Format the entry text
+            if (entry.includes("*")) {
+              await parseAndFormatText(para, entry, newStyle);
+            } else {
+              para.insertText(entry, Word.InsertLocation.end);
+            }
+          }
+
+          await context.sync();
+        });
+
+        setBibliography(bibRaw);
+        
+        setStatus(`✅ Bibliography automatically updated to ${newStyle.toUpperCase()} style (${usedCitations.length} citations)`);
         
       } catch (error) {
-        console.error('❌ Failed to clear bibliography:', error);
-        setStatus(`❌ Failed to clear old bibliography: ${error.message}`);
+        console.error('❌ Failed to clear and regenerate bibliography:', error);
+        setStatus(`❌ Failed to update bibliography: ${error.message}`);
         // Revert to previous style on error
         setCitationStyle(previousStyle);
       }
