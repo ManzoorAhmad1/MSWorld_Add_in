@@ -1208,7 +1208,25 @@ const Home = ({ handleLogout, status, setStatus }) => {
   };
 
   // Citation state
-  const [citationStyle, setCitationStyle] = useState("apa");
+  const [citationStyle, setCitationStyleState] = useState("apa");
+  
+  // Enhanced setCitationStyle with logging
+  const setCitationStyle = (newStyle) => {
+    console.log(`🎨 Citation style changing from ${citationStyle} to ${newStyle}`);
+    console.log(`📊 Current citations state:`, citations.map(c => ({
+      id: c.id,
+      title: c.title?.substring(0, 50) + '...',
+      used: c.used
+    })));
+    console.log(`📚 Bibliography exists: ${bibliographyExists}`);
+    
+    if (citationStyle !== newStyle) {
+      console.log(`✅ Style is actually different, updating state...`);
+      setCitationStyleState(newStyle);
+    } else {
+      console.log(`⚠️ Style is same as current, no change needed`);
+    }
+  };
   const [citations, setCitations] = useState([]);
   const [bibliography, setBibliography] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -1392,20 +1410,36 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
   // Auto-update bibliography when citation style changes
   useEffect(() => {
+    console.log(`📊 Style change effect triggered: ${citationStyle}`);
+    console.log(`📚 Bibliography exists: ${bibliographyExists}`);
+    console.log(`🏢 Office ready: ${isOfficeReady}`);
+    console.log(`📑 Total citations: ${citations.length}`);
+    console.log(`✅ Used citations: ${citations.filter(c => c.used).length}`);
+    
     const updateBibliographyOnStyleChange = async () => {
       // Only update if bibliography exists and we have used citations
       const usedCitations = citations.filter(c => c.used);
+      console.log(`🔍 Checking conditions for auto-update:`);
+      console.log(`   - Bibliography exists: ${bibliographyExists}`);
+      console.log(`   - Used citations count: ${usedCitations.length}`);
+      console.log(`   - Office ready: ${isOfficeReady}`);
+      
       if (bibliographyExists && usedCitations.length > 0 && isOfficeReady) {
         console.log(`🔄 Citation style changed to ${citationStyle}, updating bibliography...`);
         setStatus(`Updating bibliography to ${citationStyle.toUpperCase()} style...`);
         await autoRegenerateBibliography(citations);
+      } else {
+        console.log(`❌ Auto-update skipped - conditions not met`);
+        if (!bibliographyExists) console.log(`   - No bibliography exists yet`);
+        if (usedCitations.length === 0) console.log(`   - No used citations`);
+        if (!isOfficeReady) console.log(`   - Office not ready`);
       }
     };
 
     // Add small delay to avoid rapid updates
     const timeoutId = setTimeout(updateBibliographyOnStyleChange, 500);
     return () => clearTimeout(timeoutId);
-  }, [citationStyle, isOfficeReady, bibliographyExists]); // Run when citation style or bibliography existence changes
+  }, [citationStyle, isOfficeReady, bibliographyExists, citations]); // Run when citation style or bibliography existence changes
 
   // Pagination handlers
   const handlePageChange = async (page) => {
@@ -2467,20 +2501,50 @@ const Home = ({ handleLogout, status, setStatus }) => {
   };
 
   // Auto-regenerate bibliography with updated citations and style
+  // Helper function to manually trigger auto-update (for testing)
+  const testAutoUpdate = async () => {
+    console.log(`🧪 Manual test of auto-update triggered`);
+    console.log(`📊 Current state:`);
+    console.log(`   - Bibliography exists: ${bibliographyExists}`);
+    console.log(`   - Citation style: ${citationStyle}`);
+    console.log(`   - Office ready: ${isOfficeReady}`);
+    console.log(`   - Total citations: ${citations.length}`);
+    console.log(`   - Used citations: ${citations.filter(c => c.used).length}`);
+    
+    const usedCitations = citations.filter(c => c.used);
+    if (bibliographyExists && usedCitations.length > 0 && isOfficeReady) {
+      console.log(`✅ Conditions met, calling autoRegenerateBibliography...`);
+      await autoRegenerateBibliography(citations);
+    } else {
+      console.log(`❌ Conditions not met for auto-update`);
+    }
+  };
+
   const autoRegenerateBibliography = async (updatedCitations) => {
-    if (!isOfficeReady) return;
+    console.log(`🔄 autoRegenerateBibliography called with ${updatedCitations.length} citations`);
+    
+    if (!isOfficeReady) {
+      console.log(`❌ Office not ready, aborting auto-regeneration`);
+      return;
+    }
 
     const used = updatedCitations.filter((c) => c.used);
+    console.log(`📊 Found ${used.length} used citations for bibliography`);
+    
     if (used.length === 0) {
+      console.log(`🗑️ No used citations, clearing bibliography`);
       // Clear bibliography if no citations are used
       await clearExistingBibliography();
+      setBibliographyExists(false);
       return;
     }
 
     try {
+      console.log(`🧹 Clearing existing bibliography first...`);
       // Clear existing bibliography first to avoid duplicates
       await clearExistingBibliography();
       
+      console.log(`📝 Generating new bibliography with ${citationStyle} style...`);
       // Generate new bibliography with current style
       const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
       const styleFont = getCitationStyleFont(citationStyle);
@@ -3169,6 +3233,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
               citations={bibliographyCitations}
               testAPACitationFormatting={testAPACitationFormatting}
               testDuplicateRemoval={testDuplicateRemoval}
+              testAutoUpdate={testAutoUpdate}
+              bibliographyExists={bibliographyExists}
             />
           </>
         )}
