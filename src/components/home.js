@@ -2536,50 +2536,150 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
     try {
       await Word.run(async (context) => {
-        console.log('🧹 Clearing existing bibliography...');
+        console.log('🧹 Clearing ALL existing bibliography content...');
         
-        // Find and remove existing bibliography title and content
-        const searchResults = context.document.body.search(bibliographyTitle, { 
+        // Method 1: Remove all "References" headings
+        const referencesSearch = context.document.body.search("References", { 
           matchCase: false, 
           matchWholeWord: false 
         });
-        searchResults.load('items');
+        referencesSearch.load('items');
         await context.sync();
 
-        if (searchResults.items.length > 0) {
-          console.log(`📋 Found ${searchResults.items.length} bibliography sections to remove`);
-          
-          // Remove the bibliography title
-          const titleParagraph = searchResults.items[0].parentParagraph;
-          titleParagraph.load(['next', 'isLast']);
-          await context.sync();
-          
-          // Remove title
-          titleParagraph.delete();
-          
-          // Remove subsequent bibliography entries (paragraphs after title until next heading or end)
-          let currentPara = titleParagraph.getNextOrNullObject();
-          currentPara.load(['text', 'style', 'next', 'isLast']);
-          await context.sync();
-          
-          while (currentPara.isNullObject === false) {
-            // Stop if we hit another heading or if text is empty
-            if (currentPara.style && currentPara.style.includes('Heading')) break;
-            if (!currentPara.text || currentPara.text.trim() === '') break;
-            
-            const nextPara = currentPara.getNextOrNullObject();
-            nextPara.load(['text', 'style', 'next', 'isLast']);
-            currentPara.delete();
+        // Method 2: Remove all "Bibliography" headings  
+        const bibliographySearch = context.document.body.search("Bibliography", { 
+          matchCase: false, 
+          matchWholeWord: false 
+        });
+        bibliographySearch.load('items');
+        await context.sync();
+
+        console.log(`📋 Found ${referencesSearch.items.length} "References" and ${bibliographySearch.items.length} "Bibliography" headings`);
+        
+        // Remove all References sections
+        for (let i = 0; i < referencesSearch.items.length; i++) {
+          try {
+            const titleParagraph = referencesSearch.items[i].parentParagraph;
+            titleParagraph.load(['next', 'isLast']);
             await context.sync();
             
-            currentPara = nextPara;
-            if (currentPara.isNullObject) break;
+            console.log(`🗑️ Removing References section ${i + 1}`);
+            
+            // Delete the heading
+            titleParagraph.delete();
+            
+            // Delete subsequent bibliography entries
+            let currentPara = titleParagraph.getNextOrNullObject();
+            let deletedCount = 0;
+            
+            while (currentPara && !currentPara.isNullObject && deletedCount < 20) { // Safety limit
+              currentPara.load(['text', 'style', 'next', 'isLast']);
+              await context.sync();
+              
+              // Stop if we hit another heading
+              if (currentPara.style && (currentPara.style.includes('Heading') || currentPara.style.includes('Title'))) {
+                break;
+              }
+              
+              // Stop if paragraph is empty or very short
+              if (!currentPara.text || currentPara.text.trim().length < 10) {
+                const nextPara = currentPara.getNextOrNullObject();
+                currentPara.delete();
+                await context.sync();
+                currentPara = nextPara;
+                break;
+              }
+              
+              const nextPara = currentPara.getNextOrNullObject();
+              currentPara.delete();
+              await context.sync();
+              
+              currentPara = nextPara;
+              deletedCount++;
+            }
+            
+            console.log(`✅ Deleted ${deletedCount} bibliography entries`);
+          } catch (error) {
+            console.error(`❌ Error removing References section ${i + 1}:`, error);
           }
-          
-          console.log('✅ Bibliography cleared successfully');
-        } else {
-          console.log('📋 No existing bibliography found to clear');
         }
+        
+        // Remove all Bibliography sections
+        for (let i = 0; i < bibliographySearch.items.length; i++) {
+          try {
+            const titleParagraph = bibliographySearch.items[i].parentParagraph;
+            titleParagraph.load(['next', 'isLast']);
+            await context.sync();
+            
+            console.log(`🗑️ Removing Bibliography section ${i + 1}`);
+            
+            // Delete the heading
+            titleParagraph.delete();
+            
+            // Delete subsequent bibliography entries
+            let currentPara = titleParagraph.getNextOrNullObject();
+            let deletedCount = 0;
+            
+            while (currentPara && !currentPara.isNullObject && deletedCount < 20) { // Safety limit
+              currentPara.load(['text', 'style', 'next', 'isLast']);
+              await context.sync();
+              
+              // Stop if we hit another heading
+              if (currentPara.style && (currentPara.style.includes('Heading') || currentPara.style.includes('Title'))) {
+                break;
+              }
+              
+              // Stop if paragraph is empty or very short
+              if (!currentPara.text || currentPara.text.trim().length < 10) {
+                const nextPara = currentPara.getNextOrNullObject();
+                currentPara.delete();
+                await context.sync();
+                currentPara = nextPara;
+                break;
+              }
+              
+              const nextPara = currentPara.getNextOrNullObject();
+              currentPara.delete();
+              await context.sync();
+              
+              currentPara = nextPara;
+              deletedCount++;
+            }
+            
+            console.log(`✅ Deleted ${deletedCount} bibliography entries`);
+          } catch (error) {
+            console.error(`❌ Error removing Bibliography section ${i + 1}:`, error);
+          }
+        }
+        
+        // Method 3: Also search and remove citation patterns (backup cleanup)
+        console.log('🧹 Performing backup cleanup for citation patterns...');
+        const citationPatterns = [
+          "Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv Preprint",
+          "arXiv Preprint"
+        ];
+        
+        for (const pattern of citationPatterns) {
+          const patternSearch = context.document.body.search(pattern, { 
+            matchCase: false, 
+            matchWholeWord: false 
+          });
+          patternSearch.load('items');
+          await context.sync();
+          
+          for (let i = 0; i < patternSearch.items.length; i++) {
+            try {
+              const citationPara = patternSearch.items[i].parentParagraph;
+              citationPara.delete();
+              await context.sync();
+              console.log(`�️ Removed citation pattern: ${pattern.substring(0, 50)}...`);
+            } catch (error) {
+              console.error(`❌ Error removing citation pattern:`, error);
+            }
+          }
+        }
+        
+        console.log('✅ All bibliography content cleared successfully');
       });
     } catch (error) {
       console.error('❌ Error clearing bibliography:', error);
