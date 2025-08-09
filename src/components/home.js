@@ -1654,9 +1654,15 @@ const Home = ({ handleLogout, status, setStatus }) => {
       // Update citation library - handle both existing and new citations
       const existingCitationIndex = citations.findIndex((c) => String(c.id) === String(normalizedCitation.id));
       
+      console.log("🔍 Insert citation debug:");
+      console.log("Citation ID:", normalizedCitation.id);
+      console.log("Existing index:", existingCitationIndex);
+      console.log("Current citations count:", citations.length);
+      
       let updated;
       if (existingCitationIndex >= 0) {
         // Citation exists, mark it as used
+        console.log("✅ Updating existing citation as used");
         updated = citations.map((c) =>
           String(c.id) === String(normalizedCitation.id)
             ? {
@@ -1668,6 +1674,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
         );
       } else {
         // Citation doesn't exist, add it and mark as used
+        console.log("➕ Adding new citation as used");
         const newCitation = {
           ...normalizedCitation,
           addedDate: new Date().toISOString(),
@@ -1677,6 +1684,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
         updated = [...citations, newCitation];
       }
       
+      console.log("Updated citations count:", updated.length);
+      console.log("Updated citations used count:", updated.filter(c => c.used).length);
       setCitations(updated);
       saveCitations(updated);
       setStatus(
@@ -1698,7 +1707,13 @@ const Home = ({ handleLogout, status, setStatus }) => {
       return;
     }
 
+    console.log("📋 Bibliography generation started");
+    console.log("All citations:", citations);
+    
     const used = citations.filter((c) => c.used);
+    console.log("Used citations for bibliography:", used);
+    console.log("Number of used citations:", used.length);
+    
     if (used.length === 0) {
       setStatus("No citations used - insert citations first");
       return;
