@@ -6,8 +6,7 @@ const BibliographySection = ({
   isOfficeReady,
   citations,
   testAPACitationFormatting,
-  testDuplicateRemoval,
-  isUpdatingBibliography
+  testDuplicateRemoval
 }) => {
   const usedCitations = citations.filter(c => c.used);
   
@@ -31,42 +30,24 @@ const BibliographySection = ({
       <div className="flex justify-center gap-3">
         <button 
           onClick={generateBibliography}
-          disabled={!isOfficeReady || usedCitations.length === 0 || isUpdatingBibliography}
+          disabled={!isOfficeReady || usedCitations.length === 0}
           className={
-            usedCitations.length > 0 && !isUpdatingBibliography
+            usedCitations.length > 0 
               ? "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:-translate-y-0.5 shadow-primary"
               : "bg-gray-200 text-gray-500 cursor-not-allowed py-3 px-6 rounded-lg font-semibold"
           }
         >
-          {isUpdatingBibliography ? (
-            <span className="flex items-center gap-2">
-              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-              Updating Bibliography...
-            </span>
-          ) : (
-            "📋 Generate Bibliography"
-          )}
+          📋 Generate Bibliography
         </button>
         
         {usedCitations.length > 0 && (
           <button 
             onClick={generateBibliography}
-            disabled={!isOfficeReady || isUpdatingBibliography}
-            className={
-              !isUpdatingBibliography
-                ? "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 transform hover:-translate-y-0.5 shadow-primary"
-                : "bg-gray-200 text-gray-500 cursor-not-allowed py-3 px-4 rounded-lg font-semibold"
-            }
+            disabled={!isOfficeReady}
+            className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 transform hover:-translate-y-0.5 shadow-primary"
             title="Add more citations to existing bibliography"
           >
-            {isUpdatingBibliography ? (
-              <span className="flex items-center gap-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                🔄
-              </span>
-            ) : (
-              "🔄 Add More"
-            )}
+            🔄 Add More
           </button>
         )}
       </div>

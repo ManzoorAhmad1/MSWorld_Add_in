@@ -34,7 +34,6 @@ const CitationSearch = ({
   insertCitation,
   markCitationAsUnused,
   syncCitationsWithDocument,
-  isSyncing, // Visual indicator for sync state
 }) => {
   // State for folder navigation
   const [currentParentId, setCurrentParentId] = useState(null);
@@ -42,17 +41,25 @@ const CitationSearch = ({
   
   // State for bulk selection in search results
   const [selectedSearchResults, setSelectedSearchResults] = useState(new Set());
+  
+  // State for sync status
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Wrapper function to handle sync with loading state
   const handleSyncCitations = async () => {
     if (!syncCitationsWithDocument || isSyncing) return;
-
+    
+    setIsSyncing(true);
     try {
       await syncCitationsWithDocument();
     } catch (error) {
       console.error('Sync failed:', error);
+    } finally {
+      setIsSyncing(false);
     }
-  };  const isCitationInLibrary = (citationId) => {
+  };
+
+  const isCitationInLibrary = (citationId) => {
     return citations.some(
       (citation) => String(citation.id) === String(citationId)
     );
@@ -60,23 +67,17 @@ const CitationSearch = ({
 
   // Handle search result selection with automatic insertion
   const handleSearchResultSelect = (resultId, checked) => {
-    console.log("🎯 handleSearchResultSelect called:", { resultId, checked });
-    
     const newSelected = new Set(selectedSearchResults);
     if (checked) {
       newSelected.add(resultId);
       // Insert citation directly - it will add to library and mark as used
       const selectedResult = searchResults.find(r => r.id === resultId);
       if (selectedResult) {
-        console.log("📄 Found result to insert:", selectedResult);
         insertCitationToWord(selectedResult);
-      } else {
-        console.log("❌ Could not find result with ID:", resultId);
       }
     } else {
       newSelected.delete(resultId);
       // Mark citation as unused when unchecked
-      console.log("🗑️ Removing citation from document:", resultId);
       removeCitationFromDocument(resultId);
     }
     setSelectedSearchResults(newSelected);
@@ -84,12 +85,8 @@ const CitationSearch = ({
 
   // Insert citation directly to Word
   const insertCitationToWord = (result) => {
-    console.log("💾 insertCitationToWord called with:", result);
     if (insertCitation) {
-      console.log("✅ Calling parent insertCitation function");
       insertCitation(result);
-    } else {
-      console.log("❌ insertCitation function not available");
     }
   };
 
@@ -481,7 +478,7 @@ const CitationSearch = ({
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
                     <th className="px-4 py-3 text-left">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center">
                         <input
                           type="checkbox"
                           checked={(() => {
@@ -514,11 +511,8 @@ const CitationSearch = ({
                           }}
                           onChange={(e) => handleSelectAllSearchResults(e.target.checked)}
                           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                          disabled={searchResults.length === 0 || isSyncing}
+                          disabled={searchResults.length === 0}
                         />
-                        {isSyncing && (
-                          <div className="animate-spin rounded-full h-3 w-3 border border-blue-600 border-t-transparent"></div>
-                        )}
                       </div>
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -547,18 +541,13 @@ const CitationSearch = ({
                       <React.Fragment key={result.id || index}>
                         <tr className="transition-colors">
                           <td className="px-4 py-4">
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={checkboxChecked}
-                                onChange={(e) => handleSearchResultSelect(result.id, e.target.checked)}
-                                disabled={checkboxDisabled || isSyncing}
-                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50"
-                              />
-                              {isSyncing && (
-                                <div className="animate-spin rounded-full h-3 w-3 border border-blue-600 border-t-transparent"></div>
-                              )}
-                            </div>
+                            <input
+                              type="checkbox"
+                              checked={checkboxChecked}
+                              onChange={(e) => handleSearchResultSelect(result.id, e.target.checked)}
+                              disabled={checkboxDisabled}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50"
+                            />
                           </td>
                           <td className="px-4 py-4">
                             <div className="space-y-2">

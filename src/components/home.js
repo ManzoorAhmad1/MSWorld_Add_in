@@ -733,15 +733,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
     citationsArr,
     styleName = "apa"
   ) => {
-    console.log("🔧 formatBibliographyCiteproc called with:", {
-      citationsCount: citationsArr?.length || 0,
-      styleName,
-      citations: citationsArr
-    });
-    
     try {
       if (!citationsArr || citationsArr.length === 0) {
-        console.log("⚠️ No citations provided to formatBibliographyCiteproc");
         return "";
       }
 
@@ -749,15 +742,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
       const normalizedCitations = citationsArr
         .map((c) => normalizeCitation(c))
         .filter((c) => c);
-        
-      console.log("✅ Normalized citations:", {
-        original: citationsArr.length,
-        normalized: normalizedCitations.length,
-        citations: normalizedCitations
-      });
-      
       if (normalizedCitations.length === 0) {
-        console.log("⚠️ No valid citations after normalization");
         return "";
       }
 
@@ -783,12 +768,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
       // PRIORITY: Check if CSL styles are loading properly
       const styleXML = await getCSLStyleWithFallbacks(styleName);
-      console.log("🎨 Style XML loaded:", {
-        styleName,
-        hasStyle: !!styleXML,
-        isXML: styleXML?.includes?.("<?xml"),
-        isFallback: styleXML === fallbackAPA
-      });
 
       // If CSL style failed to load properly, use fallback formatting
       if (
@@ -796,12 +775,9 @@ const Home = ({ handleLogout, status, setStatus }) => {
         styleXML === fallbackAPA ||
         !styleXML.includes("<?xml")
       ) {
-        console.log("⚠️ Using fallback citation formatting for bibliography");
-        const fallbackResult = preprocessedCitations
+        return preprocessedCitations
           .map((c) => formatCitationFallback(c, "full"))
           .join("\n\n");
-        console.log("📝 Fallback bibliography result:", fallbackResult);
-        return fallbackResult;
       }
 
       const sys = {
@@ -813,28 +789,17 @@ const Home = ({ handleLogout, status, setStatus }) => {
       let citeproc;
       try {
         citeproc = new CSL.Engine(sys, styleXML, "en-US");
-        console.log("✅ CSL Engine created successfully");
       } catch (error) {
         console.error("❌ Bibliography CSL Engine failed:", error);
         // Fallback to enhanced manual bibliography
-        const fallbackResult = preprocessedCitations
+        return preprocessedCitations
           .map((c) => formatCitationFallback(c, "full"))
           .join("\n\n");
-        console.log("📝 CSL Engine failed, using fallback:", fallbackResult);
-        return fallbackResult;
       }
 
       const ids = preprocessedCitations.map((c) => c.id);
-      console.log("🔍 Processing citation IDs:", ids);
-      
       citeproc.updateItems(ids);
       const bibResult = citeproc.makeBibliography();
-      
-      console.log("📚 CSL bibliography result:", {
-        hasResult: !!bibResult,
-        hasBibliography: !!(bibResult && bibResult[1]),
-        entries: bibResult?.[1]?.length || 0
-      });
 
       if (bibResult && bibResult[1]) {
         // Enhanced cleanup function with multiple aggressive duplicate removal patterns
@@ -1203,29 +1168,18 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
           return result;
         };
-        const finalResult = bibResult[1].map(cleanEntry).join("\n");
-        console.log("✅ Final bibliography result:", {
-          entriesProcessed: bibResult[1].length,
-          resultLength: finalResult.length,
-          result: finalResult
-        });
-        return finalResult;
+        return bibResult[1].map(cleanEntry).join("\n");
       } else {
         // Fallback bibliography
-        console.log("⚠️ No bibResult[1], using fallback bibliography");
-        const fallbackResult = normalizedCitations
+        return normalizedCitations
           .map((c) => formatCitationFallback(c, "full"))
           .join("\n\n");
-        console.log("📝 Fallback bibliography:", fallbackResult);
-        return fallbackResult;
       }
     } catch (error) {
-      console.error("❌ Bibliography formatting failed:", error);
-      const errorFallback = citationsArr
+      console.error("Bibliography formatting failed:", error);
+      return citationsArr
         .map((c) => formatCitationFallback(c, "full"))
         .join("\n\n");
-      console.log("🛡️ Error fallback bibliography:", errorFallback);
-      return errorFallback;
     }
   };
 
@@ -1264,46 +1218,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
   const [citationFormat, setCitationFormat] = useState("in-text");
   const [bibliographyTitle, setBibliographyTitle] = useState("References");
   const [recentCitations, setRecentCitations] = useState([]);
-
-  // Auto-regenerate bibliography when citation style changes - ENHANCED with style-based updates
-  useEffect(() => {
-    const usedCitations = citations.filter(c => c.used);
-    if (usedCitations.length > 0 && isOfficeReady && !isUpdatingBibliography) {
-      console.log(`🔄 Citation style changed to ${citationStyle.toUpperCase()}, will delete old references and create new ones...`);
-      
-      // Check if user recently performed manual bibliography generation
-      const timeSinceLastManual = Date.now() - lastManualBibliographyTime;
-      if (timeSinceLastManual < 3000) { // Reduced to 3 seconds for faster response
-        console.log(`⏸️ Skipping auto-regeneration - manual operation performed ${timeSinceLastManual}ms ago`);
-        return;
-      }
-      
-      // Automatically regenerate bibliography with new style
-      const timer = setTimeout(() => {
-        // Triple-check to avoid conflicts with ongoing operations
-        if (!isUpdatingBibliography && citations.filter(c => c.used).length > 0) {
-          const timeSinceLastManualCheck = Date.now() - lastManualBibliographyTime;
-          if (timeSinceLastManualCheck >= 3000) { // Proceed after 3 seconds
-            console.log(`🔄 Auto-executing bibliography regeneration for style ${citationStyle.toUpperCase()}`);
-            console.log(`📚 This will delete old references and create new ones with ${citationStyle.toUpperCase()} style`);
-            generateBibliography();
-          } else {
-            console.log(`⏸️ Skipping delayed auto-regeneration - manual operation too recent (${timeSinceLastManualCheck}ms ago)`);
-          }
-        } else {
-          console.log(`🔄 Skipping auto-regeneration - bibliography update in progress or no used citations`);
-        }
-      }, 1500); // Reduced delay to 1.5 seconds for faster response
-      return () => clearTimeout(timer);
-    } else {
-      console.log(`🔄 Auto-regeneration conditions not met:`, {
-        hasUsedCitations: usedCitations.length > 0,
-        isOfficeReady,
-        isUpdatingBibliography: !isUpdatingBibliography,
-        note: usedCitations.length === 0 ? "No citations marked as 'used' - bibliography state has been reset" : ""
-      });
-    }
-  }, [citationStyle]); // Only trigger when citation style changes
   const [userWorkSpaces, setUserWorkSpaces] = useState({});
   const [selectedWorkSpace, setSelectedWorkSpace] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
@@ -1320,11 +1234,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
   
   // Tab state for switching between References and Citation Settings
   const [activeTab, setActiveTab] = useState("references");
-  
-  // Visual indicator states
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [isUpdatingBibliography, setIsUpdatingBibliography] = useState(false);
-  const [lastManualBibliographyTime, setLastManualBibliographyTime] = useState(0);
 
   // Fetch user files on component mount
   useEffect(() => {
@@ -1662,22 +1571,13 @@ const Home = ({ handleLogout, status, setStatus }) => {
       return;
     }
 
-    console.log("🚀 insertCitation called with:", citation);
-    console.log("Current citations count before insert:", citations.length);
-    console.log("Used citations before insert:", citations.filter(c => c.used).length);
-
     try {
-      setIsSyncing(true);
-      
       // Check if citation is already used to prevent duplicates
       const existingCitation = citations.find((c) => String(c.id) === String(citation.id));
       if (existingCitation && existingCitation.used) {
-        console.log("⚠️ Citation already exists and is used:", existingCitation);
         setStatus("Citation is already used in document");
         return;
       }
-
-      console.log("✅ Citation can be inserted, proceeding...");
 
       // Ensure citation is properly formatted
       const normalizedCitation = normalizeCitation(citation);
@@ -1750,15 +1650,9 @@ const Home = ({ handleLogout, status, setStatus }) => {
       // Update citation library - handle both existing and new citations
       const existingCitationIndex = citations.findIndex((c) => String(c.id) === String(normalizedCitation.id));
       
-      console.log("🔍 Insert citation debug:");
-      console.log("Citation ID:", normalizedCitation.id);
-      console.log("Existing index:", existingCitationIndex);
-      console.log("Current citations count:", citations.length);
-      
       let updated;
       if (existingCitationIndex >= 0) {
         // Citation exists, mark it as used
-        console.log("✅ Updating existing citation as used");
         updated = citations.map((c) =>
           String(c.id) === String(normalizedCitation.id)
             ? {
@@ -1770,7 +1664,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
         );
       } else {
         // Citation doesn't exist, add it and mark as used
-        console.log("➕ Adding new citation as used");
         const newCitation = {
           ...normalizedCitation,
           addedDate: new Date().toISOString(),
@@ -1780,8 +1673,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
         updated = [...citations, newCitation];
       }
       
-      console.log("Updated citations count:", updated.length);
-      console.log("Updated citations used count:", updated.filter(c => c.used).length);
       setCitations(updated);
       saveCitations(updated);
       setStatus(
@@ -1795,8 +1686,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
     } catch (error) {
       console.error("Insert citation failed:", error);
       setStatus(`Insert failed: ${error.message}`);
-    } finally {
-      setIsSyncing(false);
     }
   };
 
@@ -1805,364 +1694,100 @@ const Home = ({ handleLogout, status, setStatus }) => {
       return;
     }
 
-    // Prevent concurrent bibliography operations
-    if (isUpdatingBibliography) {
-      console.log("⚠️ Bibliography update already in progress, skipping...");
-      setStatus("⚠️ Bibliography update in progress - please wait");
-      return;
-    }
-
-    // Record manual bibliography generation time
-    setLastManualBibliographyTime(Date.now());
-    console.log("🔖 Manual bibliography generation started - setting timestamp");
-
-    console.log("📋 Bibliography generation started");
-    console.log("All citations:", citations);
-    
     const used = citations.filter((c) => c.used);
-    console.log("Used citations for bibliography:", used);
-    console.log("Number of used citations:", used.length);
-    console.log("Current citation style:", citationStyle);
-    console.log("Bibliography title:", bibliographyTitle);
-    
     if (used.length === 0) {
       setStatus("No citations used - insert citations first");
       return;
     }
 
     try {
-      setIsUpdatingBibliography(true);
-      setStatus("🔄 Creating bibliography with selected citation style...");
-      
-      console.log("🔧 Formatting bibliography with used citations:", used);
       const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
-      console.log("📝 Formatted bibliography content:", bibRaw);
-      
-      if (!bibRaw || bibRaw.trim() === "") {
-        console.error("⚠️ Bibliography formatting returned empty result");
-        setStatus("⚠️ Bibliography formatting failed - trying fallback");
-        
-        // Create fallback bibliography manually
-        const fallbackBib = used.map(citation => {
-          return formatCitationFallback(citation, "full");
-        }).join("\n\n");
-        
-        if (fallbackBib && fallbackBib.trim()) {
-          console.log("✅ Using fallback bibliography:", fallbackBib);
-          await createBibliographyInWord(fallbackBib, getCitationStyleFont(citationStyle));
-          
-          // SOLUTION: Smart citation clearing for fallback as well - preserve checkbox selection
-          console.log("🧹 Smart clearing (fallback): Preserving checkbox selection but resetting bibliography button state");
-          const smartClearedCitations = citations.map(citation => {
-            if (citation.used) {
-              return {
-                ...citation,
-                used: true, // Keep checkbox checked - DON'T change this
-                inTextCitations: [], // Clear in-text citation history for fresh bibliography
-                previouslyUsed: true, // Track that it was used
-                bibliographyGenerated: true // Mark that bibliography was generated
-              };
-            }
-            return citation;
-          });
-          
-          setCitations(smartClearedCitations);
-          saveCitations(smartClearedCitations);
-          console.log(`✅ Smart clearing (fallback) completed - checkboxes remain checked, ready for next bibliography operation`);
-          
-          setStatus(`✅ ${citationStyle.toUpperCase()} bibliography created: ${used.length} citations (Select new papers for next bibliography)`);
-          return;
-        } else {
-          setStatus("❌ Both main and fallback bibliography formatting failed");
-          return;
-        }
-      }
-      
-      await createBibliographyInWord(bibRaw, getCitationStyleFont(citationStyle));
+      const styleFont = getCitationStyleFont(citationStyle);
 
-      // SOLUTION: Smart citation clearing - preserve checkbox selection but reset bibliography button state
-      // This keeps checkboxes checked while allowing new bibliography creation
-      console.log("🧹 Smart clearing: Preserving checkbox selection but resetting bibliography button state");
-      const smartClearedCitations = citations.map(citation => {
-        if (citation.used) {
-          // Keep the citation selected (checkbox checked) but mark as ready for next bibliography
-          return {
-            ...citation,
-            used: true, // Keep checkbox checked - DON'T change this
-            inTextCitations: [], // Clear in-text citation history for fresh bibliography
-            previouslyUsed: true, // Track that it was used in bibliography
-            bibliographyGenerated: true // Mark that bibliography was generated for this citation
-          };
-        }
-        return citation; // Keep unused citations as they are
-      });
-      
-      setCitations(smartClearedCitations);
-      saveCitations(smartClearedCitations);
-      console.log(`✅ Smart clearing completed - checkboxes remain checked, ready for next bibliography operation`);
+      await Word.run(async (context) => {
+        // Check if bibliography already exists
+        const searchResults = context.document.body.search(bibliographyTitle, { matchCase: false, matchWholeWord: false });
+        searchResults.load('items');
+        await context.sync();
 
-      setBibliography(bibRaw);
-      setStatus(
-        `✅ ${citationStyle.toUpperCase()} bibliography created: ${used.length} citation${
-          used.length !== 1 ? "s" : ""
-        } (Select new papers for next bibliography)`
-      );
-    } catch (e) {
-      console.error("❌ Bibliography generation failed:", e);
-      setStatus(`❌ Bibliography error: ${e.message || "Unknown error"}`);
-    } finally {
-      setIsUpdatingBibliography(false);
-    }
-  };
-
-  // Separate function to handle Word document bibliography creation
-  const createBibliographyInWord = async (bibContent, styleFont) => {
-    console.log("📄 Creating bibliography in Word document...");
-    console.log("Bibliography content length:", bibContent.length);
-    console.log("Style font:", styleFont);
-    
-    await Word.run(async (context) => {
-      // STEP 1: SUPER AGGRESSIVE bibliography removal - ZERO TOLERANCE for duplicates
-      console.log("🗑️ SUPER AGGRESSIVE bibliography removal starting...");
-      
-      try {
-        const possibleTitles = [bibliographyTitle, "References", "Bibliography", "Works Cited", "Works cited", "REFERENCES", "BIBLIOGRAPHY", "references", "bibliography"];
+        let bibliographyExists = searchResults.items.length > 0;
         
-        // Strategy 1: Multiple passes of search and destroy
-        for (let pass = 0; pass < 3; pass++) { // 3 passes to ensure everything is removed
-          console.log(`🔄 Bibliography removal pass ${pass + 1}/3`);
-          
-          for (const title of possibleTitles) {
-            const searchResults = context.document.body.search(title, {
-              matchCase: false,
-              matchWholeWord: false
-            });
-            searchResults.load('items');
+        if (!bibliographyExists) {
+          // No existing bibliography - create new one
+          try {
+            // Try to insert at cursor position
+            const selection = context.document.getSelection();
+            selection.load(['isEmpty']);
             await context.sync();
             
-            if (searchResults.items.length > 0) {
-              console.log(`🗑️ Pass ${pass + 1}: Found ${searchResults.items.length} instances of "${title}" to remove`);
-              
-              for (let i = 0; i < searchResults.items.length; i++) {
-                try {
-                  const item = searchResults.items[i];
-                  const paragraph = item.parentParagraph;
-                  paragraph.load('text');
-                  await context.sync();
-                  
-                  // Remove the paragraph and 10 following paragraphs (bibliography entries)
-                  const toDelete = [paragraph];
-                  let current = paragraph;
-                  
-                  for (let j = 0; j < 15; j++) { // Remove up to 15 following paragraphs
-                    try {
-                      const next = current.getNext();
-                      next.load(['text', 'style', 'styleBuiltIn']);
-                      await context.sync();
-                      
-                      if (next && !next.isNullObject) {
-                        const nextText = next.text.trim();
-                        
-                        // Stop if we hit another major heading
-                        if (nextText.toLowerCase().match(/^(introduction|conclusion|abstract|appendix|acknowledgment)/i)) {
-                          break;
-                        }
-                        
-                        toDelete.push(next);
-                        current = next;
-                      } else {
-                        break;
-                      }
-                    } catch (nextError) {
-                      break;
-                    }
-                  }
-                  
-                  // Delete all collected paragraphs
-                  for (const paraToDelete of toDelete) {
-                    try {
-                      paraToDelete.delete();
-                    } catch (deleteError) {
-                      console.log('Error deleting specific paragraph:', deleteError);
-                    }
-                  }
-                  
-                  await context.sync();
-                } catch (deleteError) {
-                  console.log(`Error deleting paragraph for "${title}":`, deleteError);
-                }
-              }
+            let insertionPoint;
+            if (!selection.isEmpty) {
+              // Insert at cursor position
+              insertionPoint = selection;
+            } else {
+              // Insert at end of document
+              insertionPoint = context.document.body;
             }
-          }
-          
-          await context.sync();
-          await new Promise(resolve => setTimeout(resolve, 100)); // Small delay between passes
-        }
-        
-        // Strategy 2: Pattern-based cleanup for any remaining fragments
-        const citationPatterns = [
-          "Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J.",
-          "Ledig, C., Theis, L., Huszár, F.",
-          "H. Zhao, J. Shi, X. Qi, X. Wang, J. Jia",
-          "C. Ledig, L. Theis, F. Huszár",
-          "arXiv Preprint",
-          "Photo-Realistic Single Image",
-          "Pyramid Scene Parsing"
-        ];
-        
-        for (const pattern of citationPatterns) {
-          const patternSearch = context.document.body.search(pattern, {
-            matchCase: false,
-            matchWholeWord: false
-          });
-          patternSearch.load('items');
-          await context.sync();
-          
-          if (patternSearch.items.length > 0) {
-            console.log(`🧹 Cleaning ${patternSearch.items.length} citation fragments: "${pattern}"`);
-            for (let i = 0; i < patternSearch.items.length; i++) {
-              try {
-                const item = patternSearch.items[i];
-                const paragraph = item.parentParagraph;
-                paragraph.delete();
-              } catch (error) {
-                console.log('Error cleaning citation fragment:', error);
-              }
-            }
-            await context.sync();
+            
+            // Create bibliography title
+            const title = insertionPoint.insertParagraph(
+              bibliographyTitle,
+              Word.InsertLocation.end
+            );
+            title.style = "Heading 1";
+            title.font.bold = true;
+            title.font.size = 16;
+            title.font.name = styleFont.family;
+            
+          } catch (e) {
+            // Fallback: insert at end of document
+            const title = context.document.body.insertParagraph(
+              bibliographyTitle,
+              Word.InsertLocation.end
+            );
+            title.style = "Heading 1";
+            title.font.bold = true;
+            title.font.size = 16;
+            title.font.name = styleFont.family;
           }
         }
-        
-        console.log(`✅ SUPER AGGRESSIVE removal completed`);
-        
-      } catch (removeError) {
-        console.log('Bibliography removal encountered errors, continuing with creation:', removeError);
-      }
-      
-      // STEP 2: Wait longer to ensure cleanup is complete
-      await context.sync();
-      await new Promise(resolve => setTimeout(resolve, 300)); // Increased delay
-      console.log("⏳ Cleanup delay completed, proceeding with bibliography creation");
-      
-      // STEP 3: Create NEW bibliography at CURSOR POSITION (with fallback)
-      console.log(`📚 Creating fresh bibliography with ${citationStyle.toUpperCase()} style at cursor position`);
-      
-      try {
-        // Get current selection/cursor position for bibliography insertion
-        const selection = context.document.getSelection();
-        selection.load(['text', 'isEmpty']);
-        await context.sync();
-        
-        console.log("📍 Creating bibliography at user cursor position...");
-        
-        // Create bibliography title at cursor position
-        const title = selection.insertParagraph(
-          bibliographyTitle,
-          Word.InsertLocation.after
-        );
-        title.style = "Heading 1";
-        title.font.bold = true;
-        title.font.size = 16;
-        title.font.name = styleFont.family;
-        
-        // Process bibliography entries
-        const bibEntries = bibContent.split("\n").filter((entry) => entry.trim());
-        console.log(`📋 Processing ${bibEntries.length} bibliography entries at cursor position`);
-        
-        let currentPosition = title; // Track position for inserting entries
-        
+
+        // Process each bibliography entry on new lines
+        const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
         for (let i = 0; i < bibEntries.length; i++) {
           const entry = bibEntries[i].trim();
           if (!entry) continue;
-          
-          console.log(`📝 Adding entry ${i + 1} at cursor: ${entry.substring(0, 50)}...`);
-          
-          // Create paragraph for each entry after the previous one
-          const para = currentPosition.insertParagraph("", Word.InsertLocation.after);
+
+          // Create paragraph for each entry (new line, not new page)
+          const para = context.document.body.insertParagraph("", Word.InsertLocation.end);
           para.font.name = styleFont.family;
           para.font.size = styleFont.size;
           para.leftIndent = 36; // Hanging indent for citations
           para.firstLineIndent = -36;
-          
-          // Update current position for next entry
-          currentPosition = para;
-          
-          // Insert entry text
-          try {
-            if (entry.includes("*")) {
-              await parseAndFormatText(para, entry, citationStyle);
-            } else {
-              const range = para.insertText(entry, Word.InsertLocation.end);
-              range.font.name = styleFont.family;
-              range.font.size = styleFont.size;
-            }
-          } catch (entryError) {
-            console.log(`Error formatting entry ${i + 1}, using plain text:`, entryError);
-            // Fallback: insert plain text
-            const cleanEntry = entry.replace(/\*([^*]+)\*/g, "$1");
-            const range = para.insertText(cleanEntry, Word.InsertLocation.end);
-            range.font.name = styleFont.family;
-            range.font.size = styleFont.size;
-          }
-          
-          await context.sync(); // Sync after each entry for proper positioning
-        }
-        
-        console.log("✅ Bibliography created successfully at cursor position");
-        
-      } catch (cursorError) {
-        console.log("⚠️ Cursor positioning failed, using document end as fallback:", cursorError);
-        
-        // FALLBACK: Create bibliography at document end
-        const title = context.document.body.insertParagraph(
-          bibliographyTitle,
-          Word.InsertLocation.end
-        );
-        title.style = "Heading 1";
-        title.font.bold = true;
-        title.font.size = 16;
-        title.font.name = styleFont.family;
-        
-        // Process bibliography entries
-        const bibEntries = bibContent.split("\n").filter((entry) => entry.trim());
-        console.log(`📋 Fallback: Processing ${bibEntries.length} bibliography entries at document end`);
-        
-        for (let i = 0; i < bibEntries.length; i++) {
-          const entry = bibEntries[i].trim();
-          if (!entry) continue;
-          
-          console.log(`📝 Adding fallback entry ${i + 1}: ${entry.substring(0, 50)}...`);
-          
-          const para = context.document.body.insertParagraph("", Word.InsertLocation.end);
-          para.font.name = styleFont.family;
-          para.font.size = styleFont.size;
-          para.leftIndent = 36;
-          para.firstLineIndent = -36;
-          
-          // Insert entry text
-          try {
-            if (entry.includes("*")) {
-              await parseAndFormatText(para, entry, citationStyle);
-            } else {
-              const range = para.insertText(entry, Word.InsertLocation.end);
-              range.font.name = styleFont.family;
-              range.font.size = styleFont.size;
-            }
-          } catch (entryError) {
-            console.log(`Error formatting fallback entry ${i + 1}, using plain text:`, entryError);
-            const cleanEntry = entry.replace(/\*([^*]+)\*/g, "$1");
-            const range = para.insertText(cleanEntry, Word.InsertLocation.end);
+
+          // Format the entry text
+          if (entry.includes("*")) {
+            await parseAndFormatText(para, entry, citationStyle);
+          } else {
+            const range = para.insertText(entry, Word.InsertLocation.end);
             range.font.name = styleFont.family;
             range.font.size = styleFont.size;
           }
         }
-        
-        console.log("✅ Fallback bibliography creation completed");
-      }
-      
-      await context.sync();
-      console.log("✅ Bibliography creation completed successfully");
-    });
+
+        await context.sync();
+      });
+
+      setBibliography(bibRaw);
+      setStatus(
+        `✅ Bibliography ${bibliographyExists ? 'updated' : 'created'}: ${used.length} citation${
+          used.length !== 1 ? "s" : ""
+        } in ${citationStyle.toUpperCase()} style`
+      );
+    } catch (e) {
+      console.error("❌ Bibliography generation failed:", e);
+      setStatus(`❌ Bibliography error: ${e.message || "Unknown error"}`);
+    }
   };
 
   // COMPLETELY REWRITTEN: Simplified text formatting to prevent duplication
@@ -3016,7 +2641,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
     if (!isOfficeReady) return;
 
     try {
-      setIsSyncing(true);
       await Word.run(async (context) => {
         const body = context.document.body;
         const footnotes = context.document.body.footnotes;
@@ -3096,9 +2720,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
       });
     } catch (error) {
       console.error("Failed to sync citations with document:", error);
-      setStatus('❌ Sync failed');
-    } finally {
-      setIsSyncing(false);
     }
   };
 
@@ -3497,7 +3118,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
               insertCitation={insertCitation}
               markCitationAsUnused={markCitationAsUnused}
               syncCitationsWithDocument={syncCitationsWithDocument}
-              isSyncing={isSyncing}
             />
 
             <BibliographySection
@@ -3507,8 +3127,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
               citations={citations}
               testAPACitationFormatting={testAPACitationFormatting}
               testDuplicateRemoval={testDuplicateRemoval}
-              isSyncing={isSyncing}
-              isUpdatingBibliography={isUpdatingBibliography}
             />
           </>
         )}
