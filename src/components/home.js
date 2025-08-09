@@ -733,8 +733,15 @@ const Home = ({ handleLogout, status, setStatus }) => {
     citationsArr,
     styleName = "apa"
   ) => {
+    console.log("🔧 formatBibliographyCiteproc called with:", {
+      citationsCount: citationsArr?.length || 0,
+      styleName,
+      citations: citationsArr
+    });
+    
     try {
       if (!citationsArr || citationsArr.length === 0) {
+        console.log("⚠️ No citations provided to formatBibliographyCiteproc");
         return "";
       }
 
@@ -742,7 +749,15 @@ const Home = ({ handleLogout, status, setStatus }) => {
       const normalizedCitations = citationsArr
         .map((c) => normalizeCitation(c))
         .filter((c) => c);
+        
+      console.log("✅ Normalized citations:", {
+        original: citationsArr.length,
+        normalized: normalizedCitations.length,
+        citations: normalizedCitations
+      });
+      
       if (normalizedCitations.length === 0) {
+        console.log("⚠️ No valid citations after normalization");
         return "";
       }
 
@@ -768,6 +783,12 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
       // PRIORITY: Check if CSL styles are loading properly
       const styleXML = await getCSLStyleWithFallbacks(styleName);
+      console.log("🎨 Style XML loaded:", {
+        styleName,
+        hasStyle: !!styleXML,
+        isXML: styleXML?.includes?.("<?xml"),
+        isFallback: styleXML === fallbackAPA
+      });
 
       // If CSL style failed to load properly, use fallback formatting
       if (
@@ -775,9 +796,12 @@ const Home = ({ handleLogout, status, setStatus }) => {
         styleXML === fallbackAPA ||
         !styleXML.includes("<?xml")
       ) {
-        return preprocessedCitations
+        console.log("⚠️ Using fallback citation formatting for bibliography");
+        const fallbackResult = preprocessedCitations
           .map((c) => formatCitationFallback(c, "full"))
           .join("\n\n");
+        console.log("📝 Fallback bibliography result:", fallbackResult);
+        return fallbackResult;
       }
 
       const sys = {
@@ -789,17 +813,28 @@ const Home = ({ handleLogout, status, setStatus }) => {
       let citeproc;
       try {
         citeproc = new CSL.Engine(sys, styleXML, "en-US");
+        console.log("✅ CSL Engine created successfully");
       } catch (error) {
         console.error("❌ Bibliography CSL Engine failed:", error);
         // Fallback to enhanced manual bibliography
-        return preprocessedCitations
+        const fallbackResult = preprocessedCitations
           .map((c) => formatCitationFallback(c, "full"))
           .join("\n\n");
+        console.log("📝 CSL Engine failed, using fallback:", fallbackResult);
+        return fallbackResult;
       }
 
       const ids = preprocessedCitations.map((c) => c.id);
+      console.log("🔍 Processing citation IDs:", ids);
+      
       citeproc.updateItems(ids);
       const bibResult = citeproc.makeBibliography();
+      
+      console.log("📚 CSL bibliography result:", {
+        hasResult: !!bibResult,
+        hasBibliography: !!(bibResult && bibResult[1]),
+        entries: bibResult?.[1]?.length || 0
+      });
 
       if (bibResult && bibResult[1]) {
         // Enhanced cleanup function with multiple aggressive duplicate removal patterns
@@ -1168,18 +1203,29 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
           return result;
         };
-        return bibResult[1].map(cleanEntry).join("\n");
+        const finalResult = bibResult[1].map(cleanEntry).join("\n");
+        console.log("✅ Final bibliography result:", {
+          entriesProcessed: bibResult[1].length,
+          resultLength: finalResult.length,
+          result: finalResult
+        });
+        return finalResult;
       } else {
         // Fallback bibliography
-        return normalizedCitations
+        console.log("⚠️ No bibResult[1], using fallback bibliography");
+        const fallbackResult = normalizedCitations
           .map((c) => formatCitationFallback(c, "full"))
           .join("\n\n");
+        console.log("📝 Fallback bibliography:", fallbackResult);
+        return fallbackResult;
       }
     } catch (error) {
-      console.error("Bibliography formatting failed:", error);
-      return citationsArr
+      console.error("❌ Bibliography formatting failed:", error);
+      const errorFallback = citationsArr
         .map((c) => formatCitationFallback(c, "full"))
         .join("\n\n");
+      console.log("🛡️ Error fallback bibliography:", errorFallback);
+      return errorFallback;
     }
   };
 
@@ -1762,189 +1808,34 @@ const Home = ({ handleLogout, status, setStatus }) => {
       setIsUpdatingBibliography(true);
       setStatus("🔄 Updating bibliography...");
       
+      console.log("🔧 Formatting bibliography with used citations:", used);
       const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
-      const styleFont = getCitationStyleFont(citationStyle);
-
-      await Word.run(async (context) => {
-        // COMPREHENSIVE bibliography removal - ensures NO duplicates
-        console.log(`🗑️ COMPREHENSIVE bibliography removal started...`);
+      console.log("📝 Formatted bibliography content:", bibRaw);
+      
+      if (!bibRaw || bibRaw.trim() === "") {
+        console.error("⚠️ Bibliography formatting returned empty result");
+        setStatus("⚠️ Bibliography formatting failed - trying fallback");
         
-        try {
-          // STEP 1: Remove ALL paragraphs containing any bibliography heading
-          const allHeadingStyles = [Word.Style.heading1, Word.Style.heading2, Word.Style.heading3, Word.Style.heading4];
-          const possibleTitles = [bibliographyTitle, "References", "Bibliography", "Works Cited", "Works cited", "REFERENCES", "BIBLIOGRAPHY"];
-          
-          // Get ALL paragraphs in the document
-          const paragraphs = context.document.body.paragraphs;
-          paragraphs.load(['text', 'style', 'styleBuiltIn']);
-          await context.sync();
-          
-          let bibliographySectionsFound = 0;
-          let totalParagraphsRemoved = 0;
-          
-          // Scan through ALL paragraphs to find and remove bibliography sections
-          for (let i = 0; i < paragraphs.items.length; i++) {
-            const para = paragraphs.items[i];
-            const text = para.text.trim().toLowerCase();
-            
-            // Check if this paragraph is a bibliography heading
-            const isBibliographyHeading = possibleTitles.some(title => 
-              text === title.toLowerCase() || 
-              text.startsWith(title.toLowerCase()) ||
-              (allHeadingStyles.includes(para.styleBuiltIn) && text.includes('reference')) ||
-              (allHeadingStyles.includes(para.styleBuiltIn) && text.includes('bibliograph'))
-            );
-            
-            if (isBibliographyHeading) {
-              bibliographySectionsFound++;
-              console.log(`🗑️ Found bibliography section ${bibliographySectionsFound}: "${para.text}"`);
-              
-              // Collect ALL paragraphs from this heading onwards until next major section
-              const toDelete = [para];
-              let currentIndex = i;
-              
-              // Look ahead and collect bibliography entries (up to 100 paragraphs for safety)
-              for (let j = 1; j <= 100 && (currentIndex + j) < paragraphs.items.length; j++) {
-                const nextPara = paragraphs.items[currentIndex + j];
-                const nextText = nextPara.text.trim().toLowerCase();
-                
-                // Stop conditions - when we hit another major section
-                if (allHeadingStyles.includes(nextPara.styleBuiltIn)) {
-                  if (nextText && !possibleTitles.some(title => nextText.includes(title.toLowerCase()))) {
-                    console.log(`🛑 Stopping removal at heading: "${nextPara.text}"`);
-                    break;
-                  }
-                }
-                
-                // Also stop if we see obvious section breaks
-                if (nextText.match(/^(abstract|introduction|conclusion|appendix|acknowledgment)/i)) {
-                  console.log(`🛑 Stopping removal at section: "${nextPara.text}"`);
-                  break;
-                }
-                
-                toDelete.push(nextPara);
-              }
-              
-              // Delete all collected paragraphs
-              console.log(`🗑️ Removing ${toDelete.length} paragraphs from bibliography section ${bibliographySectionsFound}`);
-              for (const paraToDelete of toDelete) {
-                try {
-                  paraToDelete.delete();
-                  totalParagraphsRemoved++;
-                } catch (deleteError) {
-                  console.log('Error deleting paragraph, continuing...');
-                }
-              }
-              await context.sync();
-              
-              // Skip ahead in our main loop since we've processed these paragraphs
-              i += toDelete.length - 1;
-            }
-          }
-          
-          console.log(`🗑️ Removal complete: ${bibliographySectionsFound} sections found, ${totalParagraphsRemoved} paragraphs removed`);
-          
-          // STEP 2: Additional pattern-based cleanup for any remaining citation fragments
-          const citationPatterns = [
-            "Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J.",
-            "Ledig, C., Theis, L., Huszár, F.",
-            "Jain, P., Agarwal, R., Billaiya, R.",
-            "). arXiv",
-            "). Journal of",
-            "). Proceedings of"
-          ];
-          
-          for (const pattern of citationPatterns) {
-            try {
-              const patternSearch = context.document.body.search(pattern, { 
-                matchCase: false, 
-                matchWholeWord: false 
-              });
-              patternSearch.load('items');
-              await context.sync();
-              
-              if (patternSearch.items.length > 0) {
-                console.log(`🗑️ Cleaning up ${patternSearch.items.length} citation fragments with pattern "${pattern}"`);
-                for (let k = 0; k < patternSearch.items.length; k++) {
-                  try {
-                    const item = patternSearch.items[k];
-                    const paragraph = item.parentParagraph;
-                    paragraph.delete();
-                  } catch (patternError) {
-                    console.log('Error deleting fragment paragraph:', patternError);
-                  }
-                }
-                await context.sync();
-              }
-            } catch (patternSearchError) {
-              console.log('Pattern cleanup failed:', patternSearchError);
-            }
-          }
-          
-        } catch (removeError) {
-          console.log('Bibliography removal encountered errors, continuing with creation:', removeError);
-        }
-
-        // STEP 3: Ensure document is clean before proceeding
-        await context.sync();
-        await new Promise(resolve => setTimeout(resolve, 200)); // Longer delay to ensure cleanup
-
-        // STEP 4: Verify no bibliography sections remain before creating new one
-        const verifyParagraphs = context.document.body.paragraphs;
-        verifyParagraphs.load(['text']);
-        await context.sync();
+        // Create fallback bibliography manually
+        const fallbackBib = used.map(citation => {
+          return formatCitationFallback(citation, "full");
+        }).join("\n\n");
         
-        let remainingBibSections = 0;
-        for (let i = 0; i < verifyParagraphs.items.length; i++) {
-          const text = verifyParagraphs.items[i].text.trim().toLowerCase();
-          if (possibleTitles.some(title => text === title.toLowerCase())) {
-            remainingBibSections++;
-          }
-        }
-        
-        if (remainingBibSections > 0) {
-          console.log(`⚠️ WARNING: ${remainingBibSections} bibliography sections still found after removal!`);
+        if (fallbackBib && fallbackBib.trim()) {
+          console.log("✅ Using fallback bibliography:", fallbackBib);
+          await createBibliographyInWord(fallbackBib, getCitationStyleFont(citationStyle));
+          setStatus(`✅ Bibliography created with fallback formatting: ${used.length} citations`);
+          return;
         } else {
-          console.log(`✅ Document verified clean - no bibliography sections remaining`);
+          setStatus("❌ Both main and fallback bibliography formatting failed");
+          return;
         }
+      }
+      
+      await createBibliographyInWord(bibRaw, getCitationStyleFont(citationStyle));
 
-        // Now create the NEW bibliography with current style
-        console.log(`📚 Creating fresh bibliography with ${citationStyle.toUpperCase()} style`);
-        
-        // Create bibliography title
-        const title = context.document.body.insertParagraph(
-          bibliographyTitle,
-          Word.InsertLocation.end
-        );
-        title.style = "Heading 1";
-        title.font.bold = true;
-        title.font.size = 16;
-        title.font.name = styleFont.family;
-        // Process each bibliography entry
-        const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
-        for (let i = 0; i < bibEntries.length; i++) {
-          const entry = bibEntries[i].trim();
-          if (!entry) continue;
-
-          // Create paragraph for each entry
-          const para = context.document.body.insertParagraph("", Word.InsertLocation.end);
-          para.font.name = styleFont.family;
-          para.font.size = styleFont.size;
-          para.leftIndent = 36; // Hanging indent for citations
-          para.firstLineIndent = -36;
-
-          // Format the entry text
-          if (entry.includes("*")) {
-            await parseAndFormatText(para, entry, citationStyle);
-          } else {
-            const range = para.insertText(entry, Word.InsertLocation.end);
-            range.font.name = styleFont.family;
-            range.font.size = styleFont.size;
-          }
-        }
-
-        await context.sync();
-      });
+      const styleFont = getCitationStyleFont(citationStyle);
+      await createBibliographyInWord(bibRaw, styleFont);
 
       setBibliography(bibRaw);
       setStatus(
@@ -1958,6 +1849,150 @@ const Home = ({ handleLogout, status, setStatus }) => {
     } finally {
       setIsUpdatingBibliography(false);
     }
+  };
+
+  // Separate function to handle Word document bibliography creation
+  const createBibliographyInWord = async (bibContent, styleFont) => {
+    console.log("📄 Creating bibliography in Word document...");
+    console.log("Bibliography content length:", bibContent.length);
+    console.log("Style font:", styleFont);
+    
+    await Word.run(async (context) => {
+      // STEP 1: Remove existing bibliographies
+      console.log("🗑️ Removing existing bibliography sections...");
+      
+      try {
+        const possibleTitles = [bibliographyTitle, "References", "Bibliography", "Works Cited", "Works cited", "REFERENCES", "BIBLIOGRAPHY"];
+        const allHeadingStyles = [Word.Style.heading1, Word.Style.heading2, Word.Style.heading3, Word.Style.heading4];
+        
+        // Get ALL paragraphs for removal
+        const paragraphs = context.document.body.paragraphs;
+        paragraphs.load(['text', 'style', 'styleBuiltIn']);
+        await context.sync();
+        
+        let bibliographySectionsFound = 0;
+        let totalParagraphsRemoved = 0;
+        
+        // Find and remove bibliography sections
+        for (let i = 0; i < paragraphs.items.length; i++) {
+          const para = paragraphs.items[i];
+          const text = para.text.trim().toLowerCase();
+          
+          // Check if this paragraph is a bibliography heading
+          const isBibliographyHeading = possibleTitles.some(title => 
+            text === title.toLowerCase() || 
+            text.startsWith(title.toLowerCase()) ||
+            (allHeadingStyles.includes(para.styleBuiltIn) && text.includes('reference')) ||
+            (allHeadingStyles.includes(para.styleBuiltIn) && text.includes('bibliograph'))
+          );
+          
+          if (isBibliographyHeading) {
+            bibliographySectionsFound++;
+            console.log(`🗑️ Found bibliography section ${bibliographySectionsFound}: "${para.text}"`);
+            
+            // Collect paragraphs to delete
+            const toDelete = [para];
+            let currentIndex = i;
+            
+            // Look ahead for bibliography entries (up to 100 paragraphs)
+            for (let j = 1; j <= 100 && (currentIndex + j) < paragraphs.items.length; j++) {
+              const nextPara = paragraphs.items[currentIndex + j];
+              const nextText = nextPara.text.trim().toLowerCase();
+              
+              // Stop at next major section
+              if (allHeadingStyles.includes(nextPara.styleBuiltIn)) {
+                if (nextText && !possibleTitles.some(title => nextText.includes(title.toLowerCase()))) {
+                  break;
+                }
+              }
+              
+              // Stop at section breaks
+              if (nextText.match(/^(abstract|introduction|conclusion|appendix|acknowledgment)/i)) {
+                break;
+              }
+              
+              toDelete.push(nextPara);
+            }
+            
+            // Delete collected paragraphs
+            console.log(`🗑️ Removing ${toDelete.length} paragraphs from section ${bibliographySectionsFound}`);
+            for (const paraToDelete of toDelete) {
+              try {
+                paraToDelete.delete();
+                totalParagraphsRemoved++;
+              } catch (deleteError) {
+                console.log('Error deleting paragraph, continuing...');
+              }
+            }
+            await context.sync();
+            
+            // Skip processed paragraphs in main loop
+            i += toDelete.length - 1;
+          }
+        }
+        
+        console.log(`🗑️ Removal complete: ${bibliographySectionsFound} sections, ${totalParagraphsRemoved} paragraphs removed`);
+        
+      } catch (removeError) {
+        console.log('Bibliography removal encountered errors, continuing with creation:', removeError);
+      }
+      
+      // STEP 2: Wait and verify cleanup
+      await context.sync();
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // STEP 3: Create NEW bibliography
+      console.log(`📚 Creating fresh bibliography with ${citationStyle.toUpperCase()} style`);
+      
+      // Create bibliography title
+      const title = context.document.body.insertParagraph(
+        bibliographyTitle,
+        Word.InsertLocation.end
+      );
+      title.style = "Heading 1";
+      title.font.bold = true;
+      title.font.size = 16;
+      title.font.name = styleFont.family;
+      
+      // Process bibliography entries
+      const bibEntries = bibContent.split("\n").filter((entry) => entry.trim());
+      console.log(`📋 Processing ${bibEntries.length} bibliography entries`);
+      
+      for (let i = 0; i < bibEntries.length; i++) {
+        const entry = bibEntries[i].trim();
+        if (!entry) continue;
+        
+        console.log(`📝 Adding entry ${i + 1}: ${entry.substring(0, 50)}...`);
+        
+        // Create paragraph for each entry
+        const para = context.document.body.insertParagraph("", Word.InsertLocation.end);
+        para.font.name = styleFont.family;
+        para.font.size = styleFont.size;
+        para.leftIndent = 36; // Hanging indent for citations
+        para.firstLineIndent = -36;
+        
+        // Insert entry text
+        try {
+          if (entry.includes("*")) {
+            await parseAndFormatText(para, entry, citationStyle);
+          } else {
+            const range = para.insertText(entry, Word.InsertLocation.end);
+            range.font.name = styleFont.family;
+            range.font.size = styleFont.size;
+          }
+        } catch (entryError) {
+          console.log(`Error formatting entry ${i + 1}, using plain text:`, entryError);
+          // Fallback: insert plain text
+          const cleanEntry = entry.replace(/\*([^*]+)\*/g, "$1");
+          const range = para.insertText(cleanEntry, Word.InsertLocation.end);
+          range.font.name = styleFont.family;
+          range.font.size = styleFont.size;
+        }
+      }
+      
+      await context.sync();
+      console.log("✅ Bibliography creation completed successfully");
+    });
   };
 
   // COMPLETELY REWRITTEN: Simplified text formatting to prevent duplication
