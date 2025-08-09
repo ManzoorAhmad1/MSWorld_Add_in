@@ -1571,7 +1571,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
               insertionPoint = context.document.body.getRange(Word.RangeLocation.start);
             }
             
-            // Create bibliography title at end of content
+            // Create bibliography title at cursor or content end
             const title = insertionPoint.insertParagraph(
               bibliographyTitle,
               Word.InsertLocation.after
@@ -2162,13 +2162,30 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
           bibliographyExists = searchResults.items.length > 0;
           
-          if (!bibliographyExists) {
-            // Get the end of document content (not necessarily end of page)
-            const bodyRange = context.document.body.getRange();
-            bodyRange.load('text');
+          // Always find the end of content or use cursor position, regardless of existing bibliography
+          console.log('📍 Finding insertion point - end of content or cursor position');
+          
+          let insertionPoint;
+          
+          // Try to get cursor position first
+          try {
+            const selection = context.document.getSelection();
+            selection.load(['isEmpty', 'text']);
             await context.sync();
             
-            // Find the last non-empty paragraph
+            if (!selection.isEmpty || selection.text.trim().length > 0) {
+              console.log('📍 Using cursor position for bibliography insertion');
+              insertionPoint = selection.getRange(Word.RangeLocation.after);
+              
+              // Add some space before bibliography if using cursor
+              insertionPoint.insertParagraph("", Word.InsertLocation.after);
+            } else {
+              throw new Error('No cursor selection, use content end');
+            }
+          } catch (cursorError) {
+            console.log('📍 Cursor not available, finding end of content');
+            
+            // Find the last non-empty paragraph (end of content)
             const allParagraphs = context.document.body.paragraphs;
             allParagraphs.load('items');
             await context.sync();
@@ -2176,12 +2193,28 @@ const Home = ({ handleLogout, status, setStatus }) => {
             let lastContentParagraph = null;
             
             // Find the last paragraph with actual content (working backwards)
+            // Skip bibliography entries by checking if paragraph contains citation patterns
             for (let i = allParagraphs.items.length - 1; i >= 0; i--) {
               const para = allParagraphs.items[i];
               para.load('text');
               await context.sync();
               
-              if (para.text.trim().length > 0) {
+              const paraText = para.text.trim();
+              
+              // Skip empty paragraphs
+              if (paraText.length === 0) continue;
+              
+              // Skip bibliography title
+              if (paraText.toLowerCase().includes('references') || paraText.toLowerCase().includes('bibliography')) {
+                continue;
+              }
+              
+              // Skip bibliography entries (look for citation patterns)
+              const isBibEntry = paraText.includes('(') && paraText.includes(')') && 
+                               (paraText.includes('.') && paraText.length > 50) ||
+                               paraText.match(/^[A-Z][a-z]+,\s*[A-Z]\./);
+              
+              if (!isBibEntry) {
                 lastContentParagraph = para;
                 break;
               }
@@ -2199,8 +2232,10 @@ const Home = ({ handleLogout, status, setStatus }) => {
               // If no content, insert at document start
               insertionPoint = context.document.body.getRange(Word.RangeLocation.start);
             }
-            
-            // Create bibliography title
+          }
+          
+          // Create bibliography title only if it doesn't exist
+          if (!bibliographyExists) {
             const title = insertionPoint.insertParagraph(
               bibliographyTitle,
               Word.InsertLocation.after
@@ -2212,38 +2247,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
             
             // Update insertion point to after the title for bibliography entries
             insertionPoint = title.getRange(Word.RangeLocation.after);
-          } else {
-            console.log('📄 Bibliography exists, finding insertion point after existing bibliography');
-            // If bibliography exists, find it and insert after existing entries
-            const existingBibTitle = searchResults.items[0];
-            const titleParagraph = existingBibTitle.paragraphs.getFirst();
-            titleParagraph.load();
-            await context.sync();
-            
-            // Find the end of existing bibliography entries
-            let currentPara = titleParagraph.getNext();
-            let lastBibPara = titleParagraph;
-            
-            try {
-              while (true) {
-                currentPara.load('text');
-                await context.sync();
-                
-                // Check if this looks like a bibliography entry (has content and indentation)
-                if (currentPara.text.trim().length > 0 && 
-                    (currentPara.text.includes('.') || currentPara.text.length > 20)) {
-                  lastBibPara = currentPara;
-                  currentPara = currentPara.getNext();
-                } else {
-                  break;
-                }
-              }
-            } catch (e) {
-              // End of document or no more paragraphs
-            }
-            
-            insertionPoint = lastBibPara.getRange(Word.RangeLocation.after);
           }
+          // If bibliography title exists, still use the current insertion point (cursor or content end)
           
         } catch (contentError) {
           console.log('⚠️ Content-based insertion failed, using end of document:', contentError);
