@@ -36,7 +36,6 @@ const CitationSearch = ({
   syncCitationsWithDocument,
   isSyncing, // Visual indicator for sync state
 }) => {
-  console.log(searchResults,'searchResults')
   // State for folder navigation
   const [currentParentId, setCurrentParentId] = useState(null);
   const [navigationPath, setNavigationPath] = useState([]);

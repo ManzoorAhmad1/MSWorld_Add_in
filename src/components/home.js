@@ -1593,6 +1593,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
     console.log("Used citations before insert:", citations.filter(c => c.used).length);
 
     try {
+      setIsSyncing(true);
+      
       // Check if citation is already used to prevent duplicates
       const existingCitation = citations.find((c) => String(c.id) === String(citation.id));
       if (existingCitation && existingCitation.used) {
@@ -1719,6 +1721,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
     } catch (error) {
       console.error("Insert citation failed:", error);
       setStatus(`Insert failed: ${error.message}`);
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -1747,80 +1751,77 @@ const Home = ({ handleLogout, status, setStatus }) => {
       const styleFont = getCitationStyleFont(citationStyle);
 
       await Word.run(async (context) => {
-        // Check if bibliography already exists and REMOVE it to prevent duplicates
-        const searchResults = context.document.body.search(bibliographyTitle, { 
-          matchCase: false, 
-          matchWholeWord: false 
-        });
-        searchResults.load('items');
-        await context.sync();
+        // Simpler approach: Search for and remove existing bibliography title and content
+        try {
+          // Search for bibliography title
+          const titleSearch = context.document.body.search(bibliographyTitle, { 
+            matchCase: false, 
+            matchWholeWord: false 
+          });
+          titleSearch.load('items');
+          await context.sync();
 
-        // Remove existing bibliography section completely
-        if (searchResults.items.length > 0) {
-          console.log(`🗑️ Found existing bibliography, removing to prevent duplicates`);
-          
-          // Find and remove the entire bibliography section
-          for (let i = 0; i < searchResults.items.length; i++) {
-            const item = searchResults.items[i];
-            const paragraph = item.parentParagraph;
-            paragraph.load(['text', 'next']);
-            await context.sync();
+          // If bibliography exists, remove it more safely
+          if (titleSearch.items.length > 0) {
+            console.log(`🗑️ Found ${titleSearch.items.length} existing bibliography sections, removing them`);
             
-            // Remove the title paragraph
-            if (paragraph.text.toLowerCase().includes(bibliographyTitle.toLowerCase())) {
-              let currentPara = paragraph;
-              const toDelete = [currentPara];
-              
-              // Collect all following paragraphs that look like bibliography entries
+            for (let i = 0; i < titleSearch.items.length; i++) {
               try {
-                let nextPara = currentPara.getNext();
-                nextPara.load(['text', 'styleBuiltIn']);
+                const item = titleSearch.items[i];
+                const paragraph = item.parentParagraph;
+                paragraph.load(['text']);
                 await context.sync();
                 
-                while (nextPara && !nextPara.isNullObject) {
-                  const text = nextPara.text.trim();
-                  
-                  // Stop if we hit another heading or empty line indicating end of bibliography
-                  if (text === '' || 
-                      nextPara.styleBuiltIn === Word.Style.heading1 ||
-                      nextPara.styleBuiltIn === Word.Style.heading2 ||
-                      text.toLowerCase().includes('reference') ||
-                      text.toLowerCase().includes('bibliography') ||
-                      text.toLowerCase().includes('works cited')) {
+                // Simple approach: just delete the title paragraph and a few following paragraphs
+                const toDelete = [paragraph];
+                
+                // Get next few paragraphs that likely contain bibliography entries
+                let currentPara = paragraph;
+                for (let j = 0; j < 20; j++) { // Limit to 20 paragraphs max
+                  try {
+                    let nextPara = currentPara.getNext();
+                    nextPara.load(['text']);
+                    await context.sync();
+                    
+                    if (nextPara && !nextPara.isNullObject) {
+                      const text = nextPara.text.trim();
+                      
+                      // Stop if we hit a new heading or the text is very short
+                      if (text === '' || text.length < 10 || 
+                          text.toLowerCase().startsWith('heading') ||
+                          text.toLowerCase().includes('page break')) {
+                        break;
+                      }
+                      
+                      toDelete.push(nextPara);
+                      currentPara = nextPara;
+                    } else {
+                      break;
+                    }
+                  } catch (nextError) {
+                    console.log('Reached end while collecting paragraphs:', nextError);
                     break;
                   }
-                  
-                  // If it looks like a bibliography entry, mark for deletion
-                  if (text.length > 20 && (
-                    text.match(/\(\d{4}\)/) || // Contains year in parentheses
-                    text.match(/\d{4}\./) ||   // Contains year with period
-                    text.includes('doi:') ||  // Contains DOI
-                    text.includes('http') ||  // Contains URL
-                    text.match(/^\s*[A-Z]/)   // Starts with capital letter (author name)
-                  )) {
-                    toDelete.push(nextPara);
-                    try {
-                      nextPara = nextPara.getNext();
-                      nextPara.load(['text', 'styleBuiltIn']);
-                      await context.sync();
-                    } catch (e) {
-                      break; // End of document
-                    }
-                  } else {
-                    break; // Not a bibliography entry
-                  }
                 }
-              } catch (e) {
-                console.log('End of document reached');
+                
+                // Delete collected paragraphs
+                toDelete.forEach(para => {
+                  try {
+                    para.delete();
+                  } catch (deleteError) {
+                    console.log('Error deleting paragraph, continuing...');
+                  }
+                });
+                await context.sync();
+                console.log(`✅ Removed bibliography section (${toDelete.length} paragraphs)`);
+              } catch (itemError) {
+                console.log('Error processing bibliography item:', itemError);
+                continue;
               }
-              
-              // Delete all collected paragraphs
-              toDelete.forEach(para => para.delete());
-              await context.sync();
-              console.log(`✅ Removed existing bibliography (${toDelete.length} paragraphs)`);
-              break;
             }
           }
+        } catch (searchError) {
+          console.log('Search for existing bibliography failed, continuing with creation:', searchError);
         }
 
         // Now create the NEW bibliography with current style
