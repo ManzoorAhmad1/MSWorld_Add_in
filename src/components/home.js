@@ -1265,7 +1265,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
   const [bibliographyTitle, setBibliographyTitle] = useState("References");
   const [recentCitations, setRecentCitations] = useState([]);
 
-  // Auto-regenerate bibliography when citation style changes - IMPROVED
+  // Auto-regenerate bibliography when citation style changes - IMPROVED with reset logic
   useEffect(() => {
     const usedCitations = citations.filter(c => c.used);
     if (usedCitations.length > 0 && isOfficeReady && !isUpdatingBibliography) {
@@ -1298,7 +1298,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
       console.log(`🔄 Auto-regeneration conditions not met:`, {
         hasUsedCitations: usedCitations.length > 0,
         isOfficeReady,
-        isUpdatingBibliography: !isUpdatingBibliography
+        isUpdatingBibliography: !isUpdatingBibliography,
+        note: usedCitations.length === 0 ? "No citations marked as 'used' - bibliography state has been reset" : ""
       });
     }
   }, [citationStyle]); // Only trigger when citation style changes
@@ -1848,7 +1849,20 @@ const Home = ({ handleLogout, status, setStatus }) => {
         if (fallbackBib && fallbackBib.trim()) {
           console.log("✅ Using fallback bibliography:", fallbackBib);
           await createBibliographyInWord(fallbackBib, getCitationStyleFont(citationStyle));
-          setStatus(`✅ Bibliography created with fallback formatting: ${used.length} citations`);
+          
+          // SOLUTION: Clear the "used" status after successful fallback bibliography creation
+          console.log("🧹 Clearing citation 'used' status after fallback bibliography creation");
+          const clearedCitations = citations.map(citation => ({
+            ...citation,
+            used: false, // Reset used status
+            inTextCitations: [] // Clear in-text citation history
+          }));
+          
+          setCitations(clearedCitations);
+          saveCitations(clearedCitations);
+          console.log(`✅ Cleared 'used' status for ${citations.length} citations - ready for next paper selection`);
+          
+          setStatus(`✅ Bibliography created with fallback formatting: ${used.length} citations (Ready for next paper)`);
           return;
         } else {
           setStatus("❌ Both main and fallback bibliography formatting failed");
@@ -1858,11 +1872,24 @@ const Home = ({ handleLogout, status, setStatus }) => {
       
       await createBibliographyInWord(bibRaw, getCitationStyleFont(citationStyle));
 
+      // SOLUTION: Clear the "used" status after successful bibliography creation
+      // This prevents previous papers from appearing in next bibliography
+      console.log("🧹 Clearing citation 'used' status after bibliography creation");
+      const clearedCitations = citations.map(citation => ({
+        ...citation,
+        used: false, // Reset used status
+        inTextCitations: [] // Clear in-text citation history
+      }));
+      
+      setCitations(clearedCitations);
+      saveCitations(clearedCitations);
+      console.log(`✅ Cleared 'used' status for ${citations.length} citations - ready for next paper selection`);
+
       setBibliography(bibRaw);
       setStatus(
-        `✅ Bibliography updated: ${used.length} citation${
+        `✅ Bibliography created: ${used.length} citation${
           used.length !== 1 ? "s" : ""
-        } in ${citationStyle.toUpperCase()} style`
+        } in ${citationStyle.toUpperCase()} style (Ready for next paper)`
       );
     } catch (e) {
       console.error("❌ Bibliography generation failed:", e);
