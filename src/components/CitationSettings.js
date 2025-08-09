@@ -58,7 +58,7 @@ const CitationSettings = ({
             <div className="flex items-start">
               <div className="text-green-600 mr-2 mt-0.5">🔄</div>
               <div className="text-sm text-green-800">
-                <strong>Auto-regeneration:</strong> When you change the citation style, your existing bibliography will be automatically cleared and regenerated with the new style format. All your used citations will be reformatted according to the selected style.
+                <strong>Auto-regeneration at cursor:</strong> When you change the citation style, your existing bibliography will be automatically cleared and regenerated at your cursor position (next line) with the new style format. Place your cursor where you want the bibliography to appear.
               </div>
             </div>
           </div>
