@@ -53,12 +53,12 @@ const CitationSettings = ({
             ))}
           </select>
           
-          {/* Info about auto-regeneration */}
+          {/* Info about clearing behavior */}
           <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <div className="flex items-start">
               <div className="text-blue-600 mr-2 mt-0.5">ℹ️</div>
               <div className="text-sm text-blue-800">
-                <strong>Auto-regeneration:</strong> When you change the citation style, your existing bibliography will be automatically updated to match the new style format.
+                <strong>Auto-clearing:</strong> When you change the citation style, your existing bibliography will be completely removed. Click "Generate Bibliography" button to create a new bibliography with the selected style format.
               </div>
             </div>
           </div>

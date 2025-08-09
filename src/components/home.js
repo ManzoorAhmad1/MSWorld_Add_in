@@ -1247,77 +1247,169 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
     try {
       await Word.run(async (context) => {
-        // Search for the bibliography title
-        const searchResults = context.document.body.search(bibliographyTitle, { 
+        console.log('🧹 Starting complete bibliography removal...');
+        
+        // Method 1: Search for bibliography title and remove everything after it
+        const titleSearchResults = context.document.body.search(bibliographyTitle, { 
           matchCase: false, 
           matchWholeWord: false 
         });
-        searchResults.load('items');
+        titleSearchResults.load('items');
         await context.sync();
 
-        if (searchResults.items.length > 0) {
-          // Find the bibliography section and remove all content after the title
-          const titleParagraph = searchResults.items[0].parentParagraph;
-          titleParagraph.load(['style', 'text']);
+        console.log(`📋 Found ${titleSearchResults.items.length} bibliography title matches`);
+
+        if (titleSearchResults.items.length > 0) {
+          // Get the bibliography title paragraph
+          const titleRange = titleSearchResults.items[0];
+          const titleParagraph = titleRange.paragraphs.getFirst();
+          titleParagraph.load('text');
           await context.sync();
           
-          // Get all paragraphs in the document
-          const allParagraphs = context.document.body.paragraphs;
-          allParagraphs.load(['style', 'text']);
+          console.log(`📄 Bibliography title found: "${titleParagraph.text}"`);
+          
+          // Delete the title paragraph
+          titleParagraph.delete();
           await context.sync();
-          
-          // Find the index of the bibliography title paragraph
-          let titleIndex = -1;
-          for (let i = 0; i < allParagraphs.items.length; i++) {
-            if (allParagraphs.items[i].text.toLowerCase().includes(bibliographyTitle.toLowerCase())) {
-              titleIndex = i;
-              break;
-            }
-          }
-          
-          if (titleIndex >= 0) {
-            // Remove all paragraphs after the bibliography title until we find another heading or end of document
-            let nextIndex = titleIndex + 1;
-            while (nextIndex < allParagraphs.items.length) {
-              const paragraph = allParagraphs.items[nextIndex];
+          console.log('✅ Bibliography title deleted');
+        }
+        
+        // Method 2: Aggressively search and remove all citation-like content
+        const citationPatterns = [
+          "Zhao, H\\.", // Your specific author
+          "Shi, J\\.", 
+          "\\([0-9]{4}\\)", // Any year in parentheses
+          "arXiv",
+          "Preprint",
+          "et al\\.",
+          "DOI:",
+          "doi:",
+          "Retrieved from",
+          "Available from",
+          "https://",
+          "www\\."
+        ];
+        
+        let totalDeleted = 0;
+        
+        for (const pattern of citationPatterns) {
+          try {
+            console.log(`🔍 Searching for pattern: ${pattern}`);
+            const patternResults = context.document.body.search(pattern, {
+              matchCase: false,
+              matchWholeWord: false
+            });
+            patternResults.load('items');
+            await context.sync();
+
+            if (patternResults.items.length > 0) {
+              console.log(`📋 Found ${patternResults.items.length} matches for: ${pattern}`);
               
-              // Stop if we encounter another heading
-              if (paragraph.style && (
-                paragraph.style.includes('Heading') || 
-                paragraph.style.includes('Title')
-              )) {
-                break;
+              for (let i = 0; i < patternResults.items.length; i++) {
+                try {
+                  const item = patternResults.items[i];
+                  const paragraph = item.paragraphs.getFirst();
+                  paragraph.load(['text', 'style']);
+                  await context.sync();
+                  
+                  const text = paragraph.text || '';
+                  const style = paragraph.style || '';
+                  
+                  // Only delete if it looks like a bibliography entry (not headings)
+                  if (text.length > 20 && 
+                      !style.includes('Heading') && 
+                      !style.includes('Title') &&
+                      !text.toLowerCase().includes('references') &&
+                      !text.toLowerCase().includes('bibliography')) {
+                    
+                    console.log(`🗑️ Deleting: "${text.substring(0, 60)}..."`);
+                    paragraph.delete();
+                    totalDeleted++;
+                  }
+                } catch (itemError) {
+                  console.log(`⚠️ Could not process item ${i}:`, itemError);
+                }
               }
-              
-              // Stop if we encounter a paragraph that looks like a new section
-              const text = paragraph.text.trim();
-              if (text.length > 0 && !text.match(/^[A-Z]/)) {
-                // This might be bibliography content, remove it
-                paragraph.delete();
-                await context.sync();
-              } else if (text.length > 100) {
-                // This is likely bibliography content, remove it
-                paragraph.delete();
-                await context.sync();
-              } else if (text.length === 0) {
-                // Empty paragraph, remove it
-                paragraph.delete();
-                await context.sync();
-              } else {
-                // This might be a new section, stop here
-                break;
-              }
-              
-              nextIndex++;
+              await context.sync();
             }
+          } catch (patternError) {
+            console.log(`⚠️ Pattern search failed for "${pattern}":`, patternError);
           }
         }
         
-        await context.sync();
-        console.log('✅ Existing bibliography cleared successfully');
+        // Method 3: Nuclear option - scan all paragraphs from bottom up
+        console.log('🚨 Starting comprehensive paragraph scan...');
+        try {
+          const allParagraphs = context.document.body.paragraphs;
+          allParagraphs.load('items');
+          await context.sync();
+          
+          const totalParagraphs = allParagraphs.items.length;
+          let scannedCount = 0;
+          
+          // Scan from bottom up (bibliography usually at end)
+          for (let i = totalParagraphs - 1; i >= 0 && scannedCount < 50; i--) {
+            try {
+              const para = allParagraphs.items[i];
+              para.load(['text', 'style']);
+              await context.sync();
+              
+              const text = para.text?.trim() || '';
+              const style = para.style || '';
+              
+              scannedCount++;
+              
+              // Enhanced detection for bibliography entries
+              const isBibliographyEntry = (
+                text.length > 15 && // Minimum length
+                !style.includes('Heading') && // Not a heading
+                !style.includes('Title') && // Not a title
+                (
+                  text.includes('Zhao') || // Specific to your document
+                  text.includes('Shi') ||
+                  text.includes('2017') ||
+                  text.includes('arXiv') ||
+                  text.includes('Preprint') ||
+                  text.match(/\([0-9]{4}\)/) || // Has year in parentheses
+                  text.includes('et al.') ||
+                  text.includes('DOI:') ||
+                  text.includes('doi:') ||
+                  text.includes('Retrieved') ||
+                  text.includes('Available') ||
+                  text.includes('https://') ||
+                  (text.split(' ').length > 5 && text.includes(',') && text.includes('.')) // Multi-word with punctuation
+                )
+              );
+              
+              if (isBibliographyEntry) {
+                console.log(`🗑️ Comprehensive deletion: "${text.substring(0, 50)}..."`);
+                para.delete();
+                totalDeleted++;
+                
+                // Safety limit
+                if (totalDeleted >= 100) {
+                  console.log('🛑 Hit safety limit of 100 deletions');
+                  break;
+                }
+              }
+            } catch (paraError) {
+              console.log(`⚠️ Could not process paragraph ${i}:`, paraError);
+            }
+          }
+          
+          await context.sync();
+        } catch (scanError) {
+          console.log('⚠️ Comprehensive scan failed:', scanError);
+        }
+        
+        console.log(`✅ Bibliography clearing completed. Total deleted: ${totalDeleted} items`);
       });
+      
+      console.log('✅ Bibliography completely cleared');
+      
     } catch (error) {
-      console.error('❌ Failed to clear existing bibliography:', error);
+      console.error('❌ Failed to clear bibliography:', error);
+      throw error;
     }
   };
 
@@ -1398,27 +1490,33 @@ const Home = ({ handleLogout, status, setStatus }) => {
     }
   };
 
-  // Enhanced citation style change handler
+  // Enhanced citation style change handler - ONLY clear bibliography, don't regenerate
   const handleCitationStyleChange = async (newStyle) => {
     console.log(`🎨 Citation style changing from ${citationStyle} to ${newStyle}`);
     
     const previousStyle = citationStyle;
     setCitationStyle(newStyle);
     
-    // Get used citations to check if bibliography regeneration is needed
+    // Get used citations to check if bibliography clearing is needed
     const usedCitations = citations.filter(c => c.used);
     
     if (usedCitations.length > 0 && isOfficeReady) {
-      // Show loading status
-      setStatus(`🔄 Updating bibliography to ${newStyle.toUpperCase()} style...`);
+      // Show clearing status
+      setStatus(`🧹 Clearing old bibliography (${previousStyle.toUpperCase()} style)...`);
       
       try {
-        // Regenerate bibliography with new style
-        await regenerateBibliographyWithNewStyle(newStyle);
-        setStatus(`✅ Bibliography updated to ${newStyle.toUpperCase()} style successfully!`);
+        // ONLY clear existing bibliography - don't regenerate automatically
+        await clearExistingBibliography();
+        
+        // Clear the bibliography state as well
+        setBibliography("");
+        setBibliographyCitations([]);
+        
+        setStatus(`✅ Old bibliography cleared. Citation style changed to ${newStyle.toUpperCase()}. Click "Generate Bibliography" to create new references.`);
+        
       } catch (error) {
-        console.error('❌ Failed to update bibliography style:', error);
-        setStatus(`❌ Failed to update bibliography style: ${error.message}`);
+        console.error('❌ Failed to clear bibliography:', error);
+        setStatus(`❌ Failed to clear old bibliography: ${error.message}`);
         // Revert to previous style on error
         setCitationStyle(previousStyle);
       }
@@ -1574,30 +1672,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
       }
     };
   }, [isOfficeReady, citations]);
-
-  // Auto-regenerate bibliography when citation style changes (if citations exist)
-  useEffect(() => {
-    // Only auto-regenerate if we have used citations and Office is ready
-    const usedCitations = citations.filter(c => c.used);
-    
-    if (usedCitations.length > 0 && isOfficeReady && bibliography) {
-      // Debounce the regeneration to avoid multiple rapid calls
-      const timeoutId = setTimeout(async () => {
-        console.log(`🎨 Citation style changed, auto-regenerating bibliography with ${citationStyle} style`);
-        setStatus(`🔄 Auto-updating bibliography to ${citationStyle.toUpperCase()} style...`);
-        
-        try {
-          await regenerateBibliographyWithNewStyle(citationStyle);
-          setStatus(`✅ Bibliography auto-updated to ${citationStyle.toUpperCase()} style!`);
-        } catch (error) {
-          console.error('❌ Auto-regeneration failed:', error);
-          setStatus(`⚠️ Bibliography style changed to ${citationStyle.toUpperCase()}, but auto-update failed. Please regenerate manually.`);
-        }
-      }, 1000); // Wait 1 second before regenerating
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [citationStyle, isOfficeReady]); // Dependencies: only when citation style or Office readiness changes
 
   // Pagination handlers
   const handlePageChange = async (page) => {
