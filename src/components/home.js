@@ -2118,28 +2118,29 @@ const Home = ({ handleLogout, status, setStatus }) => {
       const styleFont = getCitationStyleFont(citationStyle);
 
       await Word.run(async (context) => {
-        // Check if bibliography already exists
-        const searchResults = context.document.body.search(bibliographyTitle, { matchCase: false, matchWholeWord: false });
-        searchResults.load('items');
-        await context.sync();
-
-        let bibliographyExists = searchResults.items.length > 0;
+        // Always create bibliography at current cursor position (not at existing bibliography location)
         let insertionPoint;
         
-        if (!bibliographyExists) {
-          // No existing bibliography - create new one at cursor position
-          try {
-            // Get cursor position for bibliography insertion
-            const selection = context.document.getSelection();
-            selection.load(['isEmpty', 'text']);
-            await context.sync();
-            
-            console.log('📍 Cursor position detected, inserting bibliography at cursor location');
-            
-            // Insert bibliography at cursor position (next line after cursor)
-            insertionPoint = selection.getRange(Word.RangeLocation.after);
-            
-            // Create bibliography title at cursor position
+        try {
+          // Get cursor position for bibliography insertion
+          const selection = context.document.getSelection();
+          selection.load(['isEmpty', 'text']);
+          await context.sync();
+          
+          console.log('📍 Always inserting bibliography at current cursor location');
+          
+          // Insert bibliography at cursor position (next line after cursor)
+          insertionPoint = selection.getRange(Word.RangeLocation.after);
+          
+          // Check if bibliography title already exists in document
+          const searchResults = context.document.body.search(bibliographyTitle, { matchCase: false, matchWholeWord: false });
+          searchResults.load('items');
+          await context.sync();
+
+          let bibliographyExists = searchResults.items.length > 0;
+          
+          if (!bibliographyExists) {
+            // Create bibliography title at cursor position only if it doesn't exist
             const title = insertionPoint.insertParagraph(
               bibliographyTitle,
               Word.InsertLocation.after
@@ -2151,10 +2152,21 @@ const Home = ({ handleLogout, status, setStatus }) => {
             
             // Update insertion point to after the title for bibliography entries
             insertionPoint = title.getRange(Word.RangeLocation.after);
-            
-          } catch (cursorError) {
-            console.log('⚠️ Cursor position insertion failed, using end of document:', cursorError);
-            // Fallback: insert at end of document
+          }
+          // If bibliography exists, still use cursor position for new entries (no title needed)
+          
+        } catch (cursorError) {
+          console.log('⚠️ Cursor position insertion failed, using end of document:', cursorError);
+          // Fallback: insert at end of document
+          
+          // Check if bibliography title exists
+          const searchResults = context.document.body.search(bibliographyTitle, { matchCase: false, matchWholeWord: false });
+          searchResults.load('items');
+          await context.sync();
+
+          let bibliographyExists = searchResults.items.length > 0;
+          
+          if (!bibliographyExists) {
             const title = context.document.body.insertParagraph(
               bibliographyTitle,
               Word.InsertLocation.end
@@ -2163,23 +2175,18 @@ const Home = ({ handleLogout, status, setStatus }) => {
             title.font.bold = true;
             title.font.size = 16;
             title.font.name = styleFont.family;
-            
-            insertionPoint = context.document.body.getRange(Word.RangeLocation.end);
           }
-        } else {
-          // Bibliography exists - find it and update at that location
-          const existingBibTitle = searchResults.items[searchResults.items.length - 1];
-          insertionPoint = existingBibTitle.getRange(Word.RangeLocation.after);
-          console.log('📍 Existing bibliography found, updating at existing location');
+          
+          insertionPoint = context.document.body.getRange(Word.RangeLocation.end);
         }
 
-        // Process each bibliography entry at the determined insertion point
+        // Process each bibliography entry at the cursor position
         const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
         for (let i = 0; i < bibEntries.length; i++) {
           const entry = bibEntries[i].trim();
           if (!entry) continue;
 
-          // Create paragraph for each entry at the insertion point
+          // Create paragraph for each entry at cursor position
           const para = insertionPoint.insertParagraph("", Word.InsertLocation.after);
           para.font.name = styleFont.family;
           para.font.size = styleFont.size;
