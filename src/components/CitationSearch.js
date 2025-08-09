@@ -61,17 +61,23 @@ const CitationSearch = ({
 
   // Handle search result selection with automatic insertion
   const handleSearchResultSelect = (resultId, checked) => {
+    console.log("🎯 handleSearchResultSelect called:", { resultId, checked });
+    
     const newSelected = new Set(selectedSearchResults);
     if (checked) {
       newSelected.add(resultId);
       // Insert citation directly - it will add to library and mark as used
       const selectedResult = searchResults.find(r => r.id === resultId);
       if (selectedResult) {
+        console.log("📄 Found result to insert:", selectedResult);
         insertCitationToWord(selectedResult);
+      } else {
+        console.log("❌ Could not find result with ID:", resultId);
       }
     } else {
       newSelected.delete(resultId);
       // Mark citation as unused when unchecked
+      console.log("🗑️ Removing citation from document:", resultId);
       removeCitationFromDocument(resultId);
     }
     setSelectedSearchResults(newSelected);
@@ -79,8 +85,12 @@ const CitationSearch = ({
 
   // Insert citation directly to Word
   const insertCitationToWord = (result) => {
+    console.log("💾 insertCitationToWord called with:", result);
     if (insertCitation) {
+      console.log("✅ Calling parent insertCitation function");
       insertCitation(result);
+    } else {
+      console.log("❌ insertCitation function not available");
     }
   };
 

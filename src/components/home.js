@@ -1218,6 +1218,19 @@ const Home = ({ handleLogout, status, setStatus }) => {
   const [citationFormat, setCitationFormat] = useState("in-text");
   const [bibliographyTitle, setBibliographyTitle] = useState("References");
   const [recentCitations, setRecentCitations] = useState([]);
+
+  // Auto-regenerate bibliography when citation style changes
+  useEffect(() => {
+    const usedCitations = citations.filter(c => c.used);
+    if (usedCitations.length > 0 && isOfficeReady) {
+      console.log(`🔄 Citation style changed to ${citationStyle.toUpperCase()}, auto-regenerating bibliography`);
+      // Add a small delay to ensure state has updated
+      const timer = setTimeout(() => {
+        generateBibliography();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [citationStyle]); // Only trigger when citation style changes
   const [userWorkSpaces, setUserWorkSpaces] = useState({});
   const [selectedWorkSpace, setSelectedWorkSpace] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
@@ -1575,13 +1588,20 @@ const Home = ({ handleLogout, status, setStatus }) => {
       return;
     }
 
+    console.log("🚀 insertCitation called with:", citation);
+    console.log("Current citations count before insert:", citations.length);
+    console.log("Used citations before insert:", citations.filter(c => c.used).length);
+
     try {
       // Check if citation is already used to prevent duplicates
       const existingCitation = citations.find((c) => String(c.id) === String(citation.id));
       if (existingCitation && existingCitation.used) {
+        console.log("⚠️ Citation already exists and is used:", existingCitation);
         setStatus("Citation is already used in document");
         return;
       }
+
+      console.log("✅ Citation can be inserted, proceeding...");
 
       // Ensure citation is properly formatted
       const normalizedCitation = normalizeCitation(citation);
