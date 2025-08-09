@@ -1851,15 +1851,16 @@ const Home = ({ handleLogout, status, setStatus }) => {
           console.log("✅ Using fallback bibliography:", fallbackBib);
           await createBibliographyInWord(fallbackBib, getCitationStyleFont(citationStyle));
           
-          // SOLUTION: Smart citation clearing for fallback as well
-          console.log("🧹 Smart clearing (fallback): Preserving citation selection but resetting bibliography button state");
+          // SOLUTION: Smart citation clearing for fallback as well - preserve checkbox selection
+          console.log("🧹 Smart clearing (fallback): Preserving checkbox selection but resetting bibliography button state");
           const smartClearedCitations = citations.map(citation => {
             if (citation.used) {
               return {
                 ...citation,
-                used: false, // Reset used status for bibliography button
-                inTextCitations: [], // Clear in-text citation history
-                previouslyUsed: true // Track that it was used
+                used: true, // Keep checkbox checked - DON'T change this
+                inTextCitations: [], // Clear in-text citation history for fresh bibliography
+                previouslyUsed: true, // Track that it was used
+                bibliographyGenerated: true // Mark that bibliography was generated
               };
             }
             return citation;
@@ -1867,7 +1868,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
           
           setCitations(smartClearedCitations);
           saveCitations(smartClearedCitations);
-          console.log(`✅ Smart clearing (fallback) completed - citations preserved, bibliography button state reset`);
+          console.log(`✅ Smart clearing (fallback) completed - checkboxes remain checked, ready for next bibliography operation`);
           
           setStatus(`✅ ${citationStyle.toUpperCase()} bibliography created: ${used.length} citations (Select new papers for next bibliography)`);
           return;
@@ -1879,17 +1880,18 @@ const Home = ({ handleLogout, status, setStatus }) => {
       
       await createBibliographyInWord(bibRaw, getCitationStyleFont(citationStyle));
 
-      // SOLUTION: Smart citation clearing - preserve paper selection but reset bibliography button state
-      // This allows users to keep first paper selected while being ready for second paper bibliography
-      console.log("🧹 Smart clearing: Preserving citation selection but resetting bibliography button state");
+      // SOLUTION: Smart citation clearing - preserve checkbox selection but reset bibliography button state
+      // This keeps checkboxes checked while allowing new bibliography creation
+      console.log("🧹 Smart clearing: Preserving checkbox selection but resetting bibliography button state");
       const smartClearedCitations = citations.map(citation => {
         if (citation.used) {
-          // Keep the citation in library but mark as not used for bibliography
+          // Keep the citation selected (checkbox checked) but mark as ready for next bibliography
           return {
             ...citation,
-            used: false, // Reset used status for bibliography button
-            inTextCitations: [], // Clear in-text citation history
-            previouslyUsed: true // Track that it was used (for reference)
+            used: true, // Keep checkbox checked - DON'T change this
+            inTextCitations: [], // Clear in-text citation history for fresh bibliography
+            previouslyUsed: true, // Track that it was used in bibliography
+            bibliographyGenerated: true // Mark that bibliography was generated for this citation
           };
         }
         return citation; // Keep unused citations as they are
@@ -1897,7 +1899,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
       
       setCitations(smartClearedCitations);
       saveCitations(smartClearedCitations);
-      console.log(`✅ Smart clearing completed - citations preserved, bibliography button state reset`);
+      console.log(`✅ Smart clearing completed - checkboxes remain checked, ready for next bibliography operation`);
 
       setBibliography(bibRaw);
       setStatus(
