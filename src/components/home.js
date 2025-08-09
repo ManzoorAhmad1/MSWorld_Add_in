@@ -1208,25 +1208,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
   };
 
   // Citation state
-  const [citationStyle, setCitationStyleState] = useState("apa");
-  
-  // Enhanced setCitationStyle with logging
-  const setCitationStyle = (newStyle) => {
-    console.log(`🎨 Citation style changing from ${citationStyle} to ${newStyle}`);
-    console.log(`📊 Current citations state:`, citations.map(c => ({
-      id: c.id,
-      title: c.title?.substring(0, 50) + '...',
-      used: c.used
-    })));
-    console.log(`📚 Bibliography exists: ${bibliographyExists}`);
-    
-    if (citationStyle !== newStyle) {
-      console.log(`✅ Style is actually different, updating state...`);
-      setCitationStyleState(newStyle);
-    } else {
-      console.log(`⚠️ Style is same as current, no change needed`);
-    }
-  };
+  const [citationStyle, setCitationStyle] = useState("apa");
   const [citations, setCitations] = useState([]);
   const [bibliography, setBibliography] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -1238,13 +1220,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
   
   // Separate state for bibliography generation tracking (to prevent duplication)
   const [bibliographyCitations, setBibliographyCitations] = useState([]);
-  
-  // Track if bibliography exists in document for auto-update
-  const [bibliographyExists, setBibliographyExists] = useState(false);
-  
-  // Track if auto-regeneration is in progress to prevent multiple calls
-  const [isAutoRegenerating, setIsAutoRegenerating] = useState(false);
-  
   const [recentCitations, setRecentCitations] = useState([]);
   const [userWorkSpaces, setUserWorkSpaces] = useState({});
   const [selectedWorkSpace, setSelectedWorkSpace] = useState(null);
@@ -1410,47 +1385,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
       }
     };
   }, [isOfficeReady, citations]);
-
-  // Auto-update bibliography when citation style changes
-  useEffect(() => {
-    // Skip if auto-regeneration is already in progress
-    if (isAutoRegenerating) {
-      console.log(`⏳ Auto-regeneration in progress, skipping style change effect`);
-      return;
-    }
-    
-    console.log(`📊 Style change effect triggered: ${citationStyle}`);
-    console.log(`📚 Bibliography exists: ${bibliographyExists}`);
-    console.log(`🏢 Office ready: ${isOfficeReady}`);
-    console.log(`📑 Total citations: ${citations.length}`);
-    console.log(`✅ Used citations: ${citations.filter(c => c.used).length}`);
-    
-    const updateBibliographyOnStyleChange = async () => {
-      // Only update if bibliography exists and we have used citations
-      const usedCitations = citations.filter(c => c.used);
-      console.log(`🔍 Checking conditions for auto-update:`);
-      console.log(`   - Bibliography exists: ${bibliographyExists}`);
-      console.log(`   - Used citations count: ${usedCitations.length}`);
-      console.log(`   - Office ready: ${isOfficeReady}`);
-      console.log(`   - Auto-regeneration in progress: ${isAutoRegenerating}`);
-      
-      if (bibliographyExists && usedCitations.length > 0 && isOfficeReady && !isAutoRegenerating) {
-        console.log(`🔄 Citation style changed to ${citationStyle}, updating bibliography...`);
-        setStatus(`Updating bibliography to ${citationStyle.toUpperCase()} style...`);
-        await autoRegenerateBibliography(citations);
-      } else {
-        console.log(`❌ Auto-update skipped - conditions not met`);
-        if (!bibliographyExists) console.log(`   - No bibliography exists yet`);
-        if (usedCitations.length === 0) console.log(`   - No used citations`);
-        if (!isOfficeReady) console.log(`   - Office not ready`);
-        if (isAutoRegenerating) console.log(`   - Auto-regeneration already in progress`);
-      }
-    };
-
-    // Add small delay to avoid rapid updates
-    const timeoutId = setTimeout(updateBibliographyOnStyleChange, 500);
-    return () => clearTimeout(timeoutId);
-  }, [citationStyle, isOfficeReady, bibliographyExists, isAutoRegenerating]); // REMOVED citations from dependencies to prevent infinite loop
 
   // Pagination handlers
   const handlePageChange = async (page) => {
@@ -1867,8 +1801,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
       setBibliography(bibRaw);
       
-      // Set bibliography exists flag and clear bibliography citations after successful generation
-      setBibliographyExists(true);
+      // Clear bibliography citations after successful generation to prevent duplication
       setBibliographyCitations([]);
       
       setStatus(
@@ -2106,22 +2039,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
         ?.map((a) => `${a.given || ""} ${a.family || ""}`.trim())
         .join(", ") || "Unknown"
     );
-  };
-
-  // Helper function to get font settings for different citation styles
-  const getCitationStyleFont = (styleName) => {
-    const fontSettings = {
-      apa: { family: "Times New Roman", size: 12 },
-      mla: { family: "Times New Roman", size: 12 },
-      chicago: { family: "Times New Roman", size: 12 },
-      harvard: { family: "Times New Roman", size: 12 },
-      ieee: { family: "Times New Roman", size: 10 },
-      vancouver: { family: "Arial", size: 11 },
-      nature: { family: "Arial", size: 10 },
-      science: { family: "Times New Roman", size: 10 },
-    };
-    
-    return fontSettings[styleName] || fontSettings.apa; // Default to APA
   };
 
   const getAuthorYearFromCitation = (citation) => {
@@ -2511,185 +2428,78 @@ const Home = ({ handleLogout, status, setStatus }) => {
     }
   };
 
-  // Auto-regenerate bibliography with updated citations and style
-  // Helper function to manually trigger auto-update (for testing)
-  const testAutoUpdate = async () => {
-    console.log(`🧪 Manual test of auto-update triggered`);
-    console.log(`📊 Current state:`);
-    console.log(`   - Bibliography exists: ${bibliographyExists}`);
-    console.log(`   - Citation style: ${citationStyle}`);
-    console.log(`   - Office ready: ${isOfficeReady}`);
-    console.log(`   - Total citations: ${citations.length}`);
-    console.log(`   - Used citations: ${citations.filter(c => c.used).length}`);
-    console.log(`   - Auto-regeneration in progress: ${isAutoRegenerating}`);
-    
-    const usedCitations = citations.filter(c => c.used);
-    if (bibliographyExists && usedCitations.length > 0 && isOfficeReady && !isAutoRegenerating) {
-      console.log(`✅ Conditions met, calling autoRegenerateBibliography...`);
-      await autoRegenerateBibliography(citations);
-    } else {
-      console.log(`❌ Conditions not met for auto-update`);
-      if (isAutoRegenerating) console.log(`   - Auto-regeneration already running!`);
-    }
-  };
-
-  // Reset auto-regeneration flag manually (emergency use)
-  const resetAutoRegenerationFlag = () => {
-    console.log(`🔧 Manually resetting auto-regeneration flag`);
-    setIsAutoRegenerating(false);
-    setStatus("Auto-regeneration flag reset");
-  };
-
+  // Auto-regenerate bibliography with updated citations
   const autoRegenerateBibliography = async (updatedCitations) => {
-    console.log(`🔄 autoRegenerateBibliography called with ${updatedCitations.length} citations`);
-    
-    // Prevent multiple simultaneous calls
-    if (isAutoRegenerating) {
-      console.log(`⏳ Auto-regeneration already in progress, skipping...`);
-      return;
-    }
-    
-    if (!isOfficeReady) {
-      console.log(`❌ Office not ready, aborting auto-regeneration`);
-      return;
-    }
+    if (!isOfficeReady) return;
 
-    setIsAutoRegenerating(true);
-    
-    // Safety timeout to prevent stuck state
-    const safetyTimeout = setTimeout(() => {
-      console.log(`⚠️ Auto-regeneration timeout reached, resetting flag...`);
-      setIsAutoRegenerating(false);
-    }, 15000); // 15 seconds timeout
-    
+    const used = updatedCitations.filter((c) => c.used);
+    if (used.length === 0) return;
+
     try {
-      const used = updatedCitations.filter((c) => c.used);
-      console.log(`📊 Found ${used.length} used citations for bibliography`);
-      
-      if (used.length === 0) {
-        console.log(`🗑️ No used citations, clearing bibliography`);
-        // Clear bibliography if no citations are used
-        await clearExistingBibliography();
-        setBibliographyExists(false);
-        setIsAutoRegenerating(false); // Reset flag
-        return;
-      }
-
-      console.log(`🧹 Clearing existing bibliography first...`);
-      // Clear existing bibliography first to avoid duplicates
-      await clearExistingBibliography();
-      
-      console.log(`📝 Generating new bibliography with ${citationStyle} style...`);
-      // Generate new bibliography with current style
       const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
       const styleFont = getCitationStyleFont(citationStyle);
 
       await Word.run(async (context) => {
-        // Create bibliography title
-        const title = context.document.body.insertParagraph(
-          bibliographyTitle,
-          Word.InsertLocation.end
-        );
+        // Find existing bibliography by searching for the title
+        const searchResults = context.document.body.search(bibliographyTitle, { matchCase: false, matchWholeWord: false });
+        searchResults.load('items');
+        await context.sync();
+
+        if (searchResults.items.length > 0) {
+          // Find the bibliography title paragraph
+          const bibTitleParagraph = searchResults.items[0].paragraphs.getFirst();
+          bibTitleParagraph.load(['next', 'isLast']);
+          await context.sync();
+
+          // Delete all content from the bibliography title onwards
+          let currentPara = bibTitleParagraph.getNext();
+          const parasToDelete = [];
+          
+          while (!currentPara.isLast) {
+            parasToDelete.push(currentPara);
+            currentPara = currentPara.getNext();
+            currentPara.load('isLast');
+            await context.sync();
+          }
+          
+          // Delete the collected paragraphs
+          parasToDelete.forEach(para => para.delete());
+          
+          // Also delete the last paragraph if it's not empty
+          if (!currentPara.isEmpty) {
+            currentPara.delete();
+          }
+          
+          await context.sync();
+        }
+
+        // Insert bibliography (either new or replacement)
+        const title = context.document.body.insertParagraph(bibliographyTitle, Word.InsertLocation.end);
         title.style = "Heading 1";
         title.font.bold = true;
         title.font.size = 16;
         title.font.name = styleFont.family;
 
-        // Process each bibliography entry
+        // Process bibliography entries
         const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
         for (let i = 0; i < bibEntries.length; i++) {
           const entry = bibEntries[i].trim();
           if (!entry) continue;
 
           const para = context.document.body.insertParagraph("", Word.InsertLocation.end);
+          await parseAndFormatText(para, entry, citationStyle);
           para.font.name = styleFont.family;
           para.font.size = styleFont.size;
-          para.leftIndent = 36;
-          para.firstLineIndent = -36;
-
-          if (entry.includes("*")) {
-            await parseAndFormatText(para, entry, citationStyle);
-          } else {
-            const range = para.insertText(entry, Word.InsertLocation.end);
-            range.font.name = styleFont.family;
-            range.font.size = styleFont.size;
-          }
         }
 
         await context.sync();
       });
 
-      setBibliographyExists(true);
-      setStatus(`✅ Bibliography auto-updated: ${used.length} citations in ${citationStyle.toUpperCase()} style`);
+      setStatus(`📚 Bibliography updated - ${used.length} citation(s)`);
     } catch (error) {
       console.error("Auto-regenerate bibliography failed:", error);
-      setStatus(`❌ Failed to update bibliography: ${error.message}`);
-    } finally {
-      // Clear safety timeout and reset flag
-      clearTimeout(safetyTimeout);
-      setIsAutoRegenerating(false);
-    }
-  };
-
-  // Clear existing bibliography from document
-  const clearExistingBibliography = async () => {
-    if (!isOfficeReady) return;
-
-    try {
-      await Word.run(async (context) => {
-        console.log('🧹 Clearing existing bibliography...');
-        
-        // Search for bibliography title
-        const searchResults = context.document.body.search(bibliographyTitle, {
-          matchCase: false,
-          matchWholeWord: false
-        });
-        searchResults.load(['items']);
-        await context.sync();
-
-        if (searchResults.items.length > 0) {
-          // Find the bibliography section and delete it
-          const titleParagraph = searchResults.items[0].parentParagraph;
-          
-          // Delete title paragraph
-          titleParagraph.delete();
-
-          // Delete subsequent bibliography entries
-          let currentPara = titleParagraph.getNextOrNullObject();
-          let maxEntries = 50; // Safety limit
-          let entryCount = 0;
-
-          while (entryCount < maxEntries) {
-            try {
-              currentPara.load(['text', 'isEmpty']);
-              await context.sync();
-
-              if (currentPara.isNullObject || currentPara.isEmpty) {
-                break;
-              }
-
-              // Stop if we hit another heading or section
-              if (currentPara.text.match(/^(References|Bibliography|Works Cited|Conclusion|Introduction)/i)) {
-                break;
-              }
-
-              const nextPara = currentPara.getNextOrNullObject();
-              currentPara.delete();
-              currentPara = nextPara;
-              entryCount++;
-            } catch (e) {
-              break; // End of document or error
-            }
-          }
-
-          await context.sync();
-          setBibliographyExists(false);
-          console.log('✅ Bibliography cleared successfully');
-        }
-      });
-    } catch (error) {
-      console.error("Clear bibliography failed:", error);
-      setBibliographyExists(false);
+      // Fallback: just show status without failing
+      setStatus(`Bibliography update attempted - ${used.length} citation(s)`);
     }
   };
 
@@ -3026,6 +2836,76 @@ const Home = ({ handleLogout, status, setStatus }) => {
     setStatus("APA Citation formatting tested - check console for results");
   };
 
+  // Function to get font family and formatting based on citation style
+  const getCitationStyleFont = (styleName) => {
+    const fontMap = {
+      apa: {
+        family: "Times New Roman",
+        size: 12,
+        titleFormat: "italic", // Journal titles in italic
+        bookFormat: "italic", // Book titles in italic
+        emphasis: "italic",
+      },
+      mla: {
+        family: "Times New Roman",
+        size: 12,
+        titleFormat: "italic", // Journal/book titles in italic
+        bookFormat: "italic",
+        emphasis: "italic",
+      },
+      ieee: {
+        family: "Times New Roman",
+        size: 10,
+        titleFormat: "italic", // Journal titles in italic
+        bookFormat: "italic",
+        emphasis: "italic",
+      },
+      harvard: {
+        family: "Times New Roman",
+        size: 12,
+        titleFormat: "italic", // Journal titles in italic
+        bookFormat: "italic",
+        emphasis: "italic",
+      },
+      vancouver: {
+        family: "Arial",
+        size: 11,
+        titleFormat: "normal", // No italics for journal titles
+        bookFormat: "normal",
+        emphasis: "bold",
+      },
+      chicago: {
+        family: "Times New Roman",
+        size: 12,
+        titleFormat: "italic", // Journal titles in italic
+        bookFormat: "italic",
+        emphasis: "italic",
+      },
+      nature: {
+        family: "Arial",
+        size: 8,
+        titleFormat: "italic", // Journal titles in italic
+        bookFormat: "italic",
+        emphasis: "bold",
+      },
+      science: {
+        family: "Times New Roman",
+        size: 10,
+        titleFormat: "italic", // Journal titles in italic
+        bookFormat: "italic",
+        emphasis: "italic",
+      },
+    };
+    return (
+      fontMap[styleName] || {
+        family: "Times New Roman",
+        size: 12,
+        titleFormat: "italic",
+        bookFormat: "italic",
+        emphasis: "italic",
+      }
+    );
+  };
   // Helper function to calculate text similarity (Levenshtein distance based)
   const calculateSimilarity = (str1, str2) => {
     if (str1 === str2) return 1;
@@ -3272,10 +3152,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
               citations={bibliographyCitations}
               testAPACitationFormatting={testAPACitationFormatting}
               testDuplicateRemoval={testDuplicateRemoval}
-              testAutoUpdate={testAutoUpdate}
-              bibliographyExists={bibliographyExists}
-              resetAutoRegenerationFlag={resetAutoRegenerationFlag}
-              isAutoRegenerating={isAutoRegenerating}
             />
           </>
         )}
