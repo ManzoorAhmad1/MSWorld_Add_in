@@ -1307,30 +1307,44 @@ const Home = ({ handleLogout, status, setStatus }) => {
                     const text = paragraph.text || '';
                     const style = paragraph.style || '';
                     
-                    // Only delete if it's a full bibliography entry (long text, not in-text citation)
+                    // ULTRA-SAFE bibliography detection - only match very specific patterns
                     const isBibliographyEntry = (
-                      text.length > 80 && // Bibliography entries are typically longer than 80 characters
+                      text.length > 120 && // Must be very long (bibliography entries are much longer)
                       !style.includes('Heading') && 
                       !style.includes('Title') &&
                       !text.toLowerCase().includes('references') &&
                       !text.toLowerCase().includes('bibliography') &&
-                      (
-                        text.includes('(20') || // Contains year like (2017), (2023), etc.
-                        text.includes('arXiv') ||
-                        text.includes('Preprint') ||
-                        text.includes('Retrieved') ||
-                        text.includes('Available') ||
-                        text.includes('https://') ||
-                        text.includes('DOI:')
-                      )
+                      
+                      // Must have proper academic citation format AND specific indicators
+                      text.match(/^[A-Z][a-z]+,\s*[A-Z]\.\s*/) && // Starts with "LastName, F."
+                      text.includes('(20') && // Contains year like (2017), (2023)
+                      
+                      // AND must have at least TWO of these strong academic indicators
+                      [
+                        text.includes('doi.org/10.'),
+                        text.includes('arXiv:'),
+                        text.includes('Retrieved from https://'),
+                        text.includes('Available from https://'),
+                        text.includes('journal') || text.includes('Journal'),
+                        text.match(/,\s*\d+\(\d+\),\s*\d+-\d+\./) // volume(issue), pages
+                      ].filter(Boolean).length >= 2 &&
+                      
+                      // MUST NOT contain user content phrases
+                      !text.toLowerCase().includes('we present') &&
+                      !text.toLowerCase().includes('this paper') &&
+                      !text.toLowerCase().includes('our study') &&
+                      !text.toLowerCase().includes('in conclusion') &&
+                      !text.toLowerCase().includes('abstract') &&
+                      !text.toLowerCase().includes('introduction') &&
+                      !text.toLowerCase().includes('methodology')
                     );
                     
                     if (isBibliographyEntry) {
-                      console.log(`🗑️ Deleting bibliography entry: "${text.substring(0, 60)}..."`);
+                      console.log(`🎯 CONFIRMED bibliography entry for deletion: "${text.substring(0, 60)}..."`);
                       paragraph.delete();
                       totalDeleted++;
                     } else {
-                      console.log(`⏭️ Skipping (likely in-text citation): "${text.substring(0, 40)}..."`);
+                      console.log(`✅ PRESERVING content (not a bibliography entry): "${text.substring(0, 40)}..."`);
                     }
                   } catch (itemError) {
                     console.log(`⚠️ Could not process item ${i}:`, itemError);
@@ -1367,28 +1381,47 @@ const Home = ({ handleLogout, status, setStatus }) => {
               
               scannedCount++;
               
-              // Very specific detection for bibliography entries (avoid in-text citations)
+              // ULTRA-SAFE detection for bibliography entries in end-scan
               const isBibliographyEntry = (
-                text.length > 100 && // Bibliography entries are much longer
+                text.length > 150 && // Must be very long for end-scan safety
                 !style.includes('Heading') && 
                 !style.includes('Title') && 
-                (
-                  // Specific patterns that indicate full bibliography entries
-                  (text.includes('Zhao') && text.includes('Shi') && text.includes('2017')) ||
-                  (text.includes('arXiv') && text.includes('Preprint') && text.length > 150) ||
-                  (text.includes('Retrieved from') && text.includes('https://')) ||
-                  (text.includes('Available from') && text.includes('https://')) ||
-                  // Multi-line citation pattern: Author (Year). Title. Journal.
-                  (text.match(/[A-Z][a-z]+,\s*[A-Z]\.[^.]*\([0-9]{4}\)[^.]*\.[^.]+\.[^.]+\./) && text.length > 120)
-                ) &&
-                // Exclude short in-text citations
+                
+                // Must match proper academic citation format
+                text.match(/^[A-Z][a-z]+,\s*[A-Z]\.\s*/) && // Starts with "LastName, F."
+                text.match(/\([12][0-9]{3}\)/) && // Contains proper year format
+                
+                // Must have multiple strong academic indicators
+                [
+                  text.includes('doi.org/10.'),
+                  text.includes('arXiv:') && text.includes('Preprint'),
+                  text.includes('Retrieved from https://'),
+                  text.includes('Available from https://'),
+                  text.match(/[A-Z][a-z]+,\s*[A-Z]\.[^.]*\([0-9]{4}\)[^.]*\.[^.]+\.[^.]+\./) && text.length > 120
+                ].filter(Boolean).length >= 2 &&
+                
+                // CRITICAL SAFETY: Must NOT contain user content indicators
+                !text.toLowerCase().includes('abstract') &&
+                !text.toLowerCase().includes('introduction') &&
+                !text.toLowerCase().includes('conclusion') &&
+                !text.toLowerCase().includes('methodology') &&
+                !text.toLowerCase().includes('results') &&
+                !text.toLowerCase().includes('discussion') &&
+                !text.toLowerCase().includes('we ') &&
+                !text.toLowerCase().includes('our ') &&
+                !text.toLowerCase().includes('this paper') &&
+                !text.toLowerCase().includes('this study') &&
+                !text.toLowerCase().includes('the aim') &&
+                !text.toLowerCase().includes('analysis') &&
+                
+                // Additional safety patterns
                 !text.match(/^\s*\([A-Z][a-z]+,\s*[0-9]{4}\)\s*$/) && // Not just (Author, Year)
                 !text.match(/^\s*[A-Z][a-z]+,\s*[0-9]{4}\s*$/) && // Not just Author, Year
                 !text.match(/^\s*\[[0-9]+\]\s*$/) // Not just [1]
               );
               
               if (isBibliographyEntry) {
-                console.log(`🗑️ End-scan deletion: "${text.substring(0, 50)}..."`);
+                console.log(`🎯 CONFIRMED end-scan bibliography entry for deletion: "${text.substring(0, 50)}..."`);
                 para.delete();
                 totalDeleted++;
                 
@@ -1397,6 +1430,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
                   console.log('🛑 Hit safety limit of 20 deletions in end-scan');
                   break;
                 }
+              } else if (text.length > 0) {
+                console.log(`✅ PRESERVING user content: "${text.substring(0, 40)}..."`);
               }
             } catch (paraError) {
               console.log(`⚠️ Could not process paragraph ${i}:`, paraError);
@@ -1409,10 +1444,10 @@ const Home = ({ handleLogout, status, setStatus }) => {
           console.log('⚠️ End-scan failed:', scanError);
         }
         
-        console.log(`✅ Bibliography-only clearing completed successfully`);
+        console.log(`✅ ULTRA-SAFE bibliography clearing completed - user content preserved`);
       });
       
-      console.log('✅ Bibliography completely cleared (in-text citations preserved)');
+      console.log('✅ Bibliography safely cleared while preserving all user content');
       
     } catch (error) {
       console.error('❌ Failed to clear bibliography:', error);
