@@ -1220,6 +1220,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
   
   // Separate state for bibliography generation tracking (to prevent duplication)
   const [bibliographyCitations, setBibliographyCitations] = useState([]);
+  // UI state for selected citations (separate from actual citation usage)
+  const [selectedCitationsForBibliography, setSelectedCitationsForBibliography] = useState([]);
   const [recentCitations, setRecentCitations] = useState([]);
   const [userWorkSpaces, setUserWorkSpaces] = useState({});
   const [selectedWorkSpace, setSelectedWorkSpace] = useState(null);
@@ -1587,10 +1589,10 @@ const Home = ({ handleLogout, status, setStatus }) => {
     const previousStyle = citationStyle;
     setCitationStyle(newStyle);
     
-    // Get used citations to check if bibliography regeneration is needed
-    const usedCitations = citations.filter(c => c.used);
+    // Use selectedCitationsForBibliography instead of citations.filter(c => c.used) for UI consistency
+    const selectedCitations = selectedCitationsForBibliography;
     
-    if (usedCitations.length > 0 && isOfficeReady) {
+    if (selectedCitations.length > 0 && isOfficeReady) {
       // Show clearing status
       setStatus(`🧹 Clearing old bibliography (${previousStyle.toUpperCase()} style)...`);
       
@@ -1608,8 +1610,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
         // Step 2: Auto-generate new bibliography with the new style
         setStatus(`🔄 Generating new bibliography with ${newStyle.toUpperCase()} style...`);
         
-        // Generate new bibliography with the new style
-        const bibRaw = await formatBibliographyCiteproc(usedCitations, newStyle);
+        // Generate new bibliography with the new style using selected citations
+        const bibRaw = await formatBibliographyCiteproc(selectedCitations, newStyle);
         const styleFont = getCitationStyleFont(newStyle);
 
         await Word.run(async (context) => {
@@ -1730,7 +1732,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
         setBibliography(bibRaw);
         
-        setStatus(`✅ Bibliography automatically updated to ${newStyle.toUpperCase()} style (${usedCitations.length} citations)`);
+        setStatus(`✅ Bibliography automatically updated to ${newStyle.toUpperCase()} style (${selectedCitations.length} citations)`);
         
       } catch (error) {
         console.error('❌ Failed to clear and regenerate bibliography:', error);
@@ -2207,14 +2209,38 @@ const Home = ({ handleLogout, status, setStatus }) => {
     }
   };
 
+  // Function to handle citation selection for bibliography (separate from main citation usage)
+  const handleCitationSelectionForBibliography = (citation, isSelected) => {
+    if (isSelected) {
+      // Add to selected citations if not already present
+      setSelectedCitationsForBibliography(prev => {
+        const exists = prev.find(c => String(c.id) === String(citation.id));
+        if (!exists) {
+          return [...prev, {...citation, used: true}];
+        }
+        return prev;
+      });
+    } else {
+      // Remove from selected citations
+      setSelectedCitationsForBibliography(prev => 
+        prev.filter(c => String(c.id) !== String(citation.id))
+      );
+    }
+  };
+
+  // Function to check if citation is selected for bibliography
+  const isCitationSelectedForBibliography = (citation) => {
+    return selectedCitationsForBibliography.some(c => String(c.id) === String(citation.id));
+  };
+
   const generateBibliography = async () => {
     if (!isOfficeReady) {
       return;
     }
 
-    // Use bibliography citations state instead of main citations array
-    const used = bibliographyCitations.filter((c) => c.used);
-    if (used.length === 0) {
+    // Use selected citations from UI state instead of bibliography citations array
+    const selectedCitations = selectedCitationsForBibliography;
+    if (selectedCitations.length === 0) {
       setStatus("No citations selected for bibliography - select citations first");
       return;
     }
@@ -2232,7 +2258,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
       // Show next step
       setStatus(`🔄 Generating bibliography with ${citationStyle.toUpperCase()} style...`);
       
-      const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
+      const bibRaw = await formatBibliographyCiteproc(selectedCitations, citationStyle);
       const styleFont = getCitationStyleFont(citationStyle);
 
       await Word.run(async (context) => {
@@ -2369,23 +2395,13 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
       setBibliography(bibRaw);
       
-      // Clear bibliography citations state after successful generation to allow new selections
-      setBibliographyCitations([]);
-      
-      // Clear the used state from all citations after bibliography generation
-      // This allows users to select new papers without affecting the generated bibliography
-      const clearedCitations = citations.map(citation => ({
-        ...citation,
-        used: false,
-        inTextCitations: []
-      }));
-      setCitations(clearedCitations);
-      saveCitations(clearedCitations);
+      // Don't clear the selected citations - keep them selected in UI
+      // This allows users to see what was included in the bibliography
       
       setStatus(
-        `✅ Bibliography created: ${used.length} citation${
-          used.length !== 1 ? "s" : ""
-        } in ${citationStyle.toUpperCase()} style - Ready to select new papers`
+        `✅ Bibliography created: ${selectedCitations.length} citation${
+          selectedCitations.length !== 1 ? "s" : ""
+        } in ${citationStyle.toUpperCase()} style - Citations remain selected for reference`
       );
     } catch (e) {
       console.error("❌ Bibliography generation failed:", e);
@@ -3721,13 +3737,17 @@ const Home = ({ handleLogout, status, setStatus }) => {
               insertCitation={insertCitation}
               markCitationAsUnused={markCitationAsUnused}
               syncCitationsWithDocument={syncCitationsWithDocument}
+              // New bibliography selection functions
+              handleCitationSelectionForBibliography={handleCitationSelectionForBibliography}
+              isCitationSelectedForBibliography={isCitationSelectedForBibliography}
+              selectedCitationsForBibliography={selectedCitationsForBibliography}
             />
 
             <BibliographySection
               generateBibliography={generateBibliography}
               autoRegenerateBibliography={autoRegenerateBibliography}
               isOfficeReady={isOfficeReady}
-              citations={bibliographyCitations}
+              citations={selectedCitationsForBibliography}
               testAPACitationFormatting={testAPACitationFormatting}
               testDuplicateRemoval={testDuplicateRemoval}
             />

@@ -34,6 +34,10 @@ const CitationSearch = ({
   insertCitation,
   markCitationAsUnused,
   syncCitationsWithDocument,
+  // New bibliography selection functions
+  handleCitationSelectionForBibliography,
+  isCitationSelectedForBibliography,
+  selectedCitationsForBibliography,
 }) => {
   // State for folder navigation
   const [currentParentId, setCurrentParentId] = useState(null);
@@ -65,22 +69,22 @@ const CitationSearch = ({
     );
   };
 
-  // Handle search result selection with automatic insertion
+  // Handle search result selection for bibliography generation (separate from citation insertion)
   const handleSearchResultSelect = (resultId, checked) => {
-    const newSelected = new Set(selectedSearchResults);
-    if (checked) {
-      newSelected.add(resultId);
-      // Insert citation directly - it will add to library and mark as used
-      const selectedResult = searchResults.find(r => r.id === resultId);
-      if (selectedResult) {
-        insertCitationToWord(selectedResult);
+    const selectedResult = searchResults.find(r => r.id === resultId);
+    if (selectedResult && handleCitationSelectionForBibliography) {
+      // Use the new bibliography selection function instead of direct insertion
+      handleCitationSelectionForBibliography(selectedResult, checked);
+      
+      // Also update local state for UI consistency
+      const newSelected = new Set(selectedSearchResults);
+      if (checked) {
+        newSelected.add(resultId);
+      } else {
+        newSelected.delete(resultId);
       }
-    } else {
-      newSelected.delete(resultId);
-      // Mark citation as unused when unchecked
-      removeCitationFromDocument(resultId);
+      setSelectedSearchResults(newSelected);
     }
-    setSelectedSearchResults(newSelected);
   };
 
   // Insert citation directly to Word
@@ -98,30 +102,26 @@ const CitationSearch = ({
     }
   };
 
-  // Handle select all search results with automatic insertion
+  // Handle select all search results for bibliography selection
   const handleSelectAllSearchResults = (checked) => {
     if (checked) {
-      // Select all citations and insert/use them
+      // Select all citations for bibliography
       const allIds = new Set(searchResults.map(r => r.id));
       setSelectedSearchResults(allIds);
-      // Insert all citations that are not already used
-      searchResults.forEach(result => {
-        const citationInLibrary = citations.find(c => String(c.id) === String(result.id));
-        const isUsed = citationInLibrary?.used || false;
-        if (!isUsed) {
-          insertCitationToWord(result);
-        }
-      });
+      
+      // Add all citations to bibliography selection
+      if (handleCitationSelectionForBibliography) {
+        searchResults.forEach(result => {
+          handleCitationSelectionForBibliography(result, true);
+        });
+      }
     } else {
-      // Uncheck all - mark all currently selected or used citations as unused
-      searchResults.forEach(result => {
-        const citationInLibrary = citations.find(c => String(c.id) === String(result.id));
-        const isUsed = citationInLibrary?.used || false;
-        const isSelected = selectedSearchResults.has(result.id);
-        if (isUsed || isSelected) {
-          removeCitationFromDocument(result.id);
-        }
-      });
+      // Uncheck all - remove all from bibliography selection
+      if (handleCitationSelectionForBibliography) {
+        searchResults.forEach(result => {
+          handleCitationSelectionForBibliography(result, false);
+        });
+      }
       setSelectedSearchResults(new Set());
     }
   };
@@ -131,36 +131,22 @@ const CitationSearch = ({
     setSelectedSearchResults(new Set());
   }, [searchResults]);
 
-  // Sync selectedSearchResults with citations that are used
+  // Sync selectedSearchResults with bibliography selection
   useEffect(() => {
-    const usedCitationIds = citations
-      .filter(c => c.used)
-      .map(c => c.id);
-    
-    const unusedCitationIds = citations
-      .filter(c => !c.used)
-      .map(c => c.id);
-    
-    const currentSearchResultIds = searchResults.map(r => r.id);
-    const usedSearchResultIds = usedCitationIds.filter(id => 
-      currentSearchResultIds.includes(id)
-    );
-    const unusedSearchResultIds = unusedCitationIds.filter(id => 
-      currentSearchResultIds.includes(id)
-    );
-    
-    setSelectedSearchResults(prev => {
-      const newSelected = new Set(prev);
+    if (selectedCitationsForBibliography && isCitationSelectedForBibliography) {
+      const currentSearchResultIds = searchResults.map(r => r.id);
+      const selectedIds = new Set();
       
-      // Add used citations to selected
-      usedSearchResultIds.forEach(id => newSelected.add(id));
+      // Check which search results are selected for bibliography
+      searchResults.forEach(result => {
+        if (isCitationSelectedForBibliography(result)) {
+          selectedIds.add(result.id);
+        }
+      });
       
-      // Remove unused citations from selected
-      unusedSearchResultIds.forEach(id => newSelected.delete(id));
-      
-      return newSelected;
-    });
-  }, [citations, searchResults]);
+      setSelectedSearchResults(selectedIds);
+    }
+  }, [selectedCitationsForBibliography, searchResults, isCitationSelectedForBibliography]);
 
   const getAvailableProjects = () => {
     if (!selectedWorkSpace || !userWorkSpaces?.workspaces) return [];
@@ -533,8 +519,9 @@ const CitationSearch = ({
                     const isUsed = citationInLibrary?.used || false;
                     const isSelected = selectedSearchResults.has(result.id);
                     
-                    // Determine checkbox state - allow unchecking even if used
-                    const checkboxChecked = isSelected || isUsed;
+                    // Use new bibliography selection state for checkbox
+                    const isSelectedForBibliography = isCitationSelectedForBibliography ? isCitationSelectedForBibliography(result) : false;
+                    const checkboxChecked = isSelectedForBibliography;
                     const checkboxDisabled = false; // Never disable checkbox - allow unchecking
                     
                     return (
