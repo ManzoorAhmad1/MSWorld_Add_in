@@ -2284,11 +2284,28 @@ const Home = ({ handleLogout, status, setStatus }) => {
       return;
     }
 
-    setStatus(`Generating bibliography for ${selectedForBibliography.length} selected citations...`);
+    setStatus(`Adding ${selectedForBibliography.length} selected citations to bibliography...`);
 
     try {
-      // Clear existing bibliography first for clean generation
-      await clearExistingBibliography();
+      // ENHANCED: Check if bibliography already exists, if not create title
+      let bibliographyExists = false;
+      
+      await Word.run(async (context) => {
+        // Check if bibliography title already exists
+        const titleSearch = context.document.body.search(bibliographyTitle, {
+          matchCase: false,
+          matchWholeWord: false
+        });
+        titleSearch.load('items');
+        await context.sync();
+        
+        if (titleSearch.items.length > 0) {
+          bibliographyExists = true;
+          console.log('📚 Bibliography section already exists, will add new entries');
+        } else {
+          console.log('📚 No bibliography section found, will create new one');
+        }
+      });
       
       // Generate formatted bibliography using SELECTED citations
       const bibRaw = await formatBibliographyCiteproc(selectedForBibliography, citationStyle);
@@ -2330,50 +2347,74 @@ const Home = ({ handleLogout, status, setStatus }) => {
           console.warn(`⚠️ Mismatch: ${selectedForBibliography.length} citations but only ${bibEntries.length} entries generated`);
         }
         
-        let entryCount = 0;
+        let newEntriesAdded = 0;
+        
         for (let i = 0; i < bibEntries.length; i++) {
           const entry = bibEntries[i].trim();
           if (!entry) continue;
 
-          console.log(`📄 Adding bibliography entry ${entryCount + 1}/${bibEntries.length}: "${entry.substring(0, 80)}..."`);
-          
-          // Create paragraph for each bibliography entry
-          const para = context.document.body.insertParagraph("", Word.InsertLocation.end);
-          para.font.name = styleFont.family;
-          para.font.size = styleFont.size;
-          para.leftIndent = 36; // Hanging indent for citations
-          para.firstLineIndent = -36;
-          para.spaceAfter = 6; // Add spacing between entries
-
-          // Format the entry text with proper error handling
+          // Check if this entry already exists in the document
+          let entryExists = false;
           try {
-            if (entry.includes("*") || entry.includes("**")) {
-              await parseAndFormatText(para, entry, citationStyle);
-            } else {
-              const range = para.insertText(entry, Word.InsertLocation.end);
-              range.font.name = styleFont.family;
-              range.font.size = styleFont.size;
+            // Search for first 50 characters of the entry to check for duplicates
+            const entryPreview = entry.substring(0, 50).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const existingSearch = context.document.body.search(entryPreview, {
+              matchCase: false,
+              matchWholeWord: false
+            });
+            existingSearch.load('items');
+            await context.sync();
+            
+            if (existingSearch.items.length > 0) {
+              entryExists = true;
+              console.log(`Entry ${i + 1} already exists, skipping: "${entry.substring(0, 50)}..."`);
             }
-            entryCount++;
-          } catch (entryError) {
-            console.error(`❌ Error formatting entry ${i + 1}:`, entryError);
-            // Fallback: insert plain text
-            const plainText = entry.replace(/\*([^*]+)\*/g, "$1");
-            para.insertText(plainText, Word.InsertLocation.end);
-            entryCount++;
+          } catch (searchError) {
+            console.log(`Could not check for duplicate entry ${i + 1}:`, searchError);
+          }
+
+          // Only add if entry doesn't already exist
+          if (!entryExists) {
+            console.log(`Adding NEW bibliography entry ${newEntriesAdded + 1}: "${entry.substring(0, 80)}..."`);
+            
+            // Create paragraph for each NEW bibliography entry
+            const para = context.document.body.insertParagraph("", Word.InsertLocation.end);
+            para.font.name = styleFont.family;
+            para.font.size = styleFont.size;
+            para.leftIndent = 36; // Hanging indent for citations
+            para.firstLineIndent = -36;
+            para.spaceAfter = 6; // Add spacing between entries
+
+            // Format the entry text with proper error handling
+            try {
+              if (entry.includes("*") || entry.includes("**")) {
+                await parseAndFormatText(para, entry, citationStyle);
+              } else {
+                const range = para.insertText(entry, Word.InsertLocation.end);
+                range.font.name = styleFont.family;
+                range.font.size = styleFont.size;
+              }
+              newEntriesAdded++;
+            } catch (entryError) {
+              console.error(`Error formatting entry ${i + 1}:`, entryError);
+              // Fallback: insert plain text
+              const plainText = entry.replace(/\*([^*]+)\*/g, "$1");
+              para.insertText(plainText, Word.InsertLocation.end);
+              newEntriesAdded++;
+            }
           }
         }
 
         await context.sync();
-        console.log(`✅ Bibliography generation completed: ${entryCount} entries inserted successfully`);
+        console.log(`✅ Bibliography update completed: ${newEntriesAdded} NEW entries added (${bibEntries.length - newEntriesAdded} duplicates skipped)`);
       });
 
       setBibliography(bibRaw);
       
       setStatus(
-        `✅ Bibliography generated successfully: ${selectedForBibliography.length} citation${
+        `✅ Bibliography updated: ${selectedForBibliography.length} citation${
           selectedForBibliography.length !== 1 ? "s" : ""
-        } in ${citationStyle.toUpperCase()} style`
+        } added to ${citationStyle.toUpperCase()} style bibliography${bibliographyExists ? ' (added to existing)' : ' (created new)'}`
       );
       
     } catch (error) {
