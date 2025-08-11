@@ -2082,6 +2082,12 @@ const Home = ({ handleLogout, status, setStatus }) => {
     try {
       // Check if citation is already used to prevent duplicates
       const existingCitation = citations.find((c) => String(c.id) === String(citation.id));
+      
+      // Debug: Initial citation check
+      console.log('🎯 Starting insertCitation process:');
+      console.log('📝 Citation to insert:', { id: citation.id, title: citation.title });
+      console.log('🔍 Existing citation found:', existingCitation ? { id: existingCitation.id, used: existingCitation.used } : 'None');
+      
       if (existingCitation && existingCitation.used) {
         setStatus("Citation is already used in document");
         return;
@@ -2158,8 +2164,15 @@ const Home = ({ handleLogout, status, setStatus }) => {
       // Update citation library - handle both existing and new citations
       const existingCitationIndex = citations.findIndex((c) => String(c.id) === String(normalizedCitation.id));
       
+      // Debug: Check if citation exists in library
+      console.log('🔍 Citation insertion debug:');
+      console.log('📝 Looking for citation ID:', normalizedCitation.id);
+      console.log('📊 Existing citation index:', existingCitationIndex);
+      console.log('📚 Current citations in library:', citations.map(c => ({ id: c.id, title: c.title, used: c.used })));
+      
       let updated;
       if (existingCitationIndex >= 0) {
+        console.log('✅ Found existing citation, marking as used');
         // Citation exists, mark it as used
         updated = citations.map((c) =>
           String(c.id) === String(normalizedCitation.id)
@@ -2171,6 +2184,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
             : c
         );
       } else {
+        console.log('➕ Citation not found, adding new citation as used');
         // Citation doesn't exist, add it and mark as used
         const newCitation = {
           ...normalizedCitation,
@@ -2184,6 +2198,11 @@ const Home = ({ handleLogout, status, setStatus }) => {
       setCitations(updated);
       saveCitations(updated);
       
+      // Debug: Check citation states after update
+      console.log('🔄 Citation inserted and states updated:');
+      console.log('📊 Total citations after insert:', updated.length);
+      console.log('✅ Used citations after insert:', updated.filter(c => c.used).length);
+      console.log('📝 Inserted citation details:', { id: normalizedCitation.id, title: normalizedCitation.title, used: true });
       
       // Bibliography citations now handled by main citations state - no separate tracking needed
       // setBibliographyCitations logic removed since main citations state already tracks used status
@@ -2209,6 +2228,11 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
     // Use main citations state to get ALL used citations (not just bibliographyCitations)
     const used = citations.filter((c) => c.used);
+    console.log('🔍 Bibliography Debug Info:');
+    console.log('📊 Total citations in state:', citations.length);
+    console.log('✅ Used citations for bibliography:', used.length);
+    console.log('📝 Used citations details:', used.map(c => ({ id: c.id, title: c.title, used: c.used })));
+    
     if (used.length === 0) {
       setStatus("No citations selected for bibliography - select citations first");
       return;
