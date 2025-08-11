@@ -2219,25 +2219,42 @@ const Home = ({ handleLogout, status, setStatus }) => {
       return;
     }
 
-    // Get all used citations, combining existing citations with new ones in bibliographyCitations
-    const allUsedCitations = [...citations.filter(c => c.used)];
-    const newCitations = bibliographyCitations.filter(c => c.used);
+    // Get all citations from both sources
+    // First, get all citations marked as "used" from main citation list
+    const usedFromMainList = citations.filter(c => c.used);
     
-    // Merge new citations, avoiding duplicates
-    newCitations.forEach(newCit => {
-      if (!allUsedCitations.some(existingCit => String(existingCit.id) === String(newCit.id))) {
-        allUsedCitations.push(newCit);
+    // Second, get all citations from bibliography list (these are pending to be added)
+    const citationsFromBibList = bibliographyCitations;
+    
+    // Combine them into one array, prioritizing the main citation list
+    // to avoid duplicates, we'll keep track of ids we've already seen
+    const citationIds = new Set();
+    const combinedCitations = [];
+    
+    // First add all used citations from main list
+    usedFromMainList.forEach(citation => {
+      combinedCitations.push(citation);
+      citationIds.add(String(citation.id));
+    });
+    
+    // Then add any citations from bibliography list that aren't already in the combined list
+    citationsFromBibList.forEach(citation => {
+      if (!citationIds.has(String(citation.id))) {
+        combinedCitations.push(citation);
+        citationIds.add(String(citation.id));
       }
     });
     
-    if (allUsedCitations.length === 0) {
+    console.log(`📊 Found ${combinedCitations.length} total citations for bibliography`);
+    
+    if (combinedCitations.length === 0) {
       setStatus("No citations selected for bibliography - select citations first");
       return;
     }
 
     try {
-      console.log(`📚 Generating bibliography with ${allUsedCitations.length} citations`);
-      const bibRaw = await formatBibliographyCiteproc(allUsedCitations, citationStyle);
+      console.log(`📚 Generating bibliography with ${combinedCitations.length} citations`);
+      const bibRaw = await formatBibliographyCiteproc(combinedCitations, citationStyle);
       const styleFont = getCitationStyleFont(citationStyle);
 
       await Word.run(async (context) => {
@@ -2370,11 +2387,10 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
         // Process each bibliography entry at the determined insertion point
         let bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
-        console.log(`📋 Processing ${bibEntries.length} bibliography entries before deduplication`);
+        console.log(`📋 Processing ${bibEntries.length} bibliography entries`);
         
-        // Run deduplication to ensure no duplicate entries
-        bibEntries = processAndDedupeBibliography(bibEntries);
-        console.log(`📋 After deduplication: ${bibEntries.length} unique bibliography entries`);
+        // Clean up any text duplication in each entry (rather than removing entries)
+        bibEntries = bibEntries.map(entry => cleanDuplicateText(entry));
         for (let i = 0; i < bibEntries.length; i++) {
           const entry = bibEntries[i].trim();
           if (!entry) continue;
@@ -2404,26 +2420,37 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
       setBibliography(bibRaw);
       
-      // Update the main citations array to mark all used citations
-      const updatedCitations = citations.map(citation => {
-        const isInBibliography = allUsedCitations.some(c => String(c.id) === String(citation.id));
-        if (isInBibliography && !citation.used) {
-          // Mark as used if it's in the bibliography but not marked as used
-          return {...citation, used: true};
+      // After successfully generating the bibliography, we need to:
+      // 1. Keep track of which citations are now in the bibliography
+      // 2. Update the main citation list to mark these citations as "used"
+      // 3. Clear the temporary bibliography citation list
+      
+      // First, get the IDs of all citations that were just used in the bibliography
+      const usedIds = combinedCitations.map(c => String(c.id));
+      
+      // Now update the main citations array - mark any citation that was used as "used"
+      const updatedMainCitations = citations.map(citation => {
+        if (usedIds.includes(String(citation.id))) {
+          // This citation was used in the bibliography
+          return {
+            ...citation,
+            used: true,
+          };
         }
         return citation;
       });
       
-      // Save the updated citations
-      setCitations(updatedCitations);
-      saveCitations(updatedCitations);
+      // Save changes to the main citation list
+      setCitations(updatedMainCitations);
+      saveCitations(updatedMainCitations);
       
-      // Clear only the temporary bibliography citations array after successful generation
+      // Clear the temporary bibliography citations list since we've processed them
       setBibliographyCitations([]);
       
+      // Show status message
       setStatus(
-        `✅ Bibliography ${bibliographyExists ? 'updated' : 'created'}: ${allUsedCitations.length} citation${
-          allUsedCitations.length !== 1 ? "s" : ""
+        `✅ Bibliography ${bibliographyExists ? 'updated' : 'created'}: ${combinedCitations.length} citation${
+          combinedCitations.length !== 1 ? "s" : ""
         } in ${citationStyle.toUpperCase()} style`
       );
     } catch (e) {
@@ -3560,33 +3587,43 @@ const Home = ({ handleLogout, status, setStatus }) => {
     return (maxLen - distance) / maxLen;
   };
 
-  // Process bibliography entries to ensure no duplicate entries
-  const processAndDedupeBibliography = (entries) => {
-    if (!entries || entries.length === 0) return [];
+  // Clean duplicate text in bibliography entries
+  const cleanDuplicateText = (entry) => {
+    if (!entry) return entry;
     
-    // Track already processed entries to avoid duplicates
-    const processedEntries = new Set();
-    const result = [];
+    // Handle specific duplication patterns in citation text
+    let text = entry;
     
-    entries.forEach(entry => {
-      // Generate a simple hash for the entry to detect duplicates
-      // Use first 30 chars + last 30 chars as a fingerprint
-      const entryText = entry.trim();
-      if (!entryText) return;
-      
-      const start = entryText.substring(0, Math.min(30, entryText.length));
-      const end = entryText.length > 30 ? entryText.substring(entryText.length - 30) : '';
-      const fingerprint = `${start}...${end}`;
-      
-      if (!processedEntries.has(fingerprint)) {
-        processedEntries.add(fingerprint);
-        result.push(entryText);
-      } else {
-        console.log('🔍 Skipping duplicate bibliography entry:', start + '...');
+    // Pattern: "Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1(1)."
+    const priorityDuplicationPattern = /^(.*?),\s*(\d+)(.*?),\s*\2(\([^)]*\))(.*)$/;
+    const priorityMatch = text.match(priorityDuplicationPattern);
+    if (priorityMatch) {
+      const firstPart = priorityMatch[1]; // "Zhao, H., ... arXiv"
+      const volume = priorityMatch[2]; // "1"
+      const middlePart = priorityMatch[3]; // "Zhao, H., ... arXiv" (duplicate)
+      const issue = priorityMatch[4]; // "(1)"
+      const trailing = priorityMatch[5]; // ". https://..."
+
+      // Check if the middle part is very similar to the first part
+      if (middlePart.includes(firstPart.substring(0, 20)) || 
+          calculateSimilarity(firstPart, middlePart) > 0.7) {
+        text = firstPart + ", " + volume + issue + trailing;
       }
-    });
+    }
+
+    // Pattern: Complete citation duplication with volume/issue
+    const fullDuplicationPattern = /^(.*?\([0-9]{4}\)\..*?),\s*[0-9]+\1,\s*[0-9]+(\([^)]*\))?(.*)$/;
+    if (fullDuplicationPattern.test(text)) {
+      const match = text.match(fullDuplicationPattern);
+      if (match) {
+        const citation = match[1];
+        const issue = match[2] || "";
+        const trailing = match[3] || "";
+        text = citation + ", 1" + issue + trailing;
+      }
+    }
     
-    return result;
+    return text;
   };
 
   // Function to test duplicate text removal
