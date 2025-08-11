@@ -2191,17 +2191,17 @@ const Home = ({ handleLogout, status, setStatus }) => {
             );
             await parseAndFormatText(tempPara, formatted, citationStyle);
           } else {
-            // Simple text insertion with font styling
-            const range = selection.insertText(
+            // Simple text insertion with font styling at the beginning of document
+            const insertRange = range.insertText(
               formatted,
-              Word.InsertLocation.replace
+              Word.InsertLocation.after
             );
-            range.font.name = styleFont.family;
-            range.font.size = styleFont.size;
+            insertRange.font.name = styleFont.family;
+            insertRange.font.size = styleFont.size;
           }
         } else {
-          // For footnotes, create formatted footnote
-          const footnote = selection.insertFootnote(formatted);
+          // For footnotes, create formatted footnote at the beginning of document
+          const footnote = range.insertFootnote(formatted);
           footnote.body.font.name = styleFont.family;
           footnote.body.font.size = styleFont.size - 1; // Footnotes typically smaller
         }
