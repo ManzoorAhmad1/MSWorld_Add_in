@@ -1587,10 +1587,26 @@ const Home = ({ handleLogout, status, setStatus }) => {
     const previousStyle = citationStyle;
     setCitationStyle(newStyle);
     
-    // Get used citations to check if bibliography regeneration is needed
-    const usedCitations = citations.filter(c => c.used);
+    // Store current state before style change
+    const currentBibliographyCitations = [...bibliographyCitations];
+    const currentUsedCitations = citations.filter(c => c.used);
     
-    if (usedCitations.length > 0 && isOfficeReady) {
+    // Get all citations (both used and selected)
+    const uniqueCitationsMap = new Map();
+    
+    // Add existing used citations
+    citations.filter(c => c.used).forEach(citation => {
+      uniqueCitationsMap.set(String(citation.id), citation);
+    });
+    
+    // Add selected citations
+    bibliographyCitations.filter(c => c.used).forEach(citation => {
+      uniqueCitationsMap.set(String(citation.id), citation);
+    });
+    
+    const allUniqueCitations = Array.from(uniqueCitationsMap.values());
+    
+    if (allUniqueCitations.length > 0 && isOfficeReady) {
       // Show clearing status
       setStatus(`🧹 Clearing old bibliography (${previousStyle.toUpperCase()} style)...`);
       
@@ -1952,6 +1968,36 @@ const Home = ({ handleLogout, status, setStatus }) => {
     }
   };
 
+  // New function to handle multiple citation selection
+  const handleMultipleSelections = async (selectedPapers) => {
+    // Create a Map to store unique citations and prevent duplicates
+    const uniqueCitationsMap = new Map();
+    
+    // Add existing used citations first
+    citations.filter(c => c.used).forEach(citation => {
+      uniqueCitationsMap.set(String(citation.id), citation);
+    });
+    
+    // Process newly selected papers
+    for (const paper of selectedPapers) {
+      const normalizedCitation = normalizeCitation(paper);
+      if (normalizedCitation) {
+        uniqueCitationsMap.set(String(normalizedCitation.id), {
+          ...normalizedCitation,
+          used: true,
+          addedDate: new Date().toISOString()
+        });
+      }
+    }
+    
+    // Convert Map back to array and update bibliography citations
+    const allUniqueCitations = Array.from(uniqueCitationsMap.values());
+    setBibliographyCitations(allUniqueCitations);
+    
+    // Generate bibliography with all unique citations
+    await generateBibliography();
+  };
+
   const loadSavedCitations = () => {
     try {
       const saved = localStorage.getItem("researchCollab_citations");
@@ -2080,6 +2126,13 @@ const Home = ({ handleLogout, status, setStatus }) => {
     }
 
     try {
+      // Find the top of the document for citation insertion
+      await Word.run(async (context) => {
+        const range = context.document.body.getRange('Start');
+        range.select();
+        await context.sync();
+      });
+
       // Check if citation is already used to prevent duplicates
       const existingCitation = citations.find((c) => String(c.id) === String(citation.id));
       if (existingCitation && existingCitation.used) {
@@ -2118,9 +2171,10 @@ const Home = ({ handleLogout, status, setStatus }) => {
         }
       }
 
-      // Insert into Word with proper formatting
+      // Insert into Word with proper formatting at the top of the document
       await Word.run(async (context) => {
-        const selection = context.document.getSelection();
+        // Always insert at the top of the document
+        const range = context.document.body.getRange('Start');
         const styleFont = getCitationStyleFont(citationStyle);
 
         if (citationFormat === "in-text") {
@@ -2130,10 +2184,10 @@ const Home = ({ handleLogout, status, setStatus }) => {
             formatted.includes("**") ||
             formatted.includes("___")
           ) {
-            // Create a paragraph to handle formatting
-            const tempPara = selection.insertParagraph(
+            // Create a paragraph at the top to handle formatting
+            const tempPara = range.insertParagraph(
               "",
-              Word.InsertLocation.replace
+              Word.InsertLocation.after
             );
             await parseAndFormatText(tempPara, formatted, citationStyle);
           } else {
@@ -2219,24 +2273,54 @@ const Home = ({ handleLogout, status, setStatus }) => {
       return;
     }
 
-    // Use bibliographyCitations instead of all citations to prevent duplication
-    const used = bibliographyCitations.filter((c) => c.used);
-    if (used.length === 0) {
+    // Clear any existing bibliography first
+    await clearExistingBibliography();
+
+    // Get all selected citations and combine with existing used citations
+    const selectedCitations = bibliographyCitations.filter((c) => c.used);
+    
+    // Create a Map to store unique citations by their ID to prevent duplicates
+    const uniqueCitationsMap = new Map();
+    
+    // Add existing citations from the document
+    citations.filter(c => c.used).forEach(citation => {
+      uniqueCitationsMap.set(String(citation.id), citation);
+    });
+    
+    // Add newly selected citations
+    selectedCitations.forEach(citation => {
+      uniqueCitationsMap.set(String(citation.id), citation);
+    });
+    
+    // Convert Map back to array
+    const allUniqueCitations = Array.from(uniqueCitationsMap.values());
+    
+    if (allUniqueCitations.length === 0) {
       setStatus("No citations selected for bibliography - select citations first");
       return;
     }
 
     try {
-      const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
+      const bibRaw = await formatBibliographyCiteproc(allUniqueCitations, citationStyle);
       const styleFont = getCitationStyleFont(citationStyle);
 
       await Word.run(async (context) => {
-        // Always insert bibliography at the end of existing content (not cursor position)
-        let insertionPoint;
+        console.log('📍 Inserting bibliography at the bottom of the document');
+        
         let bibliographyExists = false;
         
         try {
-          console.log('📍 Inserting bibliography at end of existing content');
+          // Insert page break to separate content from bibliography
+          const body = context.document.body;
+          const endRange = body.getRange('End');
+          endRange.insertBreak(Word.BreakType.page);
+          
+          // Create bibliography section
+          const bibliographySection = body.insertParagraph(bibliographyTitle, Word.InsertLocation.end);
+          bibliographySection.style = "Heading 1";
+          bibliographySection.font.bold = true;
+          bibliographySection.font.size = 16;
+          bibliographySection.font.name = styleFont.family;
           
           // Check if bibliography title already exists in document
           const searchResults = context.document.body.search(bibliographyTitle, { matchCase: false, matchWholeWord: false });
@@ -2332,6 +2416,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
             insertionPoint = title.getRange(Word.RangeLocation.after);
           }
           // If bibliography title exists, still use the current insertion point (cursor or content end)
+          await context.sync();
           
         } catch (contentError) {
           console.log('⚠️ Content-based insertion failed, using end of document:', contentError);
@@ -2393,8 +2478,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
       setBibliographyCitations([]);
       
       setStatus(
-        `✅ Bibliography ${bibliographyExists ? 'updated' : 'created'}: ${used.length} citation${
-          used.length !== 1 ? "s" : ""
+        `✅ Bibliography ${bibliographyExists ? 'updated' : 'created'}: ${allUniqueCitations.length} citation${
+          allUniqueCitations.length !== 1 ? "s" : ""
         } in ${citationStyle.toUpperCase()} style`
       );
     } catch (e) {
