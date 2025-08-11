@@ -2049,6 +2049,29 @@ const Home = ({ handleLogout, status, setStatus }) => {
     }
   };
 
+  // ADDED: Function to handle bibliography citation selection (checkbox behavior)
+  const handleBibliographyCitationToggle = (citation, isSelected) => {
+    console.log(`📋 Bibliography citation toggle: ${citation.id} - ${isSelected ? 'selected' : 'deselected'}`);
+    
+    setBibliographyCitations(prev => {
+      if (isSelected) {
+        // Add citation to bibliography selection
+        const alreadySelected = prev.find(c => String(c.id) === String(citation.id));
+        if (!alreadySelected) {
+          const normalizedCitation = normalizeCitation(citation);
+          console.log(`✅ Added citation to bibliography selection:`, normalizedCitation);
+          return [...prev, normalizedCitation];
+        }
+        return prev;
+      } else {
+        // Remove citation from bibliography selection
+        const updated = prev.filter(c => String(c.id) !== String(citation.id));
+        console.log(`➖ Removed citation from bibliography selection`);
+        return updated;
+      }
+    });
+  };
+
   const addCitationToLibrary = (citation) => {
     try {
       const normalized = normalizeCitation(citation);
@@ -2258,7 +2281,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
       console.log(`✅ Citation library updated. Total: ${updated.length}, Used: ${updated.filter(c => c.used).length}`);
       
       setStatus(
-        `✅ Citation inserted successfully with ${citationStyle.toUpperCase()} style formatting`
+         `✅ Citation inserted successfully with ${citationStyle.toUpperCase()} style formatting`
       );
       
     } catch (error) {
@@ -3709,6 +3732,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
               insertCitation={insertCitation}
               markCitationAsUnused={markCitationAsUnused}
               syncCitationsWithDocument={syncCitationsWithDocument}
+              handleBibliographyCitationToggle={handleBibliographyCitationToggle}
+              bibliographyCitations={bibliographyCitations}
             />
 
             <BibliographySection

@@ -34,6 +34,9 @@ const CitationSearch = ({
   insertCitation,
   markCitationAsUnused,
   syncCitationsWithDocument,
+  // NEW: Bibliography citation selection
+  handleBibliographyCitationToggle,
+  bibliographyCitations,
 }) => {
   // State for folder navigation
   const [currentParentId, setCurrentParentId] = useState(null);
@@ -65,20 +68,20 @@ const CitationSearch = ({
     );
   };
 
-  // Handle search result selection with automatic insertion
+  // FIXED: Handle search result selection for bibliography (not direct insertion)
   const handleSearchResultSelect = (resultId, checked) => {
+    const selectedResult = searchResults.find(r => r.id === resultId);
+    if (selectedResult && handleBibliographyCitationToggle) {
+      console.log(`📋 Checkbox ${checked ? 'checked' : 'unchecked'} for:`, selectedResult.title?.substring(0, 50));
+      handleBibliographyCitationToggle(selectedResult, checked);
+    }
+    
+    // Update local selection state for UI
     const newSelected = new Set(selectedSearchResults);
     if (checked) {
       newSelected.add(resultId);
-      // Insert citation directly - it will add to library and mark as used
-      const selectedResult = searchResults.find(r => r.id === resultId);
-      if (selectedResult) {
-        insertCitationToWord(selectedResult);
-      }
     } else {
       newSelected.delete(resultId);
-      // Mark citation as unused when unchecked
-      removeCitationFromDocument(resultId);
     }
     setSelectedSearchResults(newSelected);
   };
@@ -98,28 +101,21 @@ const CitationSearch = ({
     }
   };
 
-  // Handle select all search results with automatic insertion
+  // FIXED: Handle select all for bibliography selection
   const handleSelectAllSearchResults = (checked) => {
     if (checked) {
-      // Select all citations and insert/use them
-      const allIds = new Set(searchResults.map(r => r.id));
-      setSelectedSearchResults(allIds);
-      // Insert all citations that are not already used
+      // Select all current search results for bibliography
       searchResults.forEach(result => {
-        const citationInLibrary = citations.find(c => String(c.id) === String(result.id));
-        const isUsed = citationInLibrary?.used || false;
-        if (!isUsed) {
-          insertCitationToWord(result);
+        if (handleBibliographyCitationToggle) {
+          handleBibliographyCitationToggle(result, true);
         }
       });
+      setSelectedSearchResults(new Set(searchResults.map(r => r.id)));
     } else {
-      // Uncheck all - mark all currently selected or used citations as unused
+      // Deselect all current search results
       searchResults.forEach(result => {
-        const citationInLibrary = citations.find(c => String(c.id) === String(result.id));
-        const isUsed = citationInLibrary?.used || false;
-        const isSelected = selectedSearchResults.has(result.id);
-        if (isUsed || isSelected) {
-          removeCitationFromDocument(result.id);
+        if (handleBibliographyCitationToggle) {
+          handleBibliographyCitationToggle(result, false);
         }
       });
       setSelectedSearchResults(new Set());
@@ -482,29 +478,26 @@ const CitationSearch = ({
                         <input
                           type="checkbox"
                           checked={(() => {
-                            // Check if all search results are selected (either in selectedSearchResults or used)
+                            // FIXED: Check if all search results are selected for bibliography
                             const allSelected = searchResults.every(result => {
-                              const citationInLibrary = citations.find(c => String(c.id) === String(result.id));
-                              const isUsed = citationInLibrary?.used || false;
+                              const isInBibliography = bibliographyCitations?.some(c => String(c.id) === String(result.id)) || false;
                               const isSelected = selectedSearchResults.has(result.id);
-                              return isSelected || isUsed;
+                              return isSelected || isInBibliography;
                             });
                             return searchResults.length > 0 && allSelected;
                           })()}
                           ref={(el) => {
                             if (el) {
-                              // Set indeterminate if some but not all are selected
+                              // Set indeterminate if some but not all are selected for bibliography
                               const someSelected = searchResults.some(result => {
-                                const citationInLibrary = citations.find(c => String(c.id) === String(result.id));
-                                const isUsed = citationInLibrary?.used || false;
+                                const isInBibliography = bibliographyCitations?.some(c => String(c.id) === String(result.id)) || false;
                                 const isSelected = selectedSearchResults.has(result.id);
-                                return isSelected || isUsed;
+                                return isSelected || isInBibliography;
                               });
                               const allSelected = searchResults.every(result => {
-                                const citationInLibrary = citations.find(c => String(c.id) === String(result.id));
-                                const isUsed = citationInLibrary?.used || false;
+                                const isInBibliography = bibliographyCitations?.some(c => String(c.id) === String(result.id)) || false;
                                 const isSelected = selectedSearchResults.has(result.id);
-                                return isSelected || isUsed;
+                                return isSelected || isInBibliography;
                               });
                               el.indeterminate = someSelected && !allSelected;
                             }
@@ -533,8 +526,11 @@ const CitationSearch = ({
                     const isUsed = citationInLibrary?.used || false;
                     const isSelected = selectedSearchResults.has(result.id);
                     
-                    // Determine checkbox state - allow unchecking even if used
-                    const checkboxChecked = isSelected || isUsed;
+                    // FIXED: Check if citation is selected for bibliography
+                    const isInBibliography = bibliographyCitations?.some(c => String(c.id) === String(result.id)) || false;
+                    
+                    // Determine checkbox state - use bibliography selection instead of used status
+                    const checkboxChecked = isSelected || isInBibliography;
                     const checkboxDisabled = false; // Never disable checkbox - allow unchecking
                     
                     return (
