@@ -10,6 +10,15 @@ const BibliographySection = ({
 }) => {
   const usedCitations = citations.filter(c => c.used);
   
+  // DEBUG: Add logging to understand what citations we have
+  console.log('🔍 DEBUG BibliographySection - All citations:', citations.length);
+  console.log('🔍 DEBUG BibliographySection - Used citations:', usedCitations.length);
+  console.log('🔍 DEBUG BibliographySection - Citations with used=true:', citations.map(c => ({
+    id: c.id,
+    title: c.title || 'No title',
+    used: c.used
+  })));
+  
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-6 mb-5 shadow-sm">
       <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">

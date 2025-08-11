@@ -2178,9 +2178,13 @@ const Home = ({ handleLogout, status, setStatus }) => {
       // Update citation library - handle both existing and new citations
       const existingCitationIndex = citations.findIndex((c) => String(c.id) === String(normalizedCitation.id));
       
+      console.log('🔍 DEBUG insertCitation - Existing citation index:', existingCitationIndex);
+      console.log('🔍 DEBUG insertCitation - Current citations count:', citations.length);
+      
       let updated;
       if (existingCitationIndex >= 0) {
         // Citation exists, mark it as used
+        console.log('🔍 DEBUG insertCitation - Marking existing citation as used');
         updated = citations.map((c) =>
           String(c.id) === String(normalizedCitation.id)
             ? {
@@ -2192,6 +2196,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
         );
       } else {
         // Citation doesn't exist, add it and mark as used
+        console.log('🔍 DEBUG insertCitation - Adding new citation and marking as used');
         const newCitation = {
           ...normalizedCitation,
           addedDate: new Date().toISOString(),
@@ -2200,6 +2205,9 @@ const Home = ({ handleLogout, status, setStatus }) => {
         };
         updated = [...citations, newCitation];
       }
+      
+      console.log('🔍 DEBUG insertCitation - Updated citations count:', updated.length);
+      console.log('🔍 DEBUG insertCitation - Used citations count:', updated.filter(c => c.used).length);
       
       setCitations(updated);
       saveCitations(updated);
