@@ -1600,7 +1600,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
         
         // Clear the bibliography state as well
         setBibliography("");
-        setBibliographyCitations([]);
         
         // Wait a moment for clearing to complete
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -2182,22 +2181,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
       setCitations(updated);
       saveCitations(updated);
       
-      // Add to bibliography citations for future bibliography generation
-      const citationForBibliography = {
-        ...normalizedCitation,
-        used: true,
-        addedDate: new Date().toISOString(),
-        inTextCitations: [formatted],
-      };
-      setBibliographyCitations(prev => {
-        // Check if citation already exists in bibliography citations
-        const exists = prev.find(c => String(c.id) === String(normalizedCitation.id));
-        if (exists) {
-          return prev; // Don't add duplicate
-        }
-        return [...prev, citationForBibliography];
-      });
-      
       setStatus(
         `Citation inserted successfully with ${citationStyle.toUpperCase()} style and proper formatting`
       );
@@ -2217,8 +2200,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
       return;
     }
 
-    // Use bibliographyCitations instead of all citations to prevent duplication
-    const used = bibliographyCitations.filter((c) => c.used);
+    // Use all used citations from the main citations array instead of bibliographyCitations
+    const used = citations.filter((c) => c.used);
     if (used.length === 0) {
       setStatus("No citations selected for bibliography - select citations first");
       return;
@@ -2384,9 +2367,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
       });
 
       setBibliography(bibRaw);
-      
-      // Clear bibliography citations after successful generation to prevent duplication
-      setBibliographyCitations([]);
       
       setStatus(
         `✅ Bibliography ${bibliographyExists ? 'updated' : 'created'}: ${used.length} citation${
@@ -3733,7 +3713,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
               generateBibliography={generateBibliography}
               autoRegenerateBibliography={autoRegenerateBibliography}
               isOfficeReady={isOfficeReady}
-              citations={bibliographyCitations}
+              citations={citations}
               testAPACitationFormatting={testAPACitationFormatting}
               testDuplicateRemoval={testDuplicateRemoval}
             />
