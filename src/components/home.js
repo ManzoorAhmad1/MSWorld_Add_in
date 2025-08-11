@@ -2252,7 +2252,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
       await Word.run(async (context) => {
         // Always insert bibliography at the end of existing content (not cursor position)
-        let insertionPoint;
+        let insertionPoint = null;
         let bibliographyExists = false;
         
         try {
@@ -2268,8 +2268,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
           // Always find the end of content or use cursor position, regardless of existing bibliography
           console.log('📍 Finding insertion point - end of content or cursor position');
           
-          let insertionPoint;
-          
           // Try to get cursor position first
           try {
             const selection = context.document.getSelection();
@@ -2281,7 +2279,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
               insertionPoint = selection.getRange(Word.RangeLocation.after);
               
               // Add some space before bibliography if using cursor
-              insertionPoint.insertParagraph("", Word.InsertLocation.after);
+              const spacePara = insertionPoint.insertParagraph("", Word.InsertLocation.after);
+              insertionPoint = spacePara.getRange(Word.RangeLocation.after);
             } else {
               throw new Error('No cursor selection, use content end');
             }
@@ -2383,6 +2382,18 @@ const Home = ({ handleLogout, status, setStatus }) => {
         if (!insertionPoint) {
           console.log('⚠️ insertionPoint is null, using document body end as fallback');
           insertionPoint = context.document.body.getRange(Word.RangeLocation.end);
+        }
+
+        // Load insertionPoint to ensure it's valid
+        try {
+          insertionPoint.load('text');
+          await context.sync();
+          console.log('✅ insertionPoint validated and loaded');
+        } catch (loadError) {
+          console.log('⚠️ insertionPoint load failed, creating new one:', loadError);
+          insertionPoint = context.document.body.getRange(Word.RangeLocation.end);
+          insertionPoint.load('text');
+          await context.sync();
         }
 
         // Process each bibliography entry at the determined insertion point
