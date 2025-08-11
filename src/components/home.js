@@ -2100,6 +2100,13 @@ const Home = ({ handleLogout, status, setStatus }) => {
         return;
       }
 
+      // Debug: Check normalized citation
+      console.log('🔧 Normalized citation:', { 
+        originalId: citation.id, 
+        normalizedId: normalizedCitation.id, 
+        title: normalizedCitation.title 
+      });
+
       let formatted = await formatCitationCiteproc(
         normalizedCitation,
         citationStyle,
@@ -2168,8 +2175,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
       console.log('🔍 Citation insertion debug:');
       console.log('📝 Looking for citation ID:', normalizedCitation.id);
       console.log('📊 Existing citation index:', existingCitationIndex);
-      console.log('📚 Current citations in library:', citations.map(c => ({ id: c.id, title: c.title, used: c.used })));
-      
+      console.log('📚 Current citations in library:', citations.map(c => ({ id: c.id, title: c.title?.substring(0, 30) + '...', used: c.used })));
+      console.log('🔄 About to update citations state...');
       let updated;
       if (existingCitationIndex >= 0) {
         console.log('✅ Found existing citation, marking as used');
@@ -2202,7 +2209,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
       console.log('🔄 Citation inserted and states updated:');
       console.log('📊 Total citations after insert:', updated.length);
       console.log('✅ Used citations after insert:', updated.filter(c => c.used).length);
-      console.log('📝 Inserted citation details:', { id: normalizedCitation.id, title: normalizedCitation.title, used: true });
+      console.log('📝 All citation IDs:', updated.map(c => ({ id: c.id, title: c.title?.substring(0, 20) + '...', used: c.used })));
+      console.log('📝 Inserted citation details:', { id: normalizedCitation.id, title: normalizedCitation.title?.substring(0, 30) + '...', used: true });
       
       // Bibliography citations now handled by main citations state - no separate tracking needed
       // setBibliographyCitations logic removed since main citations state already tracks used status
