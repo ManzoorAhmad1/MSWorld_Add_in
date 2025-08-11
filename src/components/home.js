@@ -1600,7 +1600,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
         
         // Clear the bibliography state as well
         setBibliography("");
-        // setBibliographyCitations([]); // ❌ REMOVED - Using main citations state now
+        setBibliographyCitations([]);
         
         // Wait a moment for clearing to complete
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -1613,45 +1613,116 @@ const Home = ({ handleLogout, status, setStatus }) => {
         const styleFont = getCitationStyleFont(newStyle);
 
         await Word.run(async (context) => {
-          console.log('📍 Style change: Simplified insertion - always at document end');
-          
-          // SIMPLIFIED: Always insert at document end
-          const title = context.document.body.insertParagraph(
-            bibliographyTitle,
-            Word.InsertLocation.end
-          );
-          title.style = "Heading 1";
-          title.font.bold = true;
-          title.font.size = 16;
-          title.font.name = styleFont.family;
-          
-          // Update insertion point to after the title for bibliography entries
-          let currentInsertionPoint = title.getRange(Word.RangeLocation.after);
-          
-          // Process each bibliography entry at document end
-          const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
-          for (let i = 0; i < bibEntries.length; i++) {
-            const entry = bibEntries[i].trim();
-            if (!entry) continue;
-
-            // Create paragraph for each entry at document end
-            const para = currentInsertionPoint.insertParagraph("", Word.InsertLocation.after);
-            para.font.name = styleFont.family;
-            para.font.size = styleFont.size;
-            para.leftIndent = 36; // Hanging indent for citations
-            para.firstLineIndent = -36;
-
-            // Format the entry text
-            if (entry.includes("*")) {
-              await parseAndFormatText(para, entry, newStyle);
-            } else {
-              const range = para.insertText(entry, Word.InsertLocation.end);
-              range.font.name = styleFont.family;
-              range.font.size = styleFont.size;
+          try {
+            console.log('📍 Style change: Inserting new bibliography at end of existing content');
+            
+            // Find the end of existing content (not cursor position)
+            const bodyRange = context.document.body.getRange();
+            bodyRange.load('text');
+            await context.sync();
+            
+            // Find the last non-empty paragraph
+            const allParagraphs = context.document.body.paragraphs;
+            allParagraphs.load('items');
+            await context.sync();
+            
+            let lastContentParagraph = null;
+            
+            // Find the last paragraph with actual content (working backwards)
+            for (let i = allParagraphs.items.length - 1; i >= 0; i--) {
+              const para = allParagraphs.items[i];
+              para.load('text');
+              await context.sync();
+              
+              if (para.text.trim().length > 0) {
+                lastContentParagraph = para;
+                break;
+              }
             }
             
-            // Update insertion point for next entry
-            currentInsertionPoint = para.getRange(Word.RangeLocation.after);
+            let insertionPoint;
+            if (lastContentParagraph) {
+              console.log('� Found last content paragraph, inserting after it');
+              // Insert after the last content paragraph
+              insertionPoint = lastContentParagraph.getRange(Word.RangeLocation.after);
+              
+              // Add some space before bibliography
+              insertionPoint.insertParagraph("", Word.InsertLocation.after);
+            } else {
+              console.log('📄 No content found, using document start');
+              // If no content, insert at document start
+              insertionPoint = context.document.body.getRange(Word.RangeLocation.start);
+            }
+            
+            // Create bibliography title at cursor or content end
+            const title = insertionPoint.insertParagraph(
+              bibliographyTitle,
+              Word.InsertLocation.after
+            );
+            title.style = "Heading 1";
+            title.font.bold = true;
+            title.font.size = 16;
+            title.font.name = styleFont.family;
+            
+            // Update insertion point to after the title for bibliography entries
+            let currentInsertionPoint = title.getRange(Word.RangeLocation.after);
+            
+            // Process each bibliography entry at end of content
+            const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
+            for (let i = 0; i < bibEntries.length; i++) {
+              const entry = bibEntries[i].trim();
+              if (!entry) continue;
+
+              // Create paragraph for each entry at cursor position
+              const para = currentInsertionPoint.insertParagraph("", Word.InsertLocation.after);
+              para.font.name = styleFont.family;
+              para.font.size = styleFont.size;
+              para.leftIndent = 36; // Hanging indent for citations
+              para.firstLineIndent = -36;
+
+              // Format the entry text
+              if (entry.includes("*")) {
+                await parseAndFormatText(para, entry, newStyle);
+              } else {
+                para.insertText(entry, Word.InsertLocation.end);
+              }
+              
+              // Update insertion point for next entry
+              currentInsertionPoint = para.getRange(Word.RangeLocation.after);
+            }
+
+          } catch (contentError) {
+            console.log('⚠️ Content insertion failed, using end of document:', contentError);
+            // Fallback: insert at end of document
+            const title = context.document.body.insertParagraph(
+              bibliographyTitle,
+              Word.InsertLocation.end
+            );
+            title.style = "Heading 1";
+            title.font.bold = true;
+            title.font.size = 16;
+            title.font.name = styleFont.family;
+            
+            // Process each bibliography entry at end of document
+            const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
+            for (let i = 0; i < bibEntries.length; i++) {
+              const entry = bibEntries[i].trim();
+              if (!entry) continue;
+
+              // Create paragraph for each entry
+              const para = context.document.body.insertParagraph("", Word.InsertLocation.end);
+              para.font.name = styleFont.family;
+              para.font.size = styleFont.size;
+              para.leftIndent = 36; // Hanging indent for citations
+              para.firstLineIndent = -36;
+
+              // Format the entry text
+              if (entry.includes("*")) {
+                await parseAndFormatText(para, entry, newStyle);
+              } else {
+                para.insertText(entry, Word.InsertLocation.end);
+              }
+            }
           }
 
           await context.sync();
@@ -2011,12 +2082,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
     try {
       // Check if citation is already used to prevent duplicates
       const existingCitation = citations.find((c) => String(c.id) === String(citation.id));
-      
-      // Debug: Initial citation check
-      console.log('🎯 Starting insertCitation process:');
-      console.log('📝 Citation to insert:', { id: citation.id, title: citation.title });
-      console.log('🔍 Existing citation found:', existingCitation ? { id: existingCitation.id, used: existingCitation.used } : 'None');
-      
       if (existingCitation && existingCitation.used) {
         setStatus("Citation is already used in document");
         return;
@@ -2028,13 +2093,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
         setStatus("Failed to normalize citation");
         return;
       }
-
-      // Debug: Check normalized citation
-      console.log('🔧 Normalized citation:', { 
-        originalId: citation.id, 
-        normalizedId: normalizedCitation.id, 
-        title: normalizedCitation.title 
-      });
 
       let formatted = await formatCitationCiteproc(
         normalizedCitation,
@@ -2100,15 +2158,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
       // Update citation library - handle both existing and new citations
       const existingCitationIndex = citations.findIndex((c) => String(c.id) === String(normalizedCitation.id));
       
-      // Debug: Check if citation exists in library
-      console.log('🔍 Citation insertion debug:');
-      console.log('📝 Looking for citation ID:', normalizedCitation.id);
-      console.log('📊 Existing citation index:', existingCitationIndex);
-      console.log('📚 Current citations in library:', citations.map(c => ({ id: c.id, title: c.title?.substring(0, 30) + '...', used: c.used })));
-      console.log('🔄 About to update citations state...');
       let updated;
       if (existingCitationIndex >= 0) {
-        console.log('✅ Found existing citation, marking as used');
         // Citation exists, mark it as used
         updated = citations.map((c) =>
           String(c.id) === String(normalizedCitation.id)
@@ -2120,7 +2171,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
             : c
         );
       } else {
-        console.log('➕ Citation not found, adding new citation as used');
         // Citation doesn't exist, add it and mark as used
         const newCitation = {
           ...normalizedCitation,
@@ -2134,15 +2184,21 @@ const Home = ({ handleLogout, status, setStatus }) => {
       setCitations(updated);
       saveCitations(updated);
       
-      // Debug: Check citation states after update
-      console.log('🔄 Citation inserted and states updated:');
-      console.log('📊 Total citations after insert:', updated.length);
-      console.log('✅ Used citations after insert:', updated.filter(c => c.used).length);
-      console.log('📝 All citation IDs:', updated.map(c => ({ id: c.id, title: c.title?.substring(0, 20) + '...', used: c.used })));
-      console.log('📝 Inserted citation details:', { id: normalizedCitation.id, title: normalizedCitation.title?.substring(0, 30) + '...', used: true });
-      
-      // Bibliography citations now handled by main citations state - no separate tracking needed
-      // setBibliographyCitations logic removed since main citations state already tracks used status
+      // Add to bibliography citations for future bibliography generation
+      const citationForBibliography = {
+        ...normalizedCitation,
+        used: true,
+        addedDate: new Date().toISOString(),
+        inTextCitations: [formatted],
+      };
+      setBibliographyCitations(prev => {
+        // Check if citation already exists in bibliography citations
+        const exists = prev.find(c => String(c.id) === String(normalizedCitation.id));
+        if (exists) {
+          return prev; // Don't add duplicate
+        }
+        return [...prev, citationForBibliography];
+      });
       
       setStatus(
         `Citation inserted successfully with ${citationStyle.toUpperCase()} style and proper formatting`
@@ -2163,13 +2219,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
       return;
     }
 
-    // Use main citations state to get ALL used citations (not just bibliographyCitations)
-    const used = citations.filter((c) => c.used);
-    console.log('🔍 Bibliography Debug Info:');
-    console.log('📊 Total citations in state:', citations.length);
-    console.log('✅ Used citations for bibliography:', used.length);
-    console.log('📝 Used citations details:', used.map(c => ({ id: c.id, title: c.title, used: c.used })));
-    
+    // Use bibliographyCitations instead of all citations to prevent duplication
+    const used = bibliographyCitations.filter((c) => c.used);
     if (used.length === 0) {
       setStatus("No citations selected for bibliography - select citations first");
       return;
@@ -2180,59 +2231,139 @@ const Home = ({ handleLogout, status, setStatus }) => {
       const styleFont = getCitationStyleFont(citationStyle);
 
       await Word.run(async (context) => {
-        console.log('📍 Starting bibliography insertion process...');
-        console.log('📊 Bibliography content length:', bibRaw.length);
-        console.log('📝 Bibliography preview:', bibRaw.substring(0, 200) + '...');
-        
-        // SIMPLIFIED: Always insert bibliography at the end of document
-        let insertionPoint = null;
+        // Always insert bibliography at the end of existing content (not cursor position)
+        let insertionPoint;
         let bibliographyExists = false;
         
-        console.log('📍 Simplified insertion - always at document end');
-        
-        // Check if bibliography title already exists in document
-        const searchResults = context.document.body.search(bibliographyTitle, { matchCase: false, matchWholeWord: false });
-        searchResults.load('items');
-        await context.sync();
-
-        bibliographyExists = searchResults.items.length > 0;
-        console.log('� Bibliography exists:', bibliographyExists);
-        
-        // Always use document end - simple and reliable
-        insertionPoint = context.document.body.getRange(Word.RangeLocation.end);
-        insertionPoint.load('text');
-        await context.sync();
-        console.log('✅ Using document end for insertion');
-
-        // Create bibliography title only if it doesn't exist
-        if (!bibliographyExists) {
-          console.log('📝 Creating new bibliography title...');
-          const title = insertionPoint.insertParagraph(
-            bibliographyTitle,
-            Word.InsertLocation.after
-          );
-          title.style = "Heading 1";
-          title.font.bold = true;
-          title.font.size = 16;
-          title.font.name = styleFont.family;
+        try {
+          console.log('📍 Inserting bibliography at end of existing content');
           
-          // Update insertion point to after the title for bibliography entries
-          insertionPoint = title.getRange(Word.RangeLocation.after);
-          console.log('✅ Bibliography title created successfully');
-        } else {
-          console.log('📖 Bibliography title already exists, appending entries...');
+          // Check if bibliography title already exists in document
+          const searchResults = context.document.body.search(bibliographyTitle, { matchCase: false, matchWholeWord: false });
+          searchResults.load('items');
+          await context.sync();
+
+          bibliographyExists = searchResults.items.length > 0;
+          
+          // Always find the end of content or use cursor position, regardless of existing bibliography
+          console.log('📍 Finding insertion point - end of content or cursor position');
+          
+          let insertionPoint;
+          
+          // Try to get cursor position first
+          try {
+            const selection = context.document.getSelection();
+            selection.load(['isEmpty', 'text']);
+            await context.sync();
+            
+            if (!selection.isEmpty || selection.text.trim().length > 0) {
+              console.log('📍 Using cursor position for bibliography insertion');
+              insertionPoint = selection.getRange(Word.RangeLocation.after);
+              
+              // Add some space before bibliography if using cursor
+              insertionPoint.insertParagraph("", Word.InsertLocation.after);
+            } else {
+              throw new Error('No cursor selection, use content end');
+            }
+          } catch (cursorError) {
+            console.log('📍 Cursor not available, finding end of content');
+            
+            // Find the last non-empty paragraph (end of content)
+            const allParagraphs = context.document.body.paragraphs;
+            allParagraphs.load('items');
+            await context.sync();
+            
+            let lastContentParagraph = null;
+            
+            // Find the last paragraph with actual content (working backwards)
+            // Skip bibliography entries by checking if paragraph contains citation patterns
+            for (let i = allParagraphs.items.length - 1; i >= 0; i--) {
+              const para = allParagraphs.items[i];
+              para.load('text');
+              await context.sync();
+              
+              const paraText = para.text.trim();
+              
+              // Skip empty paragraphs
+              if (paraText.length === 0) continue;
+              
+              // Skip bibliography title
+              if (paraText.toLowerCase().includes('references') || paraText.toLowerCase().includes('bibliography')) {
+                continue;
+              }
+              
+              // Skip bibliography entries (look for citation patterns)
+              const isBibEntry = paraText.includes('(') && paraText.includes(')') && 
+                               (paraText.includes('.') && paraText.length > 50) ||
+                               paraText.match(/^[A-Z][a-z]+,\s*[A-Z]\./);
+              
+              if (!isBibEntry) {
+                lastContentParagraph = para;
+                break;
+              }
+            }
+            
+            if (lastContentParagraph) {
+              console.log('📄 Found last content paragraph, inserting after it');
+              // Insert after the last content paragraph
+              insertionPoint = lastContentParagraph.getRange(Word.RangeLocation.after);
+              
+              // Add some space before bibliography
+              insertionPoint.insertParagraph("", Word.InsertLocation.after);
+            } else {
+              console.log('📄 No content found, using document start');
+              // If no content, insert at document start
+              insertionPoint = context.document.body.getRange(Word.RangeLocation.start);
+            }
+          }
+          
+          // Create bibliography title only if it doesn't exist
+          if (!bibliographyExists) {
+            const title = insertionPoint.insertParagraph(
+              bibliographyTitle,
+              Word.InsertLocation.after
+            );
+            title.style = "Heading 1";
+            title.font.bold = true;
+            title.font.size = 16;
+            title.font.name = styleFont.family;
+            
+            // Update insertion point to after the title for bibliography entries
+            insertionPoint = title.getRange(Word.RangeLocation.after);
+          }
+          // If bibliography title exists, still use the current insertion point (cursor or content end)
+          
+        } catch (contentError) {
+          console.log('⚠️ Content-based insertion failed, using end of document:', contentError);
+          // Fallback: insert at end of document
+          
+          // Check if bibliography title exists
+          const searchResults = context.document.body.search(bibliographyTitle, { matchCase: false, matchWholeWord: false });
+          searchResults.load('items');
+          await context.sync();
+
+          bibliographyExists = searchResults.items.length > 0;
+          
+          if (!bibliographyExists) {
+            const title = context.document.body.insertParagraph(
+              bibliographyTitle,
+              Word.InsertLocation.end
+            );
+            title.style = "Heading 1";
+            title.font.bold = true;
+            title.font.size = 16;
+            title.font.name = styleFont.family;
+          }
+          
+          insertionPoint = context.document.body.getRange(Word.RangeLocation.end);
         }
 
         // Process each bibliography entry at the determined insertion point
         const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
-        console.log(`📊 Processing ${bibEntries.length} bibliography entries...`);
-        
         for (let i = 0; i < bibEntries.length; i++) {
           const entry = bibEntries[i].trim();
           if (!entry) continue;
 
-          console.log(`📝 Inserting entry ${i + 1}/${bibEntries.length}: ${entry.substring(0, 50)}...`);
-          
           // Create paragraph for each entry at insertion point
           const para = insertionPoint.insertParagraph("", Word.InsertLocation.after);
           para.font.name = styleFont.family;
@@ -2242,10 +2373,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
           // Format the entry text
           if (entry.includes("*")) {
-            console.log(`🎨 Formatting entry with special formatting: ${i + 1}`);
             await parseAndFormatText(para, entry, citationStyle);
           } else {
-            console.log(`📄 Inserting plain text entry: ${i + 1}`);
             const range = para.insertText(entry, Word.InsertLocation.end);
             range.font.name = styleFont.family;
             range.font.size = styleFont.size;
@@ -2253,17 +2382,15 @@ const Home = ({ handleLogout, status, setStatus }) => {
           
           // Update insertion point for next entry
           insertionPoint = para.getRange(Word.RangeLocation.after);
-          console.log(`✅ Entry ${i + 1} inserted successfully`);
         }
 
         await context.sync();
-        console.log('🎉 All bibliography entries processed and synced to Word!');
       });
 
       setBibliography(bibRaw);
       
-      // DON'T clear bibliography citations - keep them selected for future operations
-      // setBibliographyCitations([]); // ❌ REMOVED - This was causing the issue
+      // Clear bibliography citations after successful generation to prevent duplication
+      setBibliographyCitations([]);
       
       setStatus(
         `✅ Bibliography ${bibliographyExists ? 'updated' : 'created'}: ${used.length} citation${
@@ -2279,87 +2406,72 @@ const Home = ({ handleLogout, status, setStatus }) => {
   // COMPLETELY REWRITTEN: Simplified text formatting to prevent duplication
   const parseAndFormatText = async (paragraph, text, citationStyle) => {
     try {
-      console.log('🎨 parseAndFormatText called with:', { 
-        text: text.substring(0, 100) + '...', 
-        citationStyle,
-        hasAsterisks: text.includes('*')
-      });
-      
       const styleFont = getCitationStyleFont(citationStyle);
-      
-      // SIMPLIFIED APPROACH: Just insert the text directly without nested Word.run contexts
-      // The paragraph is already within a Word.run context from the caller
-      
-      if (text.includes('*')) {
-        // Handle italic formatting - but without nested Word.run
-        let currentText = text;
-        let currentPos = 0;
-        
-        // Simple regex replacement approach
-        const italicPattern = /\*([^*]+)\*/g;
-        let lastIndex = 0;
-        let match;
-        
-        console.log('🔤 Processing text with italic formatting...');
-        
-        while ((match = italicPattern.exec(text)) !== null) {
-          // Insert text before the italic part (if any)
-          if (match.index > lastIndex) {
-            const beforeText = text.substring(lastIndex, match.index);
-            if (beforeText.trim()) {
-              const range = paragraph.insertText(beforeText, Word.InsertLocation.end);
-              range.font.name = styleFont.family;
-              range.font.size = styleFont.size;
-              range.font.italic = false;
-            }
-          }
-          
-          // Insert the italic text
-          const italicText = match[1];
+      let processedText = text;
+      let parts = [];
+
+      // Split text by asterisks to handle italics properly
+      const asteriskParts = processedText.split(/(\*[^*]+\*)/);
+
+      for (let i = 0; i < asteriskParts.length; i++) {
+        const part = asteriskParts[i];
+        if (!part) continue;
+
+        if (part.startsWith("*") && part.endsWith("*")) {
+          // This is italic text - remove asterisks and mark as italic
+          const italicText = part.slice(1, -1);
           if (italicText.trim()) {
-            const italicRange = paragraph.insertText(italicText, Word.InsertLocation.end);
-            italicRange.font.name = styleFont.family;
-            italicRange.font.size = styleFont.size;
-            italicRange.font.italic = true;
+            parts.push({ text: italicText, type: "italic" });
           }
-          
-          lastIndex = match.index + match[0].length;
+        } else {
+          // This is regular text
+          if (part.trim()) {
+            parts.push({ text: part, type: "normal" });
+          }
         }
-        
-        // Insert any remaining text after the last italic part
-        if (lastIndex < text.length) {
-          const remainingText = text.substring(lastIndex);
-          if (remainingText.trim()) {
-            const range = paragraph.insertText(remainingText, Word.InsertLocation.end);
+      }
+
+      // Insert each part with appropriate formatting
+      for (const part of parts) {
+        if (part.type === "italic") {
+          await Word.run(async (context) => {
+            const range = paragraph.insertText(
+              part.text,
+              Word.InsertLocation.end
+            );
+            range.font.name = styleFont.family;
+            range.font.size = styleFont.size;
+            range.font.italic = true;
+            await context.sync();
+          });
+        } else {
+          await Word.run(async (context) => {
+            const range = paragraph.insertText(
+              part.text,
+              Word.InsertLocation.end
+            );
             range.font.name = styleFont.family;
             range.font.size = styleFont.size;
             range.font.italic = false;
-          }
+            await context.sync();
+          });
         }
-        
-        console.log('✅ Italic formatting completed');
-        
-      } else {
-        // No special formatting needed - direct insertion
-        console.log('📄 Inserting plain text directly...');
-        const range = paragraph.insertText(text, Word.InsertLocation.end);
-        range.font.name = styleFont.family;
-        range.font.size = styleFont.size;
-        range.font.italic = false;
-        console.log('✅ Plain text inserted successfully');
       }
-      
     } catch (error) {
       console.error("❌ Text formatting error:", error);
-      
       // Ultimate fallback: insert plain text without any formatting
       try {
         const plainText = text.replace(/\*([^*]+)\*/g, "$1"); // Remove asterisks
-        const range = paragraph.insertText(plainText, Word.InsertLocation.end);
-        const styleFont = getCitationStyleFont(citationStyle);
-        range.font.name = styleFont.family;
-        range.font.size = styleFont.size;
-        console.log('✅ Fallback text insertion completed');
+        await Word.run(async (context) => {
+          const range = paragraph.insertText(
+            plainText,
+            Word.InsertLocation.end
+          );
+          const styleFont = getCitationStyleFont(citationStyle);
+          range.font.name = styleFont.family;
+          range.font.size = styleFont.size;
+          await context.sync();
+        });
       } catch (fallbackError) {
         console.error("❌ Even fallback failed:", fallbackError);
       }
@@ -3625,7 +3737,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
               generateBibliography={generateBibliography}
               autoRegenerateBibliography={autoRegenerateBibliography}
               isOfficeReady={isOfficeReady}
-              citations={citations}
+              citations={bibliographyCitations}
               testAPACitationFormatting={testAPACitationFormatting}
               testDuplicateRemoval={testDuplicateRemoval}
             />
