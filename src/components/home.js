@@ -2279,72 +2279,87 @@ const Home = ({ handleLogout, status, setStatus }) => {
   // COMPLETELY REWRITTEN: Simplified text formatting to prevent duplication
   const parseAndFormatText = async (paragraph, text, citationStyle) => {
     try {
+      console.log('🎨 parseAndFormatText called with:', { 
+        text: text.substring(0, 100) + '...', 
+        citationStyle,
+        hasAsterisks: text.includes('*')
+      });
+      
       const styleFont = getCitationStyleFont(citationStyle);
-      let processedText = text;
-      let parts = [];
-
-      // Split text by asterisks to handle italics properly
-      const asteriskParts = processedText.split(/(\*[^*]+\*)/);
-
-      for (let i = 0; i < asteriskParts.length; i++) {
-        const part = asteriskParts[i];
-        if (!part) continue;
-
-        if (part.startsWith("*") && part.endsWith("*")) {
-          // This is italic text - remove asterisks and mark as italic
-          const italicText = part.slice(1, -1);
+      
+      // SIMPLIFIED APPROACH: Just insert the text directly without nested Word.run contexts
+      // The paragraph is already within a Word.run context from the caller
+      
+      if (text.includes('*')) {
+        // Handle italic formatting - but without nested Word.run
+        let currentText = text;
+        let currentPos = 0;
+        
+        // Simple regex replacement approach
+        const italicPattern = /\*([^*]+)\*/g;
+        let lastIndex = 0;
+        let match;
+        
+        console.log('🔤 Processing text with italic formatting...');
+        
+        while ((match = italicPattern.exec(text)) !== null) {
+          // Insert text before the italic part (if any)
+          if (match.index > lastIndex) {
+            const beforeText = text.substring(lastIndex, match.index);
+            if (beforeText.trim()) {
+              const range = paragraph.insertText(beforeText, Word.InsertLocation.end);
+              range.font.name = styleFont.family;
+              range.font.size = styleFont.size;
+              range.font.italic = false;
+            }
+          }
+          
+          // Insert the italic text
+          const italicText = match[1];
           if (italicText.trim()) {
-            parts.push({ text: italicText, type: "italic" });
+            const italicRange = paragraph.insertText(italicText, Word.InsertLocation.end);
+            italicRange.font.name = styleFont.family;
+            italicRange.font.size = styleFont.size;
+            italicRange.font.italic = true;
           }
-        } else {
-          // This is regular text
-          if (part.trim()) {
-            parts.push({ text: part, type: "normal" });
-          }
+          
+          lastIndex = match.index + match[0].length;
         }
-      }
-
-      // Insert each part with appropriate formatting
-      for (const part of parts) {
-        if (part.type === "italic") {
-          await Word.run(async (context) => {
-            const range = paragraph.insertText(
-              part.text,
-              Word.InsertLocation.end
-            );
-            range.font.name = styleFont.family;
-            range.font.size = styleFont.size;
-            range.font.italic = true;
-            await context.sync();
-          });
-        } else {
-          await Word.run(async (context) => {
-            const range = paragraph.insertText(
-              part.text,
-              Word.InsertLocation.end
-            );
+        
+        // Insert any remaining text after the last italic part
+        if (lastIndex < text.length) {
+          const remainingText = text.substring(lastIndex);
+          if (remainingText.trim()) {
+            const range = paragraph.insertText(remainingText, Word.InsertLocation.end);
             range.font.name = styleFont.family;
             range.font.size = styleFont.size;
             range.font.italic = false;
-            await context.sync();
-          });
+          }
         }
+        
+        console.log('✅ Italic formatting completed');
+        
+      } else {
+        // No special formatting needed - direct insertion
+        console.log('📄 Inserting plain text directly...');
+        const range = paragraph.insertText(text, Word.InsertLocation.end);
+        range.font.name = styleFont.family;
+        range.font.size = styleFont.size;
+        range.font.italic = false;
+        console.log('✅ Plain text inserted successfully');
       }
+      
     } catch (error) {
       console.error("❌ Text formatting error:", error);
+      
       // Ultimate fallback: insert plain text without any formatting
       try {
         const plainText = text.replace(/\*([^*]+)\*/g, "$1"); // Remove asterisks
-        await Word.run(async (context) => {
-          const range = paragraph.insertText(
-            plainText,
-            Word.InsertLocation.end
-          );
-          const styleFont = getCitationStyleFont(citationStyle);
-          range.font.name = styleFont.family;
-          range.font.size = styleFont.size;
-          await context.sync();
-        });
+        const range = paragraph.insertText(plainText, Word.InsertLocation.end);
+        const styleFont = getCitationStyleFont(citationStyle);
+        range.font.name = styleFont.family;
+        range.font.size = styleFont.size;
+        console.log('✅ Fallback text insertion completed');
       } catch (fallbackError) {
         console.error("❌ Even fallback failed:", fallbackError);
       }
