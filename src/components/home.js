@@ -1623,7 +1623,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
             
             // Find the last non-empty paragraph
             const allParagraphs = context.document.body.paragraphs;
-            allParagraphs.load('items');
+            allParagraphs.load('items/text');
             await context.sync();
             
             let lastContentParagraph = null;
@@ -1631,8 +1631,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
             // Find the last paragraph with actual content (working backwards)
             for (let i = allParagraphs.items.length - 1; i >= 0; i--) {
               const para = allParagraphs.items[i];
-              para.load('text');
-              await context.sync();
               
               if (para.text.trim().length > 0) {
                 lastContentParagraph = para;
@@ -2270,7 +2268,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
             
             // Find the last non-empty paragraph (end of content)
             const allParagraphs = context.document.body.paragraphs;
-            allParagraphs.load('items');
+            allParagraphs.load('items/text');
             await context.sync();
             
             let lastContentParagraph = null;
@@ -2279,8 +2277,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
             // Skip bibliography entries by checking if paragraph contains citation patterns
             for (let i = allParagraphs.items.length - 1; i >= 0; i--) {
               const para = allParagraphs.items[i];
-              para.load('text');
-              await context.sync();
               
               const paraText = para.text.trim();
               
@@ -2293,8 +2289,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
               }
               
               // Skip bibliography entries (look for citation patterns)
-              const isBibEntry = paraText.includes('(') && paraText.includes(')') && 
-                               (paraText.includes('.') && paraText.length > 50) ||
+              const isBibEntry = (paraText.includes('(') && paraText.includes(')') && 
+                               paraText.includes('.') && paraText.length > 50) ||
                                paraText.match(/^[A-Z][a-z]+,\s*[A-Z]\./);
               
               if (!isBibEntry) {
