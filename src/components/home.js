@@ -2221,8 +2221,14 @@ const generateBibliography = async () => {
     return;
   }
 
-  // Get selected citations for bibliography
-  const selectedCitations = bibliographyCitations.filter((c) => c.used);
+  // Get selected citations for bibliography and validate
+  if (!bibliographyCitations || !Array.isArray(bibliographyCitations)) {
+    console.error('❌ Bibliography citations is not an array:', bibliographyCitations);
+    setStatus("Error: Invalid bibliography data structure");
+    return;
+  }
+
+  const selectedCitations = bibliographyCitations.filter((c) => c && c.used === true);
   console.log(`📚 Generating bibliography with ${selectedCitations.length} selected citations`);
   
   if (selectedCitations.length === 0) {
@@ -2233,6 +2239,11 @@ const generateBibliography = async () => {
   try {
     // Generate bibliography text using citeproc
     const bibRaw = await formatBibliographyCiteproc(selectedCitations, citationStyle);
+    
+    if (!bibRaw) {
+      throw new Error("Bibliography generation returned null or undefined");
+    }
+    
     console.log(`📚 Bibliography raw text generated: ${bibRaw.length} characters`);
     
     if (!bibRaw || bibRaw.trim().length === 0) {
@@ -2726,16 +2737,30 @@ const isLikelyBibliographyContent = (text) => {
 
 // Helper function to parse and format bibliography text with markup
 const parseAndFormatBibliographyText = async (paragraph, text, styleFont) => {
+  if (!paragraph || !text || !styleFont) {
+    console.error('❌ Invalid parameters for bibliography text formatting');
+    return;
+  }
+
   try {
-    // Simple markup parsing for *italic* and **bold**
+    // Validate inputs
+    if (typeof text !== 'string') {
+      throw new Error('Bibliography text must be a string');
+    }
+
+    if (!styleFont.family || !styleFont.size) {
+      throw new Error('Invalid style font configuration');
+    }
+
+    // Simple markup parsing for *italic* and **bold** with validation
     const parts = [];
     let current = '';
     let i = 0;
     
     while (i < text.length) {
       if (text[i] === '*') {
-        if (text[i + 1] === '*') {
-          // Bold
+        if (i + 1 < text.length && text[i + 1] === '*') {
+          // Bold text processing
           if (current) {
             parts.push({ text: current, bold: false, italic: false });
             current = '';
@@ -2747,14 +2772,16 @@ const parseAndFormatBibliographyText = async (paragraph, text, styleFont) => {
             i++;
           }
           if (i < text.length - 1) {
-            parts.push({ text: boldText, bold: true, italic: false });
+            if (boldText.trim()) {
+              parts.push({ text: boldText, bold: true, italic: false });
+            }
             i += 2;
           } else {
             current += '**' + boldText;
             break;
           }
         } else {
-          // Italic
+          // Italic text processing
           if (current) {
             parts.push({ text: current, bold: false, italic: false });
             current = '';
@@ -2766,7 +2793,9 @@ const parseAndFormatBibliographyText = async (paragraph, text, styleFont) => {
             i++;
           }
           if (i < text.length) {
-            parts.push({ text: italicText, bold: false, italic: true });
+            if (italicText.trim()) {
+              parts.push({ text: italicText, bold: false, italic: true });
+            }
             i++;
           } else {
             current += '*' + italicText;
@@ -2783,21 +2812,45 @@ const parseAndFormatBibliographyText = async (paragraph, text, styleFont) => {
       parts.push({ text: current, bold: false, italic: false });
     }
     
-    // Insert formatted parts
+    // Validate parts before insertion
+    if (!parts.length) {
+      throw new Error('No valid text parts to insert');
+    }
+    
+    // Insert formatted parts with validation
     for (const part of parts) {
-      const range = paragraph.insertText(part.text, Word.InsertLocation.end);
-      range.font.name = styleFont.family;
-      range.font.size = styleFont.size;
-      range.font.bold = part.bold;
-      range.font.italic = part.italic;
+      if (part && typeof part.text === 'string' && part.text.trim()) {
+        try {
+          const range = paragraph.insertText(part.text, Word.InsertLocation.end);
+          if (range) {
+            range.font.name = styleFont.family;
+            range.font.size = styleFont.size;
+            range.font.bold = !!part.bold;
+            range.font.italic = !!part.italic;
+          }
+        } catch (insertError) {
+          console.error('⚠️ Failed to insert text part:', insertError);
+          // Continue with next part
+        }
+      }
     }
     
   } catch (formatError) {
     console.log('⚠️ Error formatting bibliography text, using plain text:', formatError);
-    // Fallback to plain text
-    const range = paragraph.insertText(text.replace(/\*+/g, ''), Word.InsertLocation.end);
-    range.font.name = styleFont.family;
-    range.font.size = styleFont.size;
+    // Fallback to plain text with validation
+    try {
+      const cleanText = text.replace(/\*+/g, '').trim();
+      if (cleanText) {
+        const range = paragraph.insertText(cleanText, Word.InsertLocation.end);
+        if (range) {
+          range.font.name = styleFont.family;
+          range.font.size = styleFont.size;
+        }
+      }
+    } catch (fallbackError) {
+      console.error('❌ Even fallback formatting failed:', fallbackError);
+      throw fallbackError; // Re-throw to alert caller
+    }
   }
 };
 
