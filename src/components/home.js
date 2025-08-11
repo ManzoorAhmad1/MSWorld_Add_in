@@ -2227,161 +2227,148 @@ const Home = ({ handleLogout, status, setStatus }) => {
     }
 
     try {
+      // Show progress - clearing existing bibliography first
+      setStatus(`🧹 Clearing existing bibliography...`);
+      
+      // Clear existing bibliography first (same logic as citation style change)
+      await clearExistingBibliography();
+      
+      // Wait a moment for the clearing to complete
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Show next step
+      setStatus(`🔄 Generating bibliography with ${citationStyle.toUpperCase()} style...`);
+      
       const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
       const styleFont = getCitationStyleFont(citationStyle);
 
       await Word.run(async (context) => {
-        // Always insert bibliography at the end of existing content (not cursor position)
-        let insertionPoint;
-        let bibliographyExists = false;
-        
+        // Use the same insertion logic as citation style change
         try {
           console.log('📍 Inserting bibliography at end of existing content');
           
-          // Check if bibliography title already exists in document
-          const searchResults = context.document.body.search(bibliographyTitle, { matchCase: false, matchWholeWord: false });
-          searchResults.load('items');
+          // Find the last non-empty paragraph
+          const allParagraphs = context.document.body.paragraphs;
+          allParagraphs.load('items');
           await context.sync();
-
-          bibliographyExists = searchResults.items.length > 0;
           
-          // Always find the end of content or use cursor position, regardless of existing bibliography
-          console.log('📍 Finding insertion point - end of content or cursor position');
+          let lastContentParagraph = null;
+          
+          // Find the last paragraph with actual content (working backwards)
+          // Skip bibliography entries by checking if paragraph contains citation patterns
+          for (let i = allParagraphs.items.length - 1; i >= 0; i--) {
+            const para = allParagraphs.items[i];
+            para.load('text');
+            await context.sync();
+            
+            const paraText = para.text.trim();
+            
+            // Skip empty paragraphs
+            if (paraText.length === 0) continue;
+            
+            // Skip bibliography title
+            if (paraText.toLowerCase().includes('references') || paraText.toLowerCase().includes('bibliography')) {
+              continue;
+            }
+            
+            // Skip bibliography entries (look for citation patterns)
+            const isBibEntry = paraText.includes('(') && paraText.includes(')') && 
+                             (paraText.includes('.') && paraText.length > 50) ||
+                             paraText.match(/^[A-Z][a-z]+,\s*[A-Z]\./);
+            
+            if (!isBibEntry) {
+              lastContentParagraph = para;
+              break;
+            }
+          }
           
           let insertionPoint;
-          
-          // Try to get cursor position first
-          try {
-            const selection = context.document.getSelection();
-            selection.load(['isEmpty', 'text']);
-            await context.sync();
+          if (lastContentParagraph) {
+            console.log('📄 Found last content paragraph, inserting after it');
+            // Insert after the last content paragraph
+            insertionPoint = lastContentParagraph.getRange(Word.RangeLocation.after);
             
-            if (!selection.isEmpty || selection.text.trim().length > 0) {
-              console.log('📍 Using cursor position for bibliography insertion');
-              insertionPoint = selection.getRange(Word.RangeLocation.after);
-              
-              // Add some space before bibliography if using cursor
-              insertionPoint.insertParagraph("", Word.InsertLocation.after);
-            } else {
-              throw new Error('No cursor selection, use content end');
-            }
-          } catch (cursorError) {
-            console.log('📍 Cursor not available, finding end of content');
-            
-            // Find the last non-empty paragraph (end of content)
-            const allParagraphs = context.document.body.paragraphs;
-            allParagraphs.load('items');
-            await context.sync();
-            
-            let lastContentParagraph = null;
-            
-            // Find the last paragraph with actual content (working backwards)
-            // Skip bibliography entries by checking if paragraph contains citation patterns
-            for (let i = allParagraphs.items.length - 1; i >= 0; i--) {
-              const para = allParagraphs.items[i];
-              para.load('text');
-              await context.sync();
-              
-              const paraText = para.text.trim();
-              
-              // Skip empty paragraphs
-              if (paraText.length === 0) continue;
-              
-              // Skip bibliography title
-              if (paraText.toLowerCase().includes('references') || paraText.toLowerCase().includes('bibliography')) {
-                continue;
-              }
-              
-              // Skip bibliography entries (look for citation patterns)
-              const isBibEntry = paraText.includes('(') && paraText.includes(')') && 
-                               (paraText.includes('.') && paraText.length > 50) ||
-                               paraText.match(/^[A-Z][a-z]+,\s*[A-Z]\./);
-              
-              if (!isBibEntry) {
-                lastContentParagraph = para;
-                break;
-              }
-            }
-            
-            if (lastContentParagraph) {
-              console.log('📄 Found last content paragraph, inserting after it');
-              // Insert after the last content paragraph
-              insertionPoint = lastContentParagraph.getRange(Word.RangeLocation.after);
-              
-              // Add some space before bibliography
-              insertionPoint.insertParagraph("", Word.InsertLocation.after);
-            } else {
-              console.log('📄 No content found, using document start');
-              // If no content, insert at document start
-              insertionPoint = context.document.body.getRange(Word.RangeLocation.start);
-            }
-          }
-          
-          // Create bibliography title only if it doesn't exist
-          if (!bibliographyExists) {
-            const title = insertionPoint.insertParagraph(
-              bibliographyTitle,
-              Word.InsertLocation.after
-            );
-            title.style = "Heading 1";
-            title.font.bold = true;
-            title.font.size = 16;
-            title.font.name = styleFont.family;
-            
-            // Update insertion point to after the title for bibliography entries
-            insertionPoint = title.getRange(Word.RangeLocation.after);
-          }
-          // If bibliography title exists, still use the current insertion point (cursor or content end)
-          
-        } catch (contentError) {
-          console.log('⚠️ Content-based insertion failed, using end of document:', contentError);
-          // Fallback: insert at end of document
-          
-          // Check if bibliography title exists
-          const searchResults = context.document.body.search(bibliographyTitle, { matchCase: false, matchWholeWord: false });
-          searchResults.load('items');
-          await context.sync();
-
-          bibliographyExists = searchResults.items.length > 0;
-          
-          if (!bibliographyExists) {
-            const title = context.document.body.insertParagraph(
-              bibliographyTitle,
-              Word.InsertLocation.end
-            );
-            title.style = "Heading 1";
-            title.font.bold = true;
-            title.font.size = 16;
-            title.font.name = styleFont.family;
-          }
-          
-          insertionPoint = context.document.body.getRange(Word.RangeLocation.end);
-        }
-
-        // Process each bibliography entry at the determined insertion point
-        const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
-        for (let i = 0; i < bibEntries.length; i++) {
-          const entry = bibEntries[i].trim();
-          if (!entry) continue;
-
-          // Create paragraph for each entry at insertion point
-          const para = insertionPoint.insertParagraph("", Word.InsertLocation.after);
-          para.font.name = styleFont.family;
-          para.font.size = styleFont.size;
-          para.leftIndent = 36; // Hanging indent for citations
-          para.firstLineIndent = -36;
-
-          // Format the entry text
-          if (entry.includes("*")) {
-            await parseAndFormatText(para, entry, citationStyle);
+            // Add some space before bibliography
+            insertionPoint.insertParagraph("", Word.InsertLocation.after);
           } else {
-            const range = para.insertText(entry, Word.InsertLocation.end);
-            range.font.name = styleFont.family;
-            range.font.size = styleFont.size;
+            console.log('📄 No content found, using document end');
+            // If no content, insert at document end
+            insertionPoint = context.document.body.getRange(Word.RangeLocation.end);
           }
           
-          // Update insertion point for next entry
-          insertionPoint = para.getRange(Word.RangeLocation.after);
+          // Create bibliography title
+          const title = insertionPoint.insertParagraph(
+            bibliographyTitle,
+            Word.InsertLocation.after
+          );
+          title.style = "Heading 1";
+          title.font.bold = true;
+          title.font.size = 16;
+          title.font.name = styleFont.family;
+          
+          // Update insertion point to after the title for bibliography entries
+          let currentInsertionPoint = title.getRange(Word.RangeLocation.after);
+          
+          // Process each bibliography entry at end of content
+          const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
+          for (let i = 0; i < bibEntries.length; i++) {
+            const entry = bibEntries[i].trim();
+            if (!entry) continue;
+
+            // Create paragraph for each entry at insertion point
+            const para = currentInsertionPoint.insertParagraph("", Word.InsertLocation.after);
+            para.font.name = styleFont.family;
+            para.font.size = styleFont.size;
+            para.leftIndent = 36; // Hanging indent for citations
+            para.firstLineIndent = -36;
+
+            // Format the entry text
+            if (entry.includes("*")) {
+              await parseAndFormatText(para, entry, citationStyle);
+            } else {
+              const range = para.insertText(entry, Word.InsertLocation.end);
+              range.font.name = styleFont.family;
+              range.font.size = styleFont.size;
+            }
+            
+            // Update insertion point for next entry
+            currentInsertionPoint = para.getRange(Word.RangeLocation.after);
+          }
+
+        } catch (contentError) {
+          console.log('⚠️ Content insertion failed, using end of document:', contentError);
+          // Fallback: insert at end of document
+          const title = context.document.body.insertParagraph(
+            bibliographyTitle,
+            Word.InsertLocation.end
+          );
+          title.style = "Heading 1";
+          title.font.bold = true;
+          title.font.size = 16;
+          title.font.name = styleFont.family;
+          
+          // Process each bibliography entry at end of document
+          const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
+          for (let i = 0; i < bibEntries.length; i++) {
+            const entry = bibEntries[i].trim();
+            if (!entry) continue;
+
+            // Create paragraph for each entry
+            const para = context.document.body.insertParagraph("", Word.InsertLocation.end);
+            para.font.name = styleFont.family;
+            para.font.size = styleFont.size;
+            para.leftIndent = 36; // Hanging indent for citations
+            para.firstLineIndent = -36;
+
+            // Format the entry text
+            if (entry.includes("*")) {
+              await parseAndFormatText(para, entry, citationStyle);
+            } else {
+              const range = para.insertText(entry, Word.InsertLocation.end);
+              range.font.name = styleFont.family;
+              range.font.size = styleFont.size;
+            }
+          }
         }
 
         await context.sync();
@@ -2393,7 +2380,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
       // setBibliographyCitations([]);
       
       setStatus(
-        `✅ Bibliography ${bibliographyExists ? 'updated' : 'created'}: ${used.length} citation${
+        `✅ Bibliography created: ${used.length} citation${
           used.length !== 1 ? "s" : ""
         } in ${citationStyle.toUpperCase()} style`
       );
@@ -3737,7 +3724,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
               generateBibliography={generateBibliography}
               autoRegenerateBibliography={autoRegenerateBibliography}
               isOfficeReady={isOfficeReady}
-              citations={bibliographyCitations}
+              citations={citations}
               testAPACitationFormatting={testAPACitationFormatting}
               testDuplicateRemoval={testDuplicateRemoval}
             />
