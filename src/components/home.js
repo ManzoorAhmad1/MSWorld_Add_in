@@ -2284,28 +2284,11 @@ const Home = ({ handleLogout, status, setStatus }) => {
       return;
     }
 
-    setStatus(`Adding ${selectedForBibliography.length} selected citations to bibliography...`);
+    setStatus(`Generating bibliography for ${selectedForBibliography.length} selected citations...`);
 
     try {
-      // ENHANCED: Check if bibliography already exists, if not create title
-      let bibliographyExists = false;
-      
-      await Word.run(async (context) => {
-        // Check if bibliography title already exists
-        const titleSearch = context.document.body.search(bibliographyTitle, {
-          matchCase: false,
-          matchWholeWord: false
-        });
-        titleSearch.load('items');
-        await context.sync();
-        
-        if (titleSearch.items.length > 0) {
-          bibliographyExists = true;
-          console.log('📚 Bibliography section already exists, will add new entries');
-        } else {
-          console.log('📚 No bibliography section found, will create new one');
-        }
-      });
+      // Clear existing bibliography first for clean generation
+      await clearExistingBibliography();
       
       // Generate formatted bibliography using SELECTED citations
       const bibRaw = await formatBibliographyCiteproc(selectedForBibliography, citationStyle);
@@ -2321,97 +2304,21 @@ const Home = ({ handleLogout, status, setStatus }) => {
       await Word.run(async (context) => {
         console.log('📝 Inserting bibliography into Word document...');
         
-        let insertionPoint;
+        // Method: Insert at document end for reliability
+        const documentEnd = context.document.body.getRange(Word.RangeLocation.end);
         
-        if (bibliographyExists) {
-          // Find the bibliography section and insert new entries there
-          console.log('📍 Finding existing bibliography section for insertion...');
-          const titleSearch = context.document.body.search(bibliographyTitle, {
-            matchCase: false,
-            matchWholeWord: false
-          });
-          titleSearch.load('items');
-          await context.sync();
-          
-          if (titleSearch.items.length > 0) {
-            // Find the last bibliography entry by searching for common patterns
-            const biblioTitle = titleSearch.items[0];
-            const titleRange = biblioTitle.getRange();
-            
-            // Get all paragraphs after the title
-            const allParas = context.document.body.paragraphs;
-            allParas.load('items');
-            await context.sync();
-            
-            // Find where bibliography entries end (look for next heading or end of document)
-            let lastBiblioIndex = -1;
-            let titleFound = false;
-            
-            for (let i = 0; i < allParas.items.length; i++) {
-              const para = allParas.items[i];
-              para.load(['text', 'style']);
-              await context.sync();
-              
-              // Check if this is the bibliography title
-              if (para.text.includes(bibliographyTitle)) {
-                titleFound = true;
-                continue;
-              }
-              
-              if (titleFound) {
-                // Check if this looks like a bibliography entry (has author names, years, etc.)
-                const text = para.text.trim();
-                if (text && 
-                    (text.match(/[A-Z][a-z]+,\s*[A-Z]\./) || // Author pattern
-                     text.match(/\([0-9]{4}\)/) ||            // Year pattern
-                     text.match(/et\s+al\./) ||               // Et al pattern
-                     text.includes('doi.org') ||              // DOI pattern
-                     text.includes('http'))) {                // URL pattern
-                  lastBiblioIndex = i;
-                } else if (para.style && para.style.includes('Heading')) {
-                  // Found next heading, stop here
-                  break;
-                } else if (text === '' && lastBiblioIndex !== -1) {
-                  // Empty paragraph after bibliography entries, this is our insertion point
-                  break;
-                }
-              }
-            }
-            
-            if (lastBiblioIndex !== -1 && lastBiblioIndex < allParas.items.length - 1) {
-              // Insert after the last bibliography entry
-              const lastBiblioPara = allParas.items[lastBiblioIndex];
-              insertionPoint = lastBiblioPara.getRange(Word.RangeLocation.after);
-              console.log('📍 Found insertion point after existing bibliography entries');
-            } else {
-              // Fallback: insert after title
-              insertionPoint = titleRange.getRange(Word.RangeLocation.after);
-              console.log('📍 Using fallback insertion point after title');
-            }
-          } else {
-            // This shouldn't happen, but fallback to end
-            insertionPoint = context.document.body.getRange(Word.RangeLocation.end);
-          }
-        } else {
-          // Create new bibliography section at document end
-          console.log('📍 Creating new bibliography section at document end');
-          
-          // Add some spacing before bibliography
-          const spacePara = context.document.body.insertParagraph("", Word.InsertLocation.end);
-          
-          // Create bibliography title
-          const title = context.document.body.insertParagraph(
-            bibliographyTitle,
-            Word.InsertLocation.end
-          );
-          title.style = "Heading 1";
-          title.font.bold = true;
-          title.font.size = 16;
-          title.font.name = styleFont.family;
-          
-          // Set insertion point after title
-          insertionPoint = title.getRange(Word.RangeLocation.after);
-        }
+        // Add some spacing before bibliography
+        const spacePara = context.document.body.insertParagraph("", Word.InsertLocation.end);
+        
+        // Create bibliography title
+        const title = context.document.body.insertParagraph(
+          bibliographyTitle,
+          Word.InsertLocation.end
+        );
+        title.style = "Heading 1";
+        title.font.bold = true;
+        title.font.size = 16;
+        title.font.name = styleFont.family;
         
         // FIXED: Process ALL bibliography entries correctly
         console.log(`� Processing ${selectedForBibliography.length} citations into bibliography entries`);
@@ -2423,80 +2330,50 @@ const Home = ({ handleLogout, status, setStatus }) => {
           console.warn(`⚠️ Mismatch: ${selectedForBibliography.length} citations but only ${bibEntries.length} entries generated`);
         }
         
-        let newEntriesAdded = 0;
-        
+        let entryCount = 0;
         for (let i = 0; i < bibEntries.length; i++) {
           const entry = bibEntries[i].trim();
           if (!entry) continue;
 
-          // Check if this entry already exists in the document
-          let entryExists = false;
+          console.log(`📄 Adding bibliography entry ${entryCount + 1}/${bibEntries.length}: "${entry.substring(0, 80)}..."`);
+          
+          // Create paragraph for each bibliography entry
+          const para = context.document.body.insertParagraph("", Word.InsertLocation.end);
+          para.font.name = styleFont.family;
+          para.font.size = styleFont.size;
+          para.leftIndent = 36; // Hanging indent for citations
+          para.firstLineIndent = -36;
+          para.spaceAfter = 6; // Add spacing between entries
+
+          // Format the entry text with proper error handling
           try {
-            // Search for first 50 characters of the entry to check for duplicates
-            const entryPreview = entry.substring(0, 50).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const existingSearch = context.document.body.search(entryPreview, {
-              matchCase: false,
-              matchWholeWord: false
-            });
-            existingSearch.load('items');
-            await context.sync();
-            
-            if (existingSearch.items.length > 0) {
-              entryExists = true;
-              console.log(`Entry ${i + 1} already exists, skipping: "${entry.substring(0, 50)}..."`);
+            if (entry.includes("*") || entry.includes("**")) {
+              await parseAndFormatText(para, entry, citationStyle);
+            } else {
+              const range = para.insertText(entry, Word.InsertLocation.end);
+              range.font.name = styleFont.family;
+              range.font.size = styleFont.size;
             }
-          } catch (searchError) {
-            console.log(`Could not check for duplicate entry ${i + 1}:`, searchError);
-          }
-
-          // Only add if entry doesn't already exist
-          if (!entryExists) {
-            console.log(`Adding NEW bibliography entry ${newEntriesAdded + 1}: "${entry.substring(0, 80)}..."`);
-            
-            // Create paragraph for each NEW bibliography entry at the proper location
-            const para = insertionPoint.insertParagraph("", Word.InsertLocation.after);
-            para.font.name = styleFont.family;
-            para.font.size = styleFont.size;
-            para.leftIndent = 36; // Hanging indent for citations
-            para.firstLineIndent = -36;
-            para.spaceAfter = 6; // Add spacing between entries
-
-            // Format the entry text with proper error handling
-            try {
-              if (entry.includes("*") || entry.includes("**")) {
-                await parseAndFormatText(para, entry, citationStyle);
-              } else {
-                const range = para.insertText(entry, Word.InsertLocation.end);
-                range.font.name = styleFont.family;
-                range.font.size = styleFont.size;
-              }
-              newEntriesAdded++;
-              
-              // Update insertion point to after this new entry for next insertion
-              insertionPoint = para.getRange(Word.RangeLocation.after);
-            } catch (entryError) {
-              console.error(`Error formatting entry ${i + 1}:`, entryError);
-              // Fallback: insert plain text
-              const plainText = entry.replace(/\*([^*]+)\*/g, "$1");
-              para.insertText(plainText, Word.InsertLocation.end);
-              newEntriesAdded++;
-              
-              // Update insertion point
-              insertionPoint = para.getRange(Word.RangeLocation.after);
-            }
+            entryCount++;
+          } catch (entryError) {
+            console.error(`❌ Error formatting entry ${i + 1}:`, entryError);
+            // Fallback: insert plain text
+            const plainText = entry.replace(/\*([^*]+)\*/g, "$1");
+            para.insertText(plainText, Word.InsertLocation.end);
+            entryCount++;
           }
         }
 
         await context.sync();
-        console.log(`✅ Bibliography update completed: ${newEntriesAdded} NEW entries added (${bibEntries.length - newEntriesAdded} duplicates skipped)`);
+        console.log(`✅ Bibliography generation completed: ${entryCount} entries inserted successfully`);
       });
 
       setBibliography(bibRaw);
       
       setStatus(
-        `✅ Bibliography updated: ${selectedForBibliography.length} citation${
+        `✅ Bibliography generated successfully: ${selectedForBibliography.length} citation${
           selectedForBibliography.length !== 1 ? "s" : ""
-        } added to ${citationStyle.toUpperCase()} style bibliography${bibliographyExists ? ' (added to existing)' : ' (created new)'}`
+        } in ${citationStyle.toUpperCase()} style`
       );
       
     } catch (error) {
