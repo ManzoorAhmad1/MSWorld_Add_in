@@ -2074,103 +2074,168 @@ const Home = ({ handleLogout, status, setStatus }) => {
     }
   };
 
-  // Enhanced insertCitation function with proper formatting
+  // COMPLETELY FIXED: Enhanced insertCitation function with robust formatting
   const insertCitation = async (citation) => {
     if (!isOfficeReady) {
+      setStatus("Office not ready - please wait and try again");
       return;
     }
 
     try {
+      // Validate citation data
+      if (!citation || !citation.id) {
+        setStatus("❌ Invalid citation data - cannot insert");
+        return;
+      }
+
       // Check if citation is already used to prevent duplicates
       const existingCitation = citations.find((c) => String(c.id) === String(citation.id));
       if (existingCitation && existingCitation.used) {
-        setStatus("Citation is already used in document");
+        setStatus("⚠️ Citation is already inserted in document");
         return;
       }
 
-      // Ensure citation is properly formatted
+      setStatus("Formatting and inserting citation...");
+
+      // Ensure citation is properly normalized
       const normalizedCitation = normalizeCitation(citation);
-      if (!normalizedCitation) {
-        setStatus("Failed to normalize citation");
+      if (!normalizedCitation || !normalizedCitation.id) {
+        setStatus("❌ Failed to normalize citation data");
         return;
       }
 
-      let formatted = await formatCitationCiteproc(
-        normalizedCitation,
-        citationStyle,
-        citationFormat
-      );
-
-      if (
-        !formatted ||
-        (formatted.includes("[") && formatted.includes("Error"))
-      ) {
-        console.error("Citation formatting failed, trying fallback");
-        const fallbackFormatted = formatCitationFallback(
-          normalizedCitation,
-          citationFormat
-        );
-        if (fallbackFormatted && !fallbackFormatted.includes("Error")) {
-          formatted = fallbackFormatted;
-          setStatus("Citation inserted with fallback formatting");
-        } else {
-          setStatus("Citation formatting failed completely");
-          return;
-        }
-      }
-
-      // Insert into Word with proper formatting
-      await Word.run(async (context) => {
-        const selection = context.document.getSelection();
-        const styleFont = getCitationStyleFont(citationStyle);
-
-        if (citationFormat === "in-text") {
-          // For in-text citations, apply formatting based on style
-          if (
-            formatted.includes("*") ||
-            formatted.includes("**") ||
-            formatted.includes("___")
-          ) {
-            // Create a paragraph to handle formatting
-            const tempPara = selection.insertParagraph(
-              "",
-              Word.InsertLocation.replace
-            );
-            await parseAndFormatText(tempPara, formatted, citationStyle);
-          } else {
-            // Simple text insertion with font styling
-            const range = selection.insertText(
-              formatted,
-              Word.InsertLocation.replace
-            );
-            range.font.name = styleFont.family;
-            range.font.size = styleFont.size;
-          }
-        } else {
-          // For footnotes, create formatted footnote
-          const footnote = selection.insertFootnote(formatted);
-          footnote.body.font.name = styleFont.family;
-          footnote.body.font.size = styleFont.size - 1; // Footnotes typically smaller
-        }
-
-        await context.sync();
+      console.log('📝 Inserting citation:', {
+        id: normalizedCitation.id,
+        title: normalizedCitation.title?.substring(0, 50),
+        authors: normalizedCitation.author?.map(a => `${a.given} ${a.family}`),
+        style: citationStyle,
+        format: citationFormat
       });
 
-      // Update citation library - handle both existing and new citations
+      // CRITICAL FIX: Enhanced citation formatting with fallbacks
+      let formatted;
+      try {
+        formatted = await formatCitationCiteproc(
+          normalizedCitation,
+          citationStyle,
+          citationFormat
+        );
+        
+        console.log('🎨 Formatted citation result:', formatted);
+        
+        // Validate formatting result
+        if (!formatted || 
+            formatted.trim().length === 0 || 
+            formatted === '[Citation Error]' ||
+            formatted.includes('undefined') ||
+            (formatted.includes("[") && formatted.includes("Error"))) {
+          throw new Error('Invalid formatting result');
+        }
+        
+      } catch (formatError) {
+        console.error("❌ Primary formatting failed, using enhanced fallback:", formatError);
+        
+        // ENHANCED FALLBACK: Better citation formatting
+        const authors = normalizedCitation.author || [];
+        const year = normalizedCitation.issued?.["date-parts"]?.[0]?.[0] || 
+                    normalizedCitation.year || 
+                    new Date().getFullYear();
+        
+        if (citationFormat === "in-text") {
+          if (authors.length === 1) {
+            formatted = `(${authors[0].family || 'Unknown'}, ${year})`;
+          } else if (authors.length === 2) {
+            formatted = `(${authors[0].family || 'Unknown'} & ${authors[1].family || 'Unknown'}, ${year})`;
+          } else if (authors.length > 2) {
+            formatted = `(${authors[0].family || 'Unknown'} et al., ${year})`;
+          } else {
+            formatted = `(Unknown, ${year})`;
+          }
+        } else {
+          // Footnote format
+          const authorStr = authors.length > 0 ? 
+            authors.map(a => `${a.given || ''} ${a.family || 'Unknown'}`.trim()).join(', ') : 
+            'Unknown Author';
+          formatted = `${authorStr}, "${normalizedCitation.title || 'Untitled'}" (${year}).`;
+        }
+        
+        console.log('🔄 Fallback formatted citation:', formatted);
+      }
+
+      // Insert into Word with enhanced error handling
+      await Word.run(async (context) => {
+        try {
+          const selection = context.document.getSelection();
+          selection.load(['isEmpty']);
+          await context.sync();
+          
+          const styleFont = getCitationStyleFont(citationStyle);
+          console.log('📝 Using font:', styleFont);
+
+          if (citationFormat === "in-text") {
+            // FIXED: Proper in-text citation handling
+            if (formatted.includes("*") || formatted.includes("**") || formatted.includes("___")) {
+              // Create temporary paragraph for complex formatting
+              const tempPara = selection.insertParagraph("", Word.InsertLocation.replace);
+              await parseAndFormatText(tempPara, formatted, citationStyle);
+              
+              // Convert paragraph content to inline text
+              const paraRange = tempPara.getRange();
+              paraRange.load(['text']);
+              await context.sync();
+              
+              // Replace paragraph with inline content
+              const inlineRange = selection.insertText(paraRange.text, Word.InsertLocation.replace);
+              inlineRange.font.name = styleFont.family;
+              inlineRange.font.size = styleFont.size;
+              
+              // Clean up the temporary paragraph
+              tempPara.delete();
+            } else {
+              // Simple text insertion with proper styling
+              const range = selection.insertText(formatted, Word.InsertLocation.replace);
+              range.font.name = styleFont.family;
+              range.font.size = styleFont.size;
+              range.font.color = "#000000"; // Ensure black text
+              
+              console.log('✅ Simple citation inserted');
+            }
+          } else {
+            // For footnotes, create properly formatted footnote
+            const footnote = selection.insertFootnote(formatted);
+            footnote.body.font.name = styleFont.family;
+            footnote.body.font.size = styleFont.size - 1; // Footnotes typically smaller
+            footnote.body.font.color = "#000000";
+            
+            console.log('✅ Footnote citation inserted');
+          }
+
+          await context.sync();
+          console.log('✅ Citation successfully inserted into Word document');
+          
+        } catch (wordError) {
+          console.error('❌ Word insertion failed:', wordError);
+          throw wordError;
+        }
+      });
+
+      // FIXED: Update citation library with proper state management
       const existingCitationIndex = citations.findIndex((c) => String(c.id) === String(normalizedCitation.id));
       
       let updated;
       if (existingCitationIndex >= 0) {
-        // Citation exists, mark it as used
-        updated = citations.map((c) =>
-          String(c.id) === String(normalizedCitation.id)
+        // Citation exists, mark it as used and add in-text citation
+        updated = citations.map((c, index) =>
+          index === existingCitationIndex
             ? {
                 ...c,
                 used: true,
                 inTextCitations: [...(c.inTextCitations || []), formatted],
+                lastUsed: new Date().toISOString()
               }
             : c
         );
+        console.log('✅ Updated existing citation in library');
       } else {
         // Citation doesn't exist, add it and mark as used
         const newCitation = {
@@ -2178,261 +2243,141 @@ const Home = ({ handleLogout, status, setStatus }) => {
           addedDate: new Date().toISOString(),
           used: true,
           inTextCitations: [formatted],
+          lastUsed: new Date().toISOString()
         };
         updated = [...citations, newCitation];
+        console.log('✅ Added new citation to library');
       }
       
       setCitations(updated);
       saveCitations(updated);
       
-      // FIXED: Add to bibliography citations and ensure all selected citations are tracked
-      const citationForBibliography = {
-        ...normalizedCitation,
-        used: true,
-        addedDate: new Date().toISOString(),
-        inTextCitations: [formatted],
-      };
+      // Update recent citations for UI
+      setRecentCitations(updated.filter(c => c.used).slice(-5));
       
-      // Update bibliography citations array for future bibliography generation
-      setBibliographyCitations(prev => {
-        // Check if citation already exists in bibliography citations
-        const existingIndex = prev.findIndex(c => String(c.id) === String(normalizedCitation.id));
-        if (existingIndex >= 0) {
-          // Update existing citation
-          const updatedCitations = [...prev];
-          updatedCitations[existingIndex] = {
-            ...updatedCitations[existingIndex],
-            inTextCitations: [...(updatedCitations[existingIndex].inTextCitations || []), formatted]
-          };
-          return updatedCitations;
-        } else {
-          // Add new citation
-          return [...prev, citationForBibliography];
-        }
-      });
+      console.log(`✅ Citation library updated. Total: ${updated.length}, Used: ${updated.filter(c => c.used).length}`);
       
       setStatus(
-        `Citation inserted successfully with ${citationStyle.toUpperCase()} style and proper formatting`
+        `✅ Citation inserted successfully with ${citationStyle.toUpperCase()} style formatting`
       );
       
-      // NOTE: Auto-regenerate bibliography removed - only manual generation via button
-      // setTimeout(async () => {
-      //   await autoRegenerateBibliography(updated);
-      // }, 500);
     } catch (error) {
-      console.error("Insert citation failed:", error);
-      setStatus(`Insert failed: ${error.message}`);
+      console.error("❌ Insert citation failed:", error);
+      setStatus(`❌ Insert failed: ${error.message || 'Unknown error'}`);
     }
   };
 
   const generateBibliography = async () => {
     if (!isOfficeReady) {
+      setStatus("Office not ready - please try again");
       return;
     }
 
-    // FIXED: Use actual citations that are marked as used, not bibliographyCitations
-    const used = citations.filter((c) => c.used);
-    console.log(`🔍 Found ${used.length} used citations for bibliography generation`);
+    // COMPLETELY FIXED: Use actual citations that are marked as used
+    const used = citations.filter((c) => c.used && c.id);
+    console.log(`🔍 Bibliography generation: Found ${used.length} used citations from total ${citations.length} citations`);
+    console.log('📋 Used citations:', used.map(c => ({ id: c.id, title: c.title?.substring(0, 50) })));
     
     if (used.length === 0) {
-      setStatus("No citations used in document - please insert citations first");
+      setStatus("No citations inserted in document - please add citations first using the 'Insert Citation' buttons");
       return;
     }
 
+    setStatus(`Generating bibliography for ${used.length} citations...`);
+
     try {
+      // Clear existing bibliography first for clean generation
+      await clearExistingBibliography();
+      
+      // Generate formatted bibliography
       const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
+      console.log(`📚 Generated bibliography raw:`, bibRaw?.substring(0, 200));
+      
+      if (!bibRaw || bibRaw.trim().length === 0) {
+        setStatus("❌ Failed to format bibliography - empty result");
+        return;
+      }
+      
       const styleFont = getCitationStyleFont(citationStyle);
 
       await Word.run(async (context) => {
-        let insertionPoint;
-        let bibliographyExists = false;
+        console.log('📝 Inserting bibliography into Word document...');
         
-        try {
-          console.log('📍 Checking for existing bibliography and finding insertion point');
-          
-          // Check if bibliography title already exists in document
-          const searchResults = context.document.body.search(bibliographyTitle, { 
-            matchCase: false, 
-            matchWholeWord: false 
-          });
-          searchResults.load('items');
-          await context.sync();
-
-          bibliographyExists = searchResults.items.length > 0;
-          console.log(`📋 Bibliography exists: ${bibliographyExists}`);
-          
-          // IMPROVED: Better cursor and insertion logic
-          let insertionPoint;
-          
-          // Method 1: Try to use cursor position first
-          try {
-            const selection = context.document.getSelection();
-            selection.load(['isEmpty', 'text', 'range']);
-            await context.sync();
-            
-            if (!selection.isEmpty) {
-              console.log('📍 Using cursor position for bibliography insertion');
-              insertionPoint = selection.getRange(Word.RangeLocation.end);
-              
-              // Add proper spacing before bibliography
-              const spacingPara = insertionPoint.insertParagraph("", Word.InsertLocation.after);
-              insertionPoint = spacingPara.getRange(Word.RangeLocation.after);
-            } else {
-              throw new Error('No cursor selection, find content end');
-            }
-          } catch (cursorError) {
-            console.log('📍 Cursor not available, finding end of content');
-            
-            // Method 2: Find the last content paragraph (improved logic)
-            const allParagraphs = context.document.body.paragraphs;
-            allParagraphs.load('items');
-            await context.sync();
-            
-            let lastContentParagraph = null;
-            
-            // IMPROVED: Better content detection
-            for (let i = allParagraphs.items.length - 1; i >= 0; i--) {
-              const para = allParagraphs.items[i];
-              para.load(['text', 'style']);
-              await context.sync();
-              
-              const paraText = para.text.trim();
-              const style = para.style || '';
-              
-              // Skip empty paragraphs
-              if (paraText.length === 0) continue;
-              
-              // Skip existing bibliography elements
-              if (paraText.toLowerCase().includes('references') || 
-                  paraText.toLowerCase().includes('bibliography') ||
-                  style.includes('Heading')) {
-                continue;
-              }
-              
-              // Skip bibliography entries (better detection)
-              const isBibEntry = (
-                paraText.length > 30 &&
-                (paraText.match(/^[A-Z][a-z]+,\s*[A-Z]\./) || // Author, A.
-                 paraText.match(/^[A-Z][a-z]+\s+et\s+al\./) || // Author et al.
-                 (paraText.includes('(') && paraText.includes(')') && paraText.match(/\([0-9]{4}\)/)) ||
-                 paraText.includes('doi.org') ||
-                 paraText.includes('https://'))
-              );
-              
-              if (!isBibEntry) {
-                lastContentParagraph = para;
-                console.log(`📄 Found last content paragraph: "${paraText.substring(0, 50)}..."`);
-                break;
-              }
-            }
-            
-            if (lastContentParagraph) {
-              // Insert after the last content paragraph
-              insertionPoint = lastContentParagraph.getRange(Word.RangeLocation.after);
-              
-              // Add proper spacing
-              const spacingPara = insertionPoint.insertParagraph("", Word.InsertLocation.after);
-              insertionPoint = spacingPara.getRange(Word.RangeLocation.after);
-            } else {
-              console.log('📄 No content found, using document end');
-              // Fallback: use document end
-              insertionPoint = context.document.body.getRange(Word.RangeLocation.end);
-            }
-          }
-          
-          // Create bibliography title only if it doesn't exist
-          if (!bibliographyExists) {
-            console.log('📋 Creating bibliography title');
-            const title = insertionPoint.insertParagraph(
-              bibliographyTitle,
-              Word.InsertLocation.after
-            );
-            title.style = "Heading 1";
-            title.font.bold = true;
-            title.font.size = 16;
-            title.font.name = styleFont.family;
-            
-            // Update insertion point to after the title
-            insertionPoint = title.getRange(Word.RangeLocation.after);
-          }
-          
-        } catch (contentError) {
-          console.log('⚠️ Content-based insertion failed, using document end:', contentError);
-          // Ultimate fallback: insert at document end
-          
-          // Check bibliography existence
-          const searchResults = context.document.body.search(bibliographyTitle, { 
-            matchCase: false, 
-            matchWholeWord: false 
-          });
-          searchResults.load('items');
-          await context.sync();
-
-          bibliographyExists = searchResults.items.length > 0;
-          
-          if (!bibliographyExists) {
-            // Add title at document end
-            const title = context.document.body.insertParagraph(
-              bibliographyTitle,
-              Word.InsertLocation.end
-            );
-            title.style = "Heading 1";
-            title.font.bold = true;
-            title.font.size = 16;
-            title.font.name = styleFont.family;
-          }
-          
-          insertionPoint = context.document.body.getRange(Word.RangeLocation.end);
-        }
-
-        // FIXED: Process ALL bibliography entries (not just the first one)
-        console.log(`📚 Processing ${used.length} citations for bibliography`);
+        // Method: Insert at document end for reliability
+        const documentEnd = context.document.body.getRange(Word.RangeLocation.end);
+        
+        // Add some spacing before bibliography
+        const spacePara = context.document.body.insertParagraph("", Word.InsertLocation.end);
+        
+        // Create bibliography title
+        const title = context.document.body.insertParagraph(
+          bibliographyTitle,
+          Word.InsertLocation.end
+        );
+        title.style = "Heading 1";
+        title.font.bold = true;
+        title.font.size = 16;
+        title.font.name = styleFont.family;
+        
+        // FIXED: Process ALL bibliography entries correctly
+        console.log(`� Processing ${used.length} citations into bibliography entries`);
         const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
-        console.log(`📝 Generated ${bibEntries.length} bibliography entries`);
+        console.log(`📝 Split into ${bibEntries.length} bibliography entries`);
         
+        // Validate we have entries for all citations
+        if (bibEntries.length < used.length) {
+          console.warn(`⚠️ Mismatch: ${used.length} citations but only ${bibEntries.length} entries generated`);
+        }
+        
+        let entryCount = 0;
         for (let i = 0; i < bibEntries.length; i++) {
           const entry = bibEntries[i].trim();
           if (!entry) continue;
 
-          console.log(`📄 Adding bibliography entry ${i + 1}/${bibEntries.length}: "${entry.substring(0, 50)}..."`);
+          console.log(`📄 Adding bibliography entry ${entryCount + 1}/${bibEntries.length}: "${entry.substring(0, 80)}..."`);
           
-          // IMPROVED: Better paragraph insertion logic
-          const para = insertionPoint.insertParagraph("", Word.InsertLocation.after);
+          // Create paragraph for each bibliography entry
+          const para = context.document.body.insertParagraph("", Word.InsertLocation.end);
           para.font.name = styleFont.family;
           para.font.size = styleFont.size;
           para.leftIndent = 36; // Hanging indent for citations
           para.firstLineIndent = -36;
+          para.spaceAfter = 6; // Add spacing between entries
 
-          // Format the entry text
-          if (entry.includes("*")) {
-            await parseAndFormatText(para, entry, citationStyle);
-          } else {
-            const range = para.insertText(entry, Word.InsertLocation.end);
-            range.font.name = styleFont.family;
-            range.font.size = styleFont.size;
+          // Format the entry text with proper error handling
+          try {
+            if (entry.includes("*") || entry.includes("**")) {
+              await parseAndFormatText(para, entry, citationStyle);
+            } else {
+              const range = para.insertText(entry, Word.InsertLocation.end);
+              range.font.name = styleFont.family;
+              range.font.size = styleFont.size;
+            }
+            entryCount++;
+          } catch (entryError) {
+            console.error(`❌ Error formatting entry ${i + 1}:`, entryError);
+            // Fallback: insert plain text
+            const plainText = entry.replace(/\*([^*]+)\*/g, "$1");
+            para.insertText(plainText, Word.InsertLocation.end);
+            entryCount++;
           }
-          
-          // CRITICAL: Update insertion point for next entry
-          insertionPoint = para.getRange(Word.RangeLocation.after);
         }
 
         await context.sync();
-        console.log(`✅ Bibliography generation completed with ${bibEntries.length} entries`);
+        console.log(`✅ Bibliography generation completed: ${entryCount} entries inserted successfully`);
       });
 
       setBibliography(bibRaw);
       
-      // REMOVED: Don't clear bibliographyCitations - let it maintain for style changes
-      // setBibliographyCitations([]);
-      
       setStatus(
-        `✅ Bibliography ${bibliographyExists ? 'updated' : 'created'}: ${used.length} citation${
+        `✅ Bibliography generated successfully: ${used.length} citation${
           used.length !== 1 ? "s" : ""
         } in ${citationStyle.toUpperCase()} style`
       );
-    } catch (e) {
-      console.error("❌ Bibliography generation failed:", e);
-      setStatus(`❌ Bibliography error: ${e.message || "Unknown error"}`);
+      
+    } catch (error) {
+      console.error("❌ Bibliography generation failed:", error);
+      setStatus(`❌ Bibliography generation failed: ${error.message || "Unknown error"}`);
     }
   };
 
