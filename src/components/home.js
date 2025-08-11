@@ -2321,21 +2321,97 @@ const Home = ({ handleLogout, status, setStatus }) => {
       await Word.run(async (context) => {
         console.log('📝 Inserting bibliography into Word document...');
         
-        // Method: Insert at document end for reliability
-        const documentEnd = context.document.body.getRange(Word.RangeLocation.end);
+        let insertionPoint;
         
-        // Add some spacing before bibliography
-        const spacePara = context.document.body.insertParagraph("", Word.InsertLocation.end);
-        
-        // Create bibliography title
-        const title = context.document.body.insertParagraph(
-          bibliographyTitle,
-          Word.InsertLocation.end
-        );
-        title.style = "Heading 1";
-        title.font.bold = true;
-        title.font.size = 16;
-        title.font.name = styleFont.family;
+        if (bibliographyExists) {
+          // Find the bibliography section and insert new entries there
+          console.log('📍 Finding existing bibliography section for insertion...');
+          const titleSearch = context.document.body.search(bibliographyTitle, {
+            matchCase: false,
+            matchWholeWord: false
+          });
+          titleSearch.load('items');
+          await context.sync();
+          
+          if (titleSearch.items.length > 0) {
+            // Find the last bibliography entry by searching for common patterns
+            const biblioTitle = titleSearch.items[0];
+            const titleRange = biblioTitle.getRange();
+            
+            // Get all paragraphs after the title
+            const allParas = context.document.body.paragraphs;
+            allParas.load('items');
+            await context.sync();
+            
+            // Find where bibliography entries end (look for next heading or end of document)
+            let lastBiblioIndex = -1;
+            let titleFound = false;
+            
+            for (let i = 0; i < allParas.items.length; i++) {
+              const para = allParas.items[i];
+              para.load(['text', 'style']);
+              await context.sync();
+              
+              // Check if this is the bibliography title
+              if (para.text.includes(bibliographyTitle)) {
+                titleFound = true;
+                continue;
+              }
+              
+              if (titleFound) {
+                // Check if this looks like a bibliography entry (has author names, years, etc.)
+                const text = para.text.trim();
+                if (text && 
+                    (text.match(/[A-Z][a-z]+,\s*[A-Z]\./) || // Author pattern
+                     text.match(/\([0-9]{4}\)/) ||            // Year pattern
+                     text.match(/et\s+al\./) ||               // Et al pattern
+                     text.includes('doi.org') ||              // DOI pattern
+                     text.includes('http'))) {                // URL pattern
+                  lastBiblioIndex = i;
+                } else if (para.style && para.style.includes('Heading')) {
+                  // Found next heading, stop here
+                  break;
+                } else if (text === '' && lastBiblioIndex !== -1) {
+                  // Empty paragraph after bibliography entries, this is our insertion point
+                  break;
+                }
+              }
+            }
+            
+            if (lastBiblioIndex !== -1 && lastBiblioIndex < allParas.items.length - 1) {
+              // Insert after the last bibliography entry
+              const lastBiblioPara = allParas.items[lastBiblioIndex];
+              insertionPoint = lastBiblioPara.getRange(Word.RangeLocation.after);
+              console.log('📍 Found insertion point after existing bibliography entries');
+            } else {
+              // Fallback: insert after title
+              insertionPoint = titleRange.getRange(Word.RangeLocation.after);
+              console.log('📍 Using fallback insertion point after title');
+            }
+          } else {
+            // This shouldn't happen, but fallback to end
+            insertionPoint = context.document.body.getRange(Word.RangeLocation.end);
+          }
+        } else {
+          // Create new bibliography section at document end
+          console.log('📍 Creating new bibliography section at document end');
+          
+          // Add some spacing before bibliography
+          const spacePara = context.document.body.insertParagraph("", Word.InsertLocation.end);
+          
+          // Create bibliography title
+          const title = context.document.body.insertParagraph(
+            bibliographyTitle,
+            Word.InsertLocation.end
+          );
+          title.style = "Heading 1";
+          title.font.bold = true;
+          title.font.size = 16;
+          title.font.name = styleFont.family;
+          
+          // Set insertion point after title
+          insertionPoint = title.getRange(Word.RangeLocation.after);
+        }
         
         // FIXED: Process ALL bibliography entries correctly
         console.log(`� Processing ${selectedForBibliography.length} citations into bibliography entries`);
@@ -2377,8 +2453,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
           if (!entryExists) {
             console.log(`Adding NEW bibliography entry ${newEntriesAdded + 1}: "${entry.substring(0, 80)}..."`);
             
-            // Create paragraph for each NEW bibliography entry
-            const para = context.document.body.insertParagraph("", Word.InsertLocation.end);
+            // Create paragraph for each NEW bibliography entry at the proper location
+            const para = insertionPoint.insertParagraph("", Word.InsertLocation.after);
             para.font.name = styleFont.family;
             para.font.size = styleFont.size;
             para.leftIndent = 36; // Hanging indent for citations
@@ -2395,12 +2471,18 @@ const Home = ({ handleLogout, status, setStatus }) => {
                 range.font.size = styleFont.size;
               }
               newEntriesAdded++;
+              
+              // Update insertion point to after this new entry for next insertion
+              insertionPoint = para.getRange(Word.RangeLocation.after);
             } catch (entryError) {
               console.error(`Error formatting entry ${i + 1}:`, entryError);
               // Fallback: insert plain text
               const plainText = entry.replace(/\*([^*]+)\*/g, "$1");
               para.insertText(plainText, Word.InsertLocation.end);
               newEntriesAdded++;
+              
+              // Update insertion point
+              insertionPoint = para.getRange(Word.RangeLocation.after);
             }
           }
         }
