@@ -34,9 +34,6 @@ const CitationSearch = ({
   insertCitation,
   markCitationAsUnused,
   syncCitationsWithDocument,
-  // New bibliography selection props
-  markCitationForBibliography,
-  selectedForBibliography,
 }) => {
   // State for folder navigation
   const [currentParentId, setCurrentParentId] = useState(null);
@@ -68,57 +65,61 @@ const CitationSearch = ({
     );
   };
 
-  // Handle search result selection - Mark for bibliography without inserting into document
+  // Handle search result selection with automatic insertion
   const handleSearchResultSelect = (resultId, checked) => {
     const newSelected = new Set(selectedSearchResults);
     if (checked) {
       newSelected.add(resultId);
-      // Add to library if not exists
+      // Insert citation directly - it will add to library and mark as used
       const selectedResult = searchResults.find(r => r.id === resultId);
-      if (selectedResult && !isCitationInLibrary(resultId)) {
-        addCitationToLibrary(selectedResult);
-      }
-      // Mark citation as selected for bibliography
-      if (markCitationForBibliography) {
-        markCitationForBibliography(resultId, true);
+      if (selectedResult) {
+        insertCitationToWord(selectedResult);
       }
     } else {
       newSelected.delete(resultId);
-      // Unmark from bibliography selection
-      if (markCitationForBibliography) {
-        markCitationForBibliography(resultId, false);
-      }
+      // Mark citation as unused when unchecked
+      removeCitationFromDocument(resultId);
     }
     setSelectedSearchResults(newSelected);
   };
 
-  // Insert citation directly to Word (separate action)
+  // Insert citation directly to Word
   const insertCitationToWord = (result) => {
     if (insertCitation) {
       insertCitation(result);
     }
   };
 
-  // Handle select all search results - Mark all for bibliography
+  // Remove citation from document (mark as unused)
+  const removeCitationFromDocument = (resultId) => {
+    // Use the markCitationAsUnused function from home.js
+    if (markCitationAsUnused) {
+      markCitationAsUnused(resultId);
+    }
+  };
+
+  // Handle select all search results with automatic insertion
   const handleSelectAllSearchResults = (checked) => {
     if (checked) {
-      // Select all citations for bibliography
+      // Select all citations and insert/use them
       const allIds = new Set(searchResults.map(r => r.id));
       setSelectedSearchResults(allIds);
-      // Mark all for bibliography
+      // Insert all citations that are not already used
       searchResults.forEach(result => {
-        if (!isCitationInLibrary(result.id)) {
-          addCitationToLibrary(result);
-        }
-        if (markCitationForBibliography) {
-          markCitationForBibliography(result.id, true);
+        const citationInLibrary = citations.find(c => String(c.id) === String(result.id));
+        const isUsed = citationInLibrary?.used || false;
+        if (!isUsed) {
+          insertCitationToWord(result);
         }
       });
     } else {
-      // Uncheck all - remove all from bibliography selection
+      // Uncheck all - mark all currently selected or used citations as unused
       searchResults.forEach(result => {
-        if (markCitationForBibliography) {
-          markCitationForBibliography(result.id, false);
+        const citationInLibrary = citations.find(c => String(c.id) === String(result.id));
+        const isUsed = citationInLibrary?.used || false;
+        const isSelected = selectedSearchResults.has(result.id);
+        if (isUsed || isSelected) {
+          removeCitationFromDocument(result.id);
         }
       });
       setSelectedSearchResults(new Set());
@@ -130,22 +131,36 @@ const CitationSearch = ({
     setSelectedSearchResults(new Set());
   }, [searchResults]);
 
-  // Sync selectedSearchResults with citations that are selected for bibliography
+  // Sync selectedSearchResults with citations that are used
   useEffect(() => {
-    if (!selectedForBibliography) return;
+    const usedCitationIds = citations
+      .filter(c => c.used)
+      .map(c => c.id);
+    
+    const unusedCitationIds = citations
+      .filter(c => !c.used)
+      .map(c => c.id);
     
     const currentSearchResultIds = searchResults.map(r => r.id);
-    const selectedSearchResultIds = currentSearchResultIds.filter(id => 
-      selectedForBibliography.has(String(id))
+    const usedSearchResultIds = usedCitationIds.filter(id => 
+      currentSearchResultIds.includes(id)
+    );
+    const unusedSearchResultIds = unusedCitationIds.filter(id => 
+      currentSearchResultIds.includes(id)
     );
     
     setSelectedSearchResults(prev => {
-      const newSelected = new Set();
-      // Add citations that are selected for bibliography
-      selectedSearchResultIds.forEach(id => newSelected.add(id));
+      const newSelected = new Set(prev);
+      
+      // Add used citations to selected
+      usedSearchResultIds.forEach(id => newSelected.add(id));
+      
+      // Remove unused citations from selected
+      unusedSearchResultIds.forEach(id => newSelected.delete(id));
+      
       return newSelected;
     });
-  }, [selectedForBibliography, searchResults]);
+  }, [citations, searchResults]);
 
   const getAvailableProjects = () => {
     if (!selectedWorkSpace || !userWorkSpaces?.workspaces) return [];

@@ -1220,7 +1220,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
   
   // Separate state for bibliography generation tracking (to prevent duplication)
   const [bibliographyCitations, setBibliographyCitations] = useState([]);
-  const [selectedForBibliography, setSelectedForBibliography] = useState(new Set()); // New state for bibliography selection
   const [recentCitations, setRecentCitations] = useState([]);
   const [userWorkSpaces, setUserWorkSpaces] = useState({});
   const [selectedWorkSpace, setSelectedWorkSpace] = useState(null);
@@ -2074,29 +2073,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
     }
   };
 
-  // New function: Mark citation as selected for bibliography (without inserting into Word)
-  const markCitationForBibliography = (citationId, selected = true) => {
-    const updatedSelection = new Set(selectedForBibliography);
-    
-    if (selected) {
-      updatedSelection.add(String(citationId));
-      
-      // Add to library if not exists
-      const existsInLibrary = citations.find(c => String(c.id) === String(citationId));
-      if (!existsInLibrary) {
-        // Find the citation in search results and add to library
-        // This will be handled by the calling component
-      }
-      
-      setStatus(`Citation selected for bibliography (${updatedSelection.size} selected)`);
-    } else {
-      updatedSelection.delete(String(citationId));
-      setStatus(updatedSelection.size > 0 ? `Citation removed from selection (${updatedSelection.size} selected)` : "Bibliography selection cleared");
-    }
-    
-    setSelectedForBibliography(updatedSelection);
-  };
-
   // Enhanced insertCitation function with proper formatting
   const insertCitation = async (citation) => {
     if (!isOfficeReady) {
@@ -2243,16 +2219,15 @@ const Home = ({ handleLogout, status, setStatus }) => {
       return;
     }
 
-    // Use selected citations instead of used citations
-    const selectedCitations = citations.filter(c => selectedForBibliography.has(String(c.id)));
-    
-    if (selectedCitations.length === 0) {
+    // Use bibliographyCitations instead of all citations to prevent duplication
+    const used = bibliographyCitations.filter((c) => c.used);
+    if (used.length === 0) {
       setStatus("No citations selected for bibliography - select citations first");
       return;
     }
 
     try {
-      const bibRaw = await formatBibliographyCiteproc(selectedCitations, citationStyle);
+      const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
       const styleFont = getCitationStyleFont(citationStyle);
 
       await Word.run(async (context) => {
@@ -2414,12 +2389,12 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
       setBibliography(bibRaw);
       
-      // Reset bibliography selection after successful generation
-      setSelectedForBibliography(new Set());
+      // Clear bibliography citations after successful generation to prevent duplication
+      setBibliographyCitations([]);
       
       setStatus(
-        `✅ Bibliography ${bibliographyExists ? 'updated' : 'created'}: ${selectedCitations.length} citation${
-          selectedCitations.length !== 1 ? "s" : ""
+        `✅ Bibliography ${bibliographyExists ? 'updated' : 'created'}: ${used.length} citation${
+          used.length !== 1 ? "s" : ""
         } in ${citationStyle.toUpperCase()} style`
       );
     } catch (e) {
@@ -3756,17 +3731,13 @@ const Home = ({ handleLogout, status, setStatus }) => {
               insertCitation={insertCitation}
               markCitationAsUnused={markCitationAsUnused}
               syncCitationsWithDocument={syncCitationsWithDocument}
-              // New bibliography selection props
-              markCitationForBibliography={markCitationForBibliography}
-              selectedForBibliography={selectedForBibliography}
             />
 
             <BibliographySection
               generateBibliography={generateBibliography}
               autoRegenerateBibliography={autoRegenerateBibliography}
               isOfficeReady={isOfficeReady}
-              citations={citations}
-              selectedForBibliography={selectedForBibliography}
+              citations={bibliographyCitations}
               testAPACitationFormatting={testAPACitationFormatting}
               testDuplicateRemoval={testDuplicateRemoval}
             />
