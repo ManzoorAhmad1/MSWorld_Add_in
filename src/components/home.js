@@ -1587,11 +1587,11 @@ const Home = ({ handleLogout, status, setStatus }) => {
     const previousStyle = citationStyle;
     setCitationStyle(newStyle);
     
-    // FIXED: Get used citations from main citations array (not bibliographyCitations)
-    const usedCitations = citations.filter(c => c.used);
-    console.log(`📋 Found ${usedCitations.length} used citations for style change`);
+    // FIXED: Use selected citations from bibliographyCitations array for consistent behavior
+    const selectedCitations = bibliographyCitations.filter(c => c && c.id);
+    console.log(`📋 Found ${selectedCitations.length} selected citations for style change`);
     
-    if (usedCitations.length > 0 && isOfficeReady) {
+    if (selectedCitations.length > 0 && isOfficeReady) {
       // Show clearing status
       setStatus(`🧹 Clearing old bibliography (${previousStyle.toUpperCase()} style)...`);
       
@@ -1610,7 +1610,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
         setStatus(`🔄 Generating new bibliography with ${newStyle.toUpperCase()} style...`);
         
         // Generate new bibliography with the new style
-        const bibRaw = await formatBibliographyCiteproc(usedCitations, newStyle);
+        const bibRaw = await formatBibliographyCiteproc(selectedCitations, newStyle);
         const styleFont = getCitationStyleFont(newStyle);
 
         await Word.run(async (context) => {
@@ -1731,7 +1731,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
         setBibliography(bibRaw);
         
-        setStatus(`✅ Bibliography automatically updated to ${newStyle.toUpperCase()} style (${usedCitations.length} citations)`);
+        setStatus(`✅ Bibliography automatically updated to ${newStyle.toUpperCase()} style (${selectedCitations.length} citations)`);
         
       } catch (error) {
         console.error('❌ Failed to clear and regenerate bibliography:', error);
@@ -2273,24 +2273,24 @@ const Home = ({ handleLogout, status, setStatus }) => {
       return;
     }
 
-    // COMPLETELY FIXED: Use actual citations that are marked as used
-    const used = citations.filter((c) => c.used && c.id);
-    console.log(`🔍 Bibliography generation: Found ${used.length} used citations from total ${citations.length} citations`);
-    console.log('📋 Used citations:', used.map(c => ({ id: c.id, title: c.title?.substring(0, 50) })));
+    // CRITICAL FIX: Use bibliographyCitations array (selected/checked citations) instead of used citations
+    const selectedForBibliography = bibliographyCitations.filter((c) => c && c.id);
+    console.log(`🔍 Bibliography generation: Found ${selectedForBibliography.length} SELECTED citations for bibliography`);
+    console.log('📋 Selected citations:', selectedForBibliography.map(c => ({ id: c.id, title: c.title?.substring(0, 50) })));
     
-    if (used.length === 0) {
-      setStatus("No citations inserted in document - please add citations first using the 'Insert Citation' buttons");
+    if (selectedForBibliography.length === 0) {
+      setStatus("No citations selected for bibliography - please check the papers you want to include and try again");
       return;
     }
 
-    setStatus(`Generating bibliography for ${used.length} citations...`);
+    setStatus(`Generating bibliography for ${selectedForBibliography.length} selected citations...`);
 
     try {
       // Clear existing bibliography first for clean generation
       await clearExistingBibliography();
       
-      // Generate formatted bibliography
-      const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
+      // Generate formatted bibliography using SELECTED citations
+      const bibRaw = await formatBibliographyCiteproc(selectedForBibliography, citationStyle);
       console.log(`📚 Generated bibliography raw:`, bibRaw?.substring(0, 200));
       
       if (!bibRaw || bibRaw.trim().length === 0) {
@@ -2370,8 +2370,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
       setBibliography(bibRaw);
       
       setStatus(
-        `✅ Bibliography generated successfully: ${used.length} citation${
-          used.length !== 1 ? "s" : ""
+        `✅ Bibliography generated successfully: ${selectedForBibliography.length} citation${
+          selectedForBibliography.length !== 1 ? "s" : ""
         } in ${citationStyle.toUpperCase()} style`
       );
       
