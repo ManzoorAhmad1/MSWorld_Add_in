@@ -2161,6 +2161,14 @@ const Home = ({ handleLogout, status, setStatus }) => {
     }
 
     try {
+      // IMPORTANT: Clear existing bibliography first
+      setStatus(`🧹 Clearing existing bibliography...`);
+      await clearExistingBibliography();
+      
+      // Wait a moment for clearing to complete
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      setStatus(`📋 Generating bibliography with ${used.length} citations...`);
       console.log('📋 DEBUG: Starting bibliography formatting for', used.length, 'citations');
       const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
       console.log('📋 DEBUG: Bibliography raw result length:', bibRaw ? bibRaw.length : 0);
