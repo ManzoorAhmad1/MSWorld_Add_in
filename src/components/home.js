@@ -1614,66 +1614,47 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
         await Word.run(async (context) => {
           try {
-            console.log('📍 Style change: ALWAYS inserting bibliography at DOCUMENT END (fixed position issue)');
+            console.log('📍 Style change: Inserting new bibliography at end of existing content');
             
             // Find the end of existing content (not cursor position)
             const bodyRange = context.document.body.getRange();
             bodyRange.load('text');
             await context.sync();
             
-            // FIXED: Smart content detection to avoid placing bibliography in middle of document
+            // Find the last non-empty paragraph
             const allParagraphs = context.document.body.paragraphs;
             allParagraphs.load('items');
             await context.sync();
             
-            let lastUserContentParagraph = null;
-            let foundUserContent = false;
+            let lastContentParagraph = null;
             
-            // Find genuine user content (not deleted bibliography remnants)
+            // Find the last paragraph with actual content (working backwards)
             for (let i = allParagraphs.items.length - 1; i >= 0; i--) {
               const para = allParagraphs.items[i];
-              para.load(['text', 'style']);
+              para.load('text');
               await context.sync();
               
-              const paraText = para.text?.trim() || '';
-              const style = para.style || '';
-              
-              // Skip empty paragraphs and bibliography headings
-              if (paraText.length === 0 || 
-                  (style.includes('Heading') && 
-                   (paraText.toLowerCase().includes('reference') || paraText.toLowerCase().includes('bibliography')))) {
-                continue;
-              }
-              
-              // Check if this is genuine USER CONTENT
-              const isUserContent = (
-                paraText.length > 20 &&
-                (!paraText.match(/^[A-Z][a-z]+,\s*[A-Z]\.\s*\([0-9]{4}\)/)) &&
-                (!paraText.toLowerCase().includes('reference')) &&
-                (!paraText.toLowerCase().includes('bibliography')) &&
-                (!paraText.toLowerCase().includes('doi')) &&
-                (!paraText.toLowerCase().includes('retrieved from'))
-              );
-              
-              if (isUserContent) {
-                lastUserContentParagraph = para;
-                foundUserContent = true;
+              if (para.text.trim().length > 0) {
+                lastContentParagraph = para;
                 break;
               }
             }
             
-            console.log('📍 Style change: Inserting new bibliography at end of existing content');
-            
             let insertionPoint;
-            if (lastUserContentParagraph) {
-              console.log('📍 Found last user content paragraph, inserting after it');
-              insertionPoint = lastUserContentParagraph.getRange(Word.RangeLocation.after);
+            if (lastContentParagraph) {
+              console.log('� Found last content paragraph, inserting after it');
+              // Insert after the last content paragraph
+              insertionPoint = lastContentParagraph.getRange(Word.RangeLocation.after);
+              
+              // Add some space before bibliography
+              insertionPoint.insertParagraph("", Word.InsertLocation.after);
             } else {
-              console.log('📍 No user content found, using document end');
-              insertionPoint = context.document.body.getRange(Word.RangeLocation.end);
+              console.log('📄 No content found, using document start');
+              // If no content, insert at document start
+              insertionPoint = context.document.body.getRange(Word.RangeLocation.start);
             }
             
-            // Create bibliography title
+            // Create bibliography title at cursor or content end
             const title = insertionPoint.insertParagraph(
               bibliographyTitle,
               Word.InsertLocation.after
@@ -1683,15 +1664,16 @@ const Home = ({ handleLogout, status, setStatus }) => {
             title.font.size = 16;
             title.font.name = styleFont.family;
             
+            // Update insertion point to after the title for bibliography entries
             let currentInsertionPoint = title.getRange(Word.RangeLocation.after);
             
-            // Process each bibliography entry
+            // Process each bibliography entry at end of content
             const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
             for (let i = 0; i < bibEntries.length; i++) {
               const entry = bibEntries[i].trim();
               if (!entry) continue;
 
-              // Create paragraph for each entry
+              // Create paragraph for each entry at cursor position
               const para = currentInsertionPoint.insertParagraph("", Word.InsertLocation.after);
               para.font.name = styleFont.family;
               para.font.size = styleFont.size;
@@ -1709,41 +1691,41 @@ const Home = ({ handleLogout, status, setStatus }) => {
               currentInsertionPoint = para.getRange(Word.RangeLocation.after);
             }
 
-          await context.sync();
-          
-        } catch (contentError) {
-          console.log('⚠️ Content insertion failed:', contentError);
-          // Fallback: insert at end of document
-          const title = context.document.body.insertParagraph(
-            bibliographyTitle,
-            Word.InsertLocation.end
-          );
-          title.style = "Heading 1";
-          title.font.bold = true;
-          title.font.size = 16;
-          title.font.name = styleFont.family;
-          
-          // Process each bibliography entry at end of document  
-          const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
-          for (let i = 0; i < bibEntries.length; i++) {
-            const entry = bibEntries[i].trim();
-            if (!entry) continue;
+          } catch (contentError) {
+            console.log('⚠️ Content insertion failed, using end of document:', contentError);
+            // Fallback: insert at end of document
+            const title = context.document.body.insertParagraph(
+              bibliographyTitle,
+              Word.InsertLocation.end
+            );
+            title.style = "Heading 1";
+            title.font.bold = true;
+            title.font.size = 16;
+            title.font.name = styleFont.family;
+            
+            // Process each bibliography entry at end of document
+            const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
+            for (let i = 0; i < bibEntries.length; i++) {
+              const entry = bibEntries[i].trim();
+              if (!entry) continue;
 
-            const para = context.document.body.insertParagraph("", Word.InsertLocation.end);
-            para.font.name = styleFont.family;
-            para.font.size = styleFont.size;
-            para.leftIndent = 36;
-            para.firstLineIndent = -36;
+              // Create paragraph for each entry
+              const para = context.document.body.insertParagraph("", Word.InsertLocation.end);
+              para.font.name = styleFont.family;
+              para.font.size = styleFont.size;
+              para.leftIndent = 36; // Hanging indent for citations
+              para.firstLineIndent = -36;
 
-            if (entry.includes("*")) {
-              await parseAndFormatText(para, entry, newStyle);
-            } else {
-              para.insertText(entry, Word.InsertLocation.end);
+              // Format the entry text
+              if (entry.includes("*")) {
+                await parseAndFormatText(para, entry, newStyle);
+              } else {
+                para.insertText(entry, Word.InsertLocation.end);
+              }
             }
           }
-          
+
           await context.sync();
-        }
         });
 
         setBibliography(bibRaw);
