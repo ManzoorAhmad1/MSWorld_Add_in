@@ -1299,31 +1299,18 @@ const Home = ({ handleLogout, status, setStatus }) => {
           console.log('✅ Bibliography titles deleted');
         }
         
-        // Method 2: More comprehensive bibliography entry removal
-        // Expanded patterns to catch all types of bibliography entries
+        // Method 2: More conservative bibliography entry removal (ONLY bibliography entries, NOT in-text citations)
+        // Focus on patterns that are clearly bibliography entries, not in-text citations
         const bibPatterns = [
-          // Common author-year patterns (more aggressive)
-          "[A-Z][a-z]+,\\s*[A-Z]\\.",  // Author, A.
-          "[A-Z][a-z]+\\s*et\\s*al\\.", // Author et al.
-          "\\([0-9]{4}\\)",            // (Year)
+          // Only match complete bibliography entries that start with author names
+          "^[A-Z][a-z]+,\\s*[A-Z]\\.[^.]*\\([0-9]{4}\\)",  // Author, A. ... (Year) - start of line
+          "^[A-Z][a-z]+\\s*et\\s*al\\.[^.]*\\([0-9]{4}\\)", // Author et al. ... (Year) - start of line
           
-          // Specific patterns from your bibliography
-          "Zhao,\\s*H\\.",
-          "arXiv",
-          "doi\\.org",
-          "Retrieved\\s*from",
-          "Available\\s*at",
-          "https://",
-          "http://",
-          
-          // Journal/publication patterns  
-          "Journal\\s*of",
-          "Proceedings",
-          "Conference",
-          "IEEE",
-          "ACM",
-          "Springer",
-          "Elsevier",
+          // Match long lines with URLs (likely bibliography)
+          "https?://[^\\s]+.*\\([0-9]{4}\\)",  // URLs with years (bibliography entries)
+          "doi\\.org/[^\\s]+",                 // DOI links (bibliography)
+          "Retrieved\\s*from\\s*http",         // Retrieved from URLs
+          "Available\\s*at\\s*http",           // Available at URLs
         ];
         
         let totalDeleted = 0;
@@ -1443,30 +1430,21 @@ const Home = ({ handleLogout, status, setStatus }) => {
               // Skip empty paragraphs
               if (paraText.length === 0) continue;
               
-              // Final cleanup - catch any remaining bibliography entries
+              // Final cleanup - ONLY catch clear bibliography entries (be more conservative)
               const isRemainingBibEntry = (
-                paraText.length > 50 && // Even more aggressive
+                paraText.length > 100 &&  // Increased minimum length to avoid short in-text citations
                 !style.includes('Heading') && 
                 !style.includes('Title') &&
                 (
-                  // Author-year pattern (more flexible)
-                  paraText.match(/^[A-Z][a-z]+,\s*[A-Z]\..*\([0-9]{4}\)/) ||
-                  paraText.match(/^[A-Z][a-z]+\s*et\s*al\..*\([0-9]{4}\)/) ||
-                  
-                  // URL patterns
-                  (paraText.includes('https://') && paraText.match(/\([0-9]{4}\)/)) ||
-                  paraText.includes('doi.org') ||
-                  paraText.includes('arXiv:') ||
-                  paraText.includes('Retrieved from') ||
-                  
-                  // Multi-author patterns like your Zhao citation
-                  paraText.match(/^[A-Z][a-z]+,\s*[A-Z]\.,.*,\s*[A-Z]\.,.*\([0-9]{4}\)/) ||
-                  
-                  // Journal pattern with volume/issue
-                  (paraText.includes('Journal') && paraText.match(/,\s*\d+\(/)) ||
-                  (paraText.includes('Proceedings') && paraText.match(/\([0-9]{4}\)/))
+                  // More specific patterns for bibliography entries (must end with period for full citations)
+                  paraText.match(/^[A-Z][a-z]+,\s*[A-Z]\.[^.]*\([0-9]{4}\).*\.$/) ||  // Full author citation ending with period
+                  paraText.match(/^[A-Z][a-z]+\s*et\s*al\.[^.]*\([0-9]{4}\).*\.$/) ||   // Et al citation ending with period
+                  (paraText.includes('https://') && paraText.length > 150) ||           // Long lines with URLs
+                  (paraText.includes('doi.org') && paraText.length > 100) ||           // DOI links
+                  paraText.includes('Retrieved from http') ||                          // Retrieved from URLs
+                  paraText.includes('Available at http')                               // Available at URLs
                 ) &&
-                // User content protection (critical)
+                // Make sure it's not user content or short in-text citations
                 !paraText.toLowerCase().includes('we ') &&
                 !paraText.toLowerCase().includes('our ') &&
                 !paraText.toLowerCase().includes('this paper') &&
@@ -1477,7 +1455,10 @@ const Home = ({ handleLogout, status, setStatus }) => {
                 !paraText.toLowerCase().includes('results') &&
                 !paraText.toLowerCase().includes('discussion') &&
                 !paraText.toLowerCase().includes('analysis') &&
-                !paraText.toLowerCase().includes('findings')
+                !paraText.toLowerCase().includes('findings') &&
+                // Don't delete short in-text citations
+                !paraText.match(/^\s*\([A-Z][a-z]+,?\s*[0-9]{4}\)\s*$/) &&           // (Author, 2024)
+                !paraText.match(/^\s*\[[0-9]+\]\s*$/)                                // [1]
               );
               
               if (isRemainingBibEntry) {
@@ -2071,28 +2052,28 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
       console.log('📝 DEBUG: Formatted citation:', formatted);
 
-      // Insert into Word with simple insertion at document end
+      // Insert into Word at document start (top of page)
       await Word.run(async (context) => {
         const styleFont = getCitationStyleFont(citationStyle);
 
         if (citationFormat === "in-text") {
-          // Simple insertion at document end
+          // Insert citation at document start (top of page)
           const range = context.document.body.insertText(
             formatted + " ",
-            Word.InsertLocation.end
+            Word.InsertLocation.start
           );
           range.font.name = styleFont.family;
           range.font.size = styleFont.size;
         } else {
-          // For footnotes, create formatted footnote at document end
-          const lastParagraph = context.document.body.paragraphs.getLast();
-          const footnote = lastParagraph.insertFootnote(formatted);
+          // For footnotes, create formatted footnote at document start
+          const firstParagraph = context.document.body.paragraphs.getFirst();
+          const footnote = firstParagraph.insertFootnote(formatted);
           footnote.body.font.name = styleFont.family;
           footnote.body.font.size = styleFont.size - 1; // Footnotes typically smaller
         }
 
         await context.sync();
-        console.log('✅ Citation inserted into Word document');
+        console.log('✅ Citation inserted into Word document at top');
       });
 
       // Update citation library - handle both existing and new citations
@@ -2161,8 +2142,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
     }
 
     try {
-      // IMPORTANT: Clear existing bibliography first
-      setStatus(`🧹 Clearing existing bibliography...`);
+      // IMPORTANT: Clear existing bibliography first (ONLY bibliography, not in-text citations)
+      setStatus(`🧹 Clearing existing bibliography entries only...`);
       await clearExistingBibliography();
       
       // Wait a moment for clearing to complete
@@ -2228,7 +2209,10 @@ const Home = ({ handleLogout, status, setStatus }) => {
       setBibliography(bibRaw);
       console.log('✅ Bibliography state updated');
       
-      setStatus(`✅ Bibliography generated with ${used.length} citations`);
+      // IMPORTANT: Don't modify the citations state here to preserve checkboxes
+      // The citations array already has the correct "used" status
+      
+      setStatus(`✅ Bibliography generated with ${used.length} citations (checkboxes preserved)`);
     } catch (e) {
       console.error("❌ Bibliography generation failed:", e);
       setStatus(`❌ Bibliography error: ${e.message || "Unknown error"}`);
