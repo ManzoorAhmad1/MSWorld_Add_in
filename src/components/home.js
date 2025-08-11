@@ -2266,11 +2266,9 @@ const generateBibliography = async () => {
         let insertionPoint;
         
         if (bibliographyExists) {
-          // If bibliography exists, insert after the title
-          insertionPoint = bibliographySection.getRange(Word.RangeLocation.after);
-          
-          // Clear existing bibliography entries (find and remove paragraphs after title until next heading or end)
-          await clearExistingBibliographyEntries(context, bibliographySection);
+          // If bibliography exists, find the end of existing entries to append new ones
+          console.log('📍 Bibliography section found, will append new entries');
+          insertionPoint = await findEndOfBibliography(context, bibliographySection);
           
         } else {
           // No bibliography exists, find appropriate insertion point
@@ -2296,17 +2294,34 @@ const generateBibliography = async () => {
           insertionPoint = titleParagraph.getRange(Word.RangeLocation.after);
         }
 
-        // Step 3: Process and insert bibliography entries
+        // Step 3: Check for duplicate entries and filter them out
+        const existingEntries = bibliographyExists ? 
+          await getExistingBibliographyEntries(context) : [];
+        
         const bibEntries = bibRaw.split("\n")
           .map(entry => entry.trim())
-          .filter(entry => entry.length > 0);
+          .filter(entry => entry.length > 0)
+          .filter(entry => !isDuplicateEntry(entry, existingEntries));
         
-        console.log(`📚 Processing ${bibEntries.length} bibliography entries`);
+        console.log(`📚 Processing ${bibEntries.length} new bibliography entries (${bibRaw.split("\n").filter(e => e.trim()).length - bibEntries.length} duplicates filtered)`);
 
-        // Add blank line before entries
-        const spacerParagraph = insertionPoint.insertParagraph("", Word.InsertLocation.after);
-        spacerParagraph.spaceAfter = 6;
-        insertionPoint = spacerParagraph.getRange(Word.RangeLocation.after);
+        if (bibEntries.length === 0) {
+          console.log('ℹ️ All selected citations already exist in bibliography');
+          setStatus("All selected citations already exist in the bibliography.");
+          return;
+        }
+
+        // Add blank line before new entries if there are existing entries
+        if (bibliographyExists) {
+          const spacerParagraph = insertionPoint.insertParagraph("", Word.InsertLocation.after);
+          spacerParagraph.spaceAfter = 6;
+          insertionPoint = spacerParagraph.getRange(Word.RangeLocation.after);
+        } else {
+          // Add blank line after title for new bibliography
+          const spacerParagraph = insertionPoint.insertParagraph("", Word.InsertLocation.after);
+          spacerParagraph.spaceAfter = 6;
+          insertionPoint = spacerParagraph.getRange(Word.RangeLocation.after);
+        }
 
         // Insert each bibliography entry
         for (let i = 0; i < bibEntries.length; i++) {
@@ -2366,17 +2381,420 @@ const generateBibliography = async () => {
       )
     );
     
-    const actionText = bibliographyExists ? 'updated' : 'created';
-    setStatus(
-      `✅ Bibliography ${actionText} successfully: ${selectedCitations.length} citation${
-        selectedCitations.length !== 1 ? "s" : ""
-      } in ${citationStyle.toUpperCase()} style`
-    );
+    const totalSelected = selectedCitations.length;
+    const newEntriesAdded = bibEntries.length;
+    const duplicatesSkipped = totalSelected - newEntriesAdded;
+    
+    let statusMessage = `✅ Bibliography ${bibliographyExists ? 'updated' : 'created'}: ${newEntriesAdded} new citation${newEntriesAdded !== 1 ? "s" : ""} added`;
+    
+    if (duplicatesSkipped > 0) {
+      statusMessage += `, ${duplicatesSkipped} duplicate${duplicatesSkipped !== 1 ? "s" : ""} skipped`;
+    }
+    
+    statusMessage += ` in ${citationStyle.toUpperCase()} style`;
+    
+    setStatus(statusMessage);
 
   } catch (error) {
     console.error("❌ Bibliography generation failed:", error);
     const errorMessage = error.message || "Unknown error occurred during bibliography generation";
     setStatus(`❌ Bibliography error: ${errorMessage}`);
+  }
+};
+
+// Helper function to find appropriate insertion point for bibliography
+// const findBibliographyInsertionPoint = async (context) => {
+//   try {
+//     // Try to use cursor position first
+//     const selection = context.document.getSelection();
+//     selection.load(['isEmpty', 'text']);
+//     await context.sync();
+    
+//     if (!selection.isEmpty) {
+//       console.log('📍 Using cursor position for bibliography insertion');
+//       return selection.getRange(Word.RangeLocation.after);
+//     }
+//   } catch (selectionError) {
+//     console.log('📍 Cursor selection not available, finding end of content');
+//   }
+  
+//   // Find end of actual content
+//   const body = context.document.body;
+//   body.load(['paragraphs']);
+//   await context.sync();
+  
+//   const paragraphs = body.paragraphs;
+//   paragraphs.load(['items']);
+//   await context.sync();
+  
+//   // Find last paragraph with meaningful content
+//   let lastContentIndex = -1;
+//   for (let i = paragraphs.items.length - 1; i >= 0; i--) {
+//     const para = paragraphs.items[i];
+//     para.load(['text']);
+//     await context.sync();
+    
+//     const text = para.text.trim();
+//     if (text.length > 0 && !isLikelyBibliographyContent(text)) {
+//       lastContentIndex = i;
+//       break;
+//     }
+//   }
+  
+//   if (lastContentIndex >= 0) {
+//     const lastPara = paragraphs.items[lastContentIndex];
+//     console.log('📄 Found last content paragraph, inserting after it');
+//     return lastPara.getRange(Word.RangeLocation.after);
+//   } else {
+//     console.log('📄 No content found, using document end');
+//     return body.getRange(Word.RangeLocation.end);
+//   }
+// };
+
+// Helper function to find the end of existing bibliography entries
+const findEndOfBibliography = async (context) => {
+  try {
+    // Find bibliography title first
+    const searchResults = context.document.body.search("References", { 
+      matchCase: false, 
+      matchWholeWord: false 
+    });
+    searchResults.load('items');
+    await context.sync();
+
+    if (searchResults.items.length === 0) {
+      // Try "Bibliography" as well
+      const bibSearchResults = context.document.body.search("Bibliography", { 
+        matchCase: false, 
+        matchWholeWord: false 
+      });
+      bibSearchResults.load('items');
+      await context.sync();
+      
+      if (bibSearchResults.items.length === 0) {
+        throw new Error("Bibliography section not found");
+      }
+    }
+
+    const body = context.document.body;
+    const allParagraphs = body.paragraphs;
+    allParagraphs.load(['items']);
+    await context.sync();
+    
+    let bibliographyStarted = false;
+    let lastBibEntryIndex = -1;
+    
+    for (let i = 0; i < allParagraphs.items.length; i++) {
+      const para = allParagraphs.items[i];
+      para.load(['text', 'style']);
+      await context.sync();
+      
+      const text = para.text.trim();
+      const style = para.style;
+      
+      // Check if this is the bibliography title
+      if (text.toLowerCase().includes('references') || 
+          text.toLowerCase().includes('bibliography')) {
+        bibliographyStarted = true;
+        continue;
+      }
+      
+      if (bibliographyStarted) {
+        // Stop if we hit another heading (next section)
+        if (style && (style.includes('Heading') || style === 'Title') && 
+            !text.toLowerCase().includes('references') && 
+            !text.toLowerCase().includes('bibliography')) {
+          break;
+        }
+        
+        // If this looks like bibliography content, mark it as last entry
+        if (text.length > 0 && isLikelyBibliographyContent(text)) {
+          lastBibEntryIndex = i;
+        }
+        
+        // If we find non-bibliography content that's substantial, stop
+        if (text.length > 100 && !isLikelyBibliographyContent(text) && 
+            !text.toLowerCase().includes('references') && 
+            !text.toLowerCase().includes('bibliography')) {
+          break;
+        }
+      }
+    }
+    
+    if (lastBibEntryIndex >= 0) {
+      // Insert after the last bibliography entry
+      console.log(`📍 Found last bibliography entry at index ${lastBibEntryIndex}`);
+      return allParagraphs.items[lastBibEntryIndex].getRange(Word.RangeLocation.after);
+    } else {
+      // No existing entries found, insert after title
+      console.log('📍 No existing bibliography entries found, inserting after title');
+      const titlePara = allParagraphs.items.find(p => {
+        p.load(['text']);
+        context.sync();
+        return p.text.toLowerCase().includes('references') || 
+               p.text.toLowerCase().includes('bibliography');
+      });
+      
+      if (titlePara) {
+        return titlePara.getRange(Word.RangeLocation.after);
+      } else {
+        return body.getRange(Word.RangeLocation.end);
+      }
+    }
+    
+  } catch (error) {
+    console.log('⚠️ Error finding end of bibliography, using document end:', error);
+    return context.document.body.getRange(Word.RangeLocation.end);
+  }
+};
+
+// Helper function to get existing bibliography entries for duplicate checking
+const getExistingBibliographyEntries = async (context) => {
+  try {
+    const body = context.document.body;
+    const allParagraphs = body.paragraphs;
+    allParagraphs.load(['items']);
+    await context.sync();
+    
+    let bibliographyStarted = false;
+    const existingEntries = [];
+    
+    for (let i = 0; i < allParagraphs.items.length; i++) {
+      const para = allParagraphs.items[i];
+      para.load(['text', 'style']);
+      await context.sync();
+      
+      const text = para.text.trim();
+      const style = para.style;
+      
+      // Check if this is the bibliography title
+      if (text.toLowerCase().includes('references') || 
+          text.toLowerCase().includes('bibliography')) {
+        bibliographyStarted = true;
+        continue;
+      }
+      
+      if (bibliographyStarted) {
+        // Stop if we hit another heading
+        if (style && (style.includes('Heading') || style === 'Title') && 
+            !text.toLowerCase().includes('references') && 
+            !text.toLowerCase().includes('bibliography')) {
+          break;
+        }
+        
+        // Collect bibliography entries
+        if (text.length > 0 && isLikelyBibliographyContent(text)) {
+          existingEntries.push(text);
+        }
+      }
+    }
+    
+    console.log(`📋 Found ${existingEntries.length} existing bibliography entries`);
+    return existingEntries;
+    
+  } catch (error) {
+    console.log('⚠️ Error getting existing bibliography entries:', error);
+    return [];
+  }
+};
+
+// Helper function to check if an entry is duplicate
+const isDuplicateEntry = (newEntry, existingEntries) => {
+  if (!newEntry || !existingEntries || existingEntries.length === 0) {
+    return false;
+  }
+  
+  // Clean the new entry for comparison
+  const cleanNewEntry = cleanEntryForComparison(newEntry);
+  
+  return existingEntries.some(existing => {
+    const cleanExisting = cleanEntryForComparison(existing);
+    
+    // Check for exact match
+    if (cleanExisting === cleanNewEntry) {
+      return true;
+    }
+    
+    // Check for substantial similarity (same author and year)
+    return checkEntrySimilarity(cleanNewEntry, cleanExisting);
+  });
+};
+
+// Helper function to clean entry text for comparison
+const cleanEntryForComparison = (entry) => {
+  return entry
+    .replace(/\*+/g, '') // Remove markdown formatting
+    .replace(/\s+/g, ' ') // Normalize whitespace
+    .replace(/[^\w\s\(\)\.,]/g, '') // Keep only alphanumeric, spaces, and basic punctuation
+    .trim()
+    .toLowerCase();
+};
+
+// Helper function to check entry similarity
+const checkEntrySimilarity = (entry1, entry2) => {
+  // Extract author (first part before comma or period)
+  const getAuthor = (entry) => {
+    const match = entry.match(/^([^,\.]+)/);
+    return match ? match[1].trim() : '';
+  };
+  
+  // Extract year
+  const getYear = (entry) => {
+    const match = entry.match(/\((\d{4})\)|(\d{4})/);
+    return match ? (match[1] || match[2]) : '';
+  };
+  
+  const author1 = getAuthor(entry1);
+  const author2 = getAuthor(entry2);
+  const year1 = getYear(entry1);
+  const year2 = getYear(entry2);
+  
+  // Consider similar if same author and year
+  if (author1 && author2 && year1 && year2) {
+    const authorSimilarity = author1.length > 3 && author2.length > 3 && 
+                            (author1.includes(author2.substring(0, 5)) || 
+                             author2.includes(author1.substring(0, 5)));
+    
+    return authorSimilarity && year1 === year2;
+  }
+  
+  // Fallback: check if entries are substantially similar (80% match)
+  const similarity = calculateStringSimilarity(entry1, entry2);
+  return similarity > 0.8;
+};
+
+// Helper function to calculate string similarity
+const calculateStringSimilarity = (str1, str2) => {
+  const longer = str1.length > str2.length ? str1 : str2;
+  const shorter = str1.length > str2.length ? str2 : str1;
+  
+  if (longer.length === 0) return 1.0;
+  
+  const editDistance = levenshteinDistance(longer, shorter);
+  return (longer.length - editDistance) / longer.length;
+};
+
+// Helper function to calculate Levenshtein distance
+const levenshteinDistance = (str1, str2) => {
+  const matrix = [];
+  
+  for (let i = 0; i <= str2.length; i++) {
+    matrix[i] = [i];
+  }
+  
+  for (let j = 0; j <= str1.length; j++) {
+    matrix[0][j] = j;
+  }
+  
+  for (let i = 1; i <= str2.length; i++) {
+    for (let j = 1; j <= str1.length; j++) {
+      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  
+  return matrix[str2.length][str1.length];
+};
+
+// Helper function to identify bibliography-like content
+const isLikelyBibliographyContent = (text) => {
+  if (!text || text.length < 10) return false;
+  
+  const bibPatterns = [
+    /^[A-Z][a-z]+,\s*[A-Z]\./, // "Author, A."
+    /\(\d{4}\)/, // Year in parentheses
+    /\d{4}\.\s*[A-Z]/, // "2023. Title"
+    /https?:\/\//, // URLs
+    /doi:/, // DOI
+    /pp?\.\s*\d+/, // Page numbers
+    /Vol\.\s*\d+/, // Volume numbers
+    /Journal|Proceedings|Conference/, // Common publication words
+  ];
+  
+  return bibPatterns.some(pattern => pattern.test(text));
+};
+
+// Helper function to parse and format bibliography text with markup
+const parseAndFormatBibliographyText = async (paragraph, text, styleFont) => {
+  try {
+    // Simple markup parsing for *italic* and **bold**
+    const parts = [];
+    let current = '';
+    let i = 0;
+    
+    while (i < text.length) {
+      if (text[i] === '*') {
+        if (text[i + 1] === '*') {
+          // Bold
+          if (current) {
+            parts.push({ text: current, bold: false, italic: false });
+            current = '';
+          }
+          i += 2;
+          let boldText = '';
+          while (i < text.length - 1 && !(text[i] === '*' && text[i + 1] === '*')) {
+            boldText += text[i];
+            i++;
+          }
+          if (i < text.length - 1) {
+            parts.push({ text: boldText, bold: true, italic: false });
+            i += 2;
+          } else {
+            current += '**' + boldText;
+            break;
+          }
+        } else {
+          // Italic
+          if (current) {
+            parts.push({ text: current, bold: false, italic: false });
+            current = '';
+          }
+          i++;
+          let italicText = '';
+          while (i < text.length && text[i] !== '*') {
+            italicText += text[i];
+            i++;
+          }
+          if (i < text.length) {
+            parts.push({ text: italicText, bold: false, italic: true });
+            i++;
+          } else {
+            current += '*' + italicText;
+            break;
+          }
+        }
+      } else {
+        current += text[i];
+        i++;
+      }
+    }
+    
+    if (current) {
+      parts.push({ text: current, bold: false, italic: false });
+    }
+    
+    // Insert formatted parts
+    for (const part of parts) {
+      const range = paragraph.insertText(part.text, Word.InsertLocation.end);
+      range.font.name = styleFont.family;
+      range.font.size = styleFont.size;
+      range.font.bold = part.bold;
+      range.font.italic = part.italic;
+    }
+    
+  } catch (formatError) {
+    console.log('⚠️ Error formatting bibliography text, using plain text:', formatError);
+    // Fallback to plain text
+    const range = paragraph.insertText(text.replace(/\*+/g, ''), Word.InsertLocation.end);
+    range.font.name = styleFont.family;
+    range.font.size = styleFont.size;
   }
 };
 
@@ -2492,99 +2910,99 @@ const clearExistingBibliographyEntries = async (context, bibliographyTitleRange)
 };
 
 // Helper function to identify bibliography-like content
-const isLikelyBibliographyContent = (text) => {
-  if (!text || text.length < 10) return false;
+// const isLikelyBibliographyContent = (text) => {
+//   if (!text || text.length < 10) return false;
   
-  const bibPatterns = [
-    /^[A-Z][a-z]+,\s*[A-Z]\./, // "Author, A."
-    /\(\d{4}\)/, // Year in parentheses
-    /\d{4}\.\s*[A-Z]/, // "2023. Title"
-    /https?:\/\//, // URLs
-    /doi:/, // DOI
-    /pp?\.\s*\d+/, // Page numbers
-    /Vol\.\s*\d+/, // Volume numbers
-    /Journal|Proceedings|Conference/, // Common publication words
-  ];
+//   const bibPatterns = [
+//     /^[A-Z][a-z]+,\s*[A-Z]\./, // "Author, A."
+//     /\(\d{4}\)/, // Year in parentheses
+//     /\d{4}\.\s*[A-Z]/, // "2023. Title"
+//     /https?:\/\//, // URLs
+//     /doi:/, // DOI
+//     /pp?\.\s*\d+/, // Page numbers
+//     /Vol\.\s*\d+/, // Volume numbers
+//     /Journal|Proceedings|Conference/, // Common publication words
+//   ];
   
-  return bibPatterns.some(pattern => pattern.test(text));
-};
+//   return bibPatterns.some(pattern => pattern.test(text));
+// };
 
-// Helper function to parse and format bibliography text with markup
-const parseAndFormatBibliographyText = async (paragraph, text, styleFont) => {
-  try {
-    // Simple markup parsing for *italic* and **bold**
-    const parts = [];
-    let current = '';
-    let i = 0;
+// // Helper function to parse and format bibliography text with markup
+// const parseAndFormatBibliographyText = async (paragraph, text, styleFont) => {
+//   try {
+//     // Simple markup parsing for *italic* and **bold**
+//     const parts = [];
+//     let current = '';
+//     let i = 0;
     
-    while (i < text.length) {
-      if (text[i] === '*') {
-        if (text[i + 1] === '*') {
-          // Bold
-          if (current) {
-            parts.push({ text: current, bold: false, italic: false });
-            current = '';
-          }
-          i += 2;
-          let boldText = '';
-          while (i < text.length - 1 && !(text[i] === '*' && text[i + 1] === '*')) {
-            boldText += text[i];
-            i++;
-          }
-          if (i < text.length - 1) {
-            parts.push({ text: boldText, bold: true, italic: false });
-            i += 2;
-          } else {
-            current += '**' + boldText;
-            break;
-          }
-        } else {
-          // Italic
-          if (current) {
-            parts.push({ text: current, bold: false, italic: false });
-            current = '';
-          }
-          i++;
-          let italicText = '';
-          while (i < text.length && text[i] !== '*') {
-            italicText += text[i];
-            i++;
-          }
-          if (i < text.length) {
-            parts.push({ text: italicText, bold: false, italic: true });
-            i++;
-          } else {
-            current += '*' + italicText;
-            break;
-          }
-        }
-      } else {
-        current += text[i];
-        i++;
-      }
-    }
+//     while (i < text.length) {
+//       if (text[i] === '*') {
+//         if (text[i + 1] === '*') {
+//           // Bold
+//           if (current) {
+//             parts.push({ text: current, bold: false, italic: false });
+//             current = '';
+//           }
+//           i += 2;
+//           let boldText = '';
+//           while (i < text.length - 1 && !(text[i] === '*' && text[i + 1] === '*')) {
+//             boldText += text[i];
+//             i++;
+//           }
+//           if (i < text.length - 1) {
+//             parts.push({ text: boldText, bold: true, italic: false });
+//             i += 2;
+//           } else {
+//             current += '**' + boldText;
+//             break;
+//           }
+//         } else {
+//           // Italic
+//           if (current) {
+//             parts.push({ text: current, bold: false, italic: false });
+//             current = '';
+//           }
+//           i++;
+//           let italicText = '';
+//           while (i < text.length && text[i] !== '*') {
+//             italicText += text[i];
+//             i++;
+//           }
+//           if (i < text.length) {
+//             parts.push({ text: italicText, bold: false, italic: true });
+//             i++;
+//           } else {
+//             current += '*' + italicText;
+//             break;
+//           }
+//         }
+//       } else {
+//         current += text[i];
+//         i++;
+//       }
+//     }
     
-    if (current) {
-      parts.push({ text: current, bold: false, italic: false });
-    }
+//     if (current) {
+//       parts.push({ text: current, bold: false, italic: false });
+//     }
     
-    // Insert formatted parts
-    for (const part of parts) {
-      const range = paragraph.insertText(part.text, Word.InsertLocation.end);
-      range.font.name = styleFont.family;
-      range.font.size = styleFont.size;
-      range.font.bold = part.bold;
-      range.font.italic = part.italic;
-    }
+//     // Insert formatted parts
+//     for (const part of parts) {
+//       const range = paragraph.insertText(part.text, Word.InsertLocation.end);
+//       range.font.name = styleFont.family;
+//       range.font.size = styleFont.size;
+//       range.font.bold = part.bold;
+//       range.font.italic = part.italic;
+//     }
     
-  } catch (formatError) {
-    console.log('⚠️ Error formatting bibliography text, using plain text:', formatError);
-    // Fallback to plain text
-    const range = paragraph.insertText(text.replace(/\*+/g, ''), Word.InsertLocation.end);
-    range.font.name = styleFont.family;
-    range.font.size = styleFont.size;
-  }
-};
+//   } catch (formatError) {
+//     console.log('⚠️ Error formatting bibliography text, using plain text:', formatError);
+//     // Fallback to plain text
+//     const range = paragraph.insertText(text.replace(/\*+/g, ''), Word.InsertLocation.end);
+//     range.font.name = styleFont.family;
+//     range.font.size = styleFont.size;
+//   }
+// };
 
   // COMPLETELY REWRITTEN: Simplified text formatting to prevent duplication
   const parseAndFormatText = async (paragraph, text, citationStyle) => {
