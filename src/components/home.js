@@ -2272,6 +2272,7 @@ const generateBibliography = async () => {
           
         } else {
           // No bibliography exists, find appropriate insertion point
+          console.log('📍 Creating new bibliography section');
           insertionPoint = await findBibliographyInsertionPoint(context);
           
           // Create bibliography title
@@ -2292,6 +2293,8 @@ const generateBibliography = async () => {
           
           // Update insertion point to after title
           insertionPoint = titleParagraph.getRange(Word.RangeLocation.after);
+          
+          console.log(`📚 Processing ${bibEntries.length} new bibliography entries`);
         }
 
         // Step 3: Check for duplicate entries and filter them out
@@ -2368,32 +2371,32 @@ const generateBibliography = async () => {
       }
     });
 
-    // Step 5: Update state and provide feedback
-    setBibliography(bibRaw);
-    
-    // Mark selected citations as processed to prevent duplication
-    const processedCitationIds = selectedCitations.map(c => c.id);
-    setBibliographyCitations(prev => 
-      prev.map(citation => 
-        processedCitationIds.includes(citation.id) 
-          ? { ...citation, processed: true, used: false }
-          : citation
-      )
-    );
-    
-    const totalSelected = selectedCitations.length;
-    const newEntriesAdded = bibEntries.length;
-    const duplicatesSkipped = totalSelected - newEntriesAdded;
-    
-    let statusMessage = `✅ Bibliography ${bibliographyExists ? 'updated' : 'created'}: ${newEntriesAdded} new citation${newEntriesAdded !== 1 ? "s" : ""} added`;
-    
-    if (duplicatesSkipped > 0) {
-      statusMessage += `, ${duplicatesSkipped} duplicate${duplicatesSkipped !== 1 ? "s" : ""} skipped`;
-    }
-    
-    statusMessage += ` in ${citationStyle.toUpperCase()} style`;
-    
-    setStatus(statusMessage);
+        // Step 5: Update state and provide feedback (moved inside Word.run scope)
+        setBibliography(bibRaw);
+        
+        // Mark selected citations as processed to prevent duplication
+        const processedCitationIds = selectedCitations.map(c => c.id);
+        setBibliographyCitations(prev => 
+          prev.map(citation => 
+            processedCitationIds.includes(citation.id) 
+              ? { ...citation, processed: true, used: false }
+              : citation
+          )
+        );
+        
+        const totalSelected = selectedCitations.length;
+        const newEntriesAdded = bibEntries.length;
+        const duplicatesSkipped = totalSelected - newEntriesAdded;
+        
+        let statusMessage = `✅ Bibliography ${bibliographyExists ? 'updated' : 'created'}: ${newEntriesAdded} new citation${newEntriesAdded !== 1 ? "s" : ""} added`;
+        
+        if (duplicatesSkipped > 0) {
+          statusMessage += `, ${duplicatesSkipped} duplicate${duplicatesSkipped !== 1 ? "s" : ""} skipped`;
+        }
+        
+        statusMessage += ` in ${citationStyle.toUpperCase()} style`;
+        
+        setStatus(statusMessage);
 
   } catch (error) {
     console.error("❌ Bibliography generation failed:", error);
@@ -2403,53 +2406,53 @@ const generateBibliography = async () => {
 };
 
 // Helper function to find appropriate insertion point for bibliography
-// const findBibliographyInsertionPoint = async (context) => {
-//   try {
-//     // Try to use cursor position first
-//     const selection = context.document.getSelection();
-//     selection.load(['isEmpty', 'text']);
-//     await context.sync();
+const findBibliographyInsertionPoint = async (context) => {
+  try {
+    // Try to use cursor position first
+    const selection = context.document.getSelection();
+    selection.load(['isEmpty', 'text']);
+    await context.sync();
     
-//     if (!selection.isEmpty) {
-//       console.log('📍 Using cursor position for bibliography insertion');
-//       return selection.getRange(Word.RangeLocation.after);
-//     }
-//   } catch (selectionError) {
-//     console.log('📍 Cursor selection not available, finding end of content');
-//   }
+    if (!selection.isEmpty) {
+      console.log('📍 Using cursor position for bibliography insertion');
+      return selection.getRange(Word.RangeLocation.after);
+    }
+  } catch (selectionError) {
+    console.log('📍 Cursor selection not available, finding end of content');
+  }
   
-//   // Find end of actual content
-//   const body = context.document.body;
-//   body.load(['paragraphs']);
-//   await context.sync();
+  // Find end of actual content
+  const body = context.document.body;
+  body.load(['paragraphs']);
+  await context.sync();
   
-//   const paragraphs = body.paragraphs;
-//   paragraphs.load(['items']);
-//   await context.sync();
+  const paragraphs = body.paragraphs;
+  paragraphs.load(['items']);
+  await context.sync();
   
-//   // Find last paragraph with meaningful content
-//   let lastContentIndex = -1;
-//   for (let i = paragraphs.items.length - 1; i >= 0; i--) {
-//     const para = paragraphs.items[i];
-//     para.load(['text']);
-//     await context.sync();
+  // Find last paragraph with meaningful content
+  let lastContentIndex = -1;
+  for (let i = paragraphs.items.length - 1; i >= 0; i--) {
+    const para = paragraphs.items[i];
+    para.load(['text']);
+    await context.sync();
     
-//     const text = para.text.trim();
-//     if (text.length > 0 && !isLikelyBibliographyContent(text)) {
-//       lastContentIndex = i;
-//       break;
-//     }
-//   }
+    const text = para.text.trim();
+    if (text.length > 0 && !isLikelyBibliographyContent(text)) {
+      lastContentIndex = i;
+      break;
+    }
+  }
   
-//   if (lastContentIndex >= 0) {
-//     const lastPara = paragraphs.items[lastContentIndex];
-//     console.log('📄 Found last content paragraph, inserting after it');
-//     return lastPara.getRange(Word.RangeLocation.after);
-//   } else {
-//     console.log('📄 No content found, using document end');
-//     return body.getRange(Word.RangeLocation.end);
-//   }
-// };
+  if (lastContentIndex >= 0) {
+    const lastPara = paragraphs.items[lastContentIndex];
+    console.log('📄 Found last content paragraph, inserting after it');
+    return lastPara.getRange(Word.RangeLocation.after);
+  } else {
+    console.log('📄 No content found, using document end');
+    return body.getRange(Word.RangeLocation.end);
+  }
+};
 
 // Helper function to find the end of existing bibliography entries
 const findEndOfBibliography = async (context) => {
@@ -2798,54 +2801,7 @@ const parseAndFormatBibliographyText = async (paragraph, text, styleFont) => {
   }
 };
 
-// Helper function to find appropriate insertion point for bibliography
-const findBibliographyInsertionPoint = async (context) => {
-  try {
-    // Try to use cursor position first
-    const selection = context.document.getSelection();
-    selection.load(['isEmpty', 'text']);
-    await context.sync();
-    
-    if (!selection.isEmpty) {
-      console.log('📍 Using cursor position for bibliography insertion');
-      return selection.getRange(Word.RangeLocation.after);
-    }
-  } catch (selectionError) {
-    console.log('📍 Cursor selection not available, finding end of content');
-  }
-  
-  // Find end of actual content
-  const body = context.document.body;
-  body.load(['paragraphs']);
-  await context.sync();
-  
-  const paragraphs = body.paragraphs;
-  paragraphs.load(['items']);
-  await context.sync();
-  
-  // Find last paragraph with meaningful content
-  let lastContentIndex = -1;
-  for (let i = paragraphs.items.length - 1; i >= 0; i--) {
-    const para = paragraphs.items[i];
-    para.load(['text']);
-    await context.sync();
-    
-    const text = para.text.trim();
-    if (text.length > 0 && !isLikelyBibliographyContent(text)) {
-      lastContentIndex = i;
-      break;
-    }
-  }
-  
-  if (lastContentIndex >= 0) {
-    const lastPara = paragraphs.items[lastContentIndex];
-    console.log('📄 Found last content paragraph, inserting after it');
-    return lastPara.getRange(Word.RangeLocation.after);
-  } else {
-    console.log('📄 No content found, using document end');
-    return body.getRange(Word.RangeLocation.end);
-  }
-};
+
 
 // Helper function to clear existing bibliography entries
 const clearExistingBibliographyEntries = async (context, bibliographyTitleRange) => {
