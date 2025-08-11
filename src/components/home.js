@@ -2160,23 +2160,16 @@ const Home = ({ handleLogout, status, setStatus }) => {
       
       let updated;
       if (existingCitationIndex >= 0) {
-        // Citation exists, mark it as used
-        updated = citations.map((c) =>
-          String(c.id) === String(normalizedCitation.id)
-            ? {
-                ...c,
-                used: true,
-                inTextCitations: [...(c.inTextCitations || []), formatted],
-              }
-            : c
-        );
+        // Citation exists, DON'T mark it as used in main citations anymore
+        // Just add it to bibliography citations state for tracking
+        updated = citations; // Keep citations unchanged
       } else {
-        // Citation doesn't exist, add it and mark as used
+        // Citation doesn't exist, add it but DON'T mark as used in main array
         const newCitation = {
           ...normalizedCitation,
           addedDate: new Date().toISOString(),
-          used: true,
-          inTextCitations: [formatted],
+          used: false, // Keep used as false in main array
+          inTextCitations: [],
         };
         updated = [...citations, newCitation];
       }
@@ -2187,7 +2180,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
       // Add to bibliography citations for future bibliography generation
       const citationForBibliography = {
         ...normalizedCitation,
-        used: true,
+        used: true, // Mark as used ONLY in bibliography state
         addedDate: new Date().toISOString(),
         inTextCitations: [formatted],
       };
@@ -2219,8 +2212,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
       return;
     }
 
-    // Use all used citations from the main citations array to ensure all selected papers are included
-    const used = citations.filter((c) => c.used);
+    // Use bibliography citations state instead of main citations array
+    const used = bibliographyCitations.filter((c) => c.used);
     if (used.length === 0) {
       setStatus("No citations selected for bibliography - select citations first");
       return;
@@ -2376,13 +2369,23 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
       setBibliography(bibRaw);
       
-      // Don't clear bibliography citations since we're using the main citations array
-      // setBibliographyCitations([]);
+      // Clear bibliography citations state after successful generation to allow new selections
+      setBibliographyCitations([]);
+      
+      // Clear the used state from all citations after bibliography generation
+      // This allows users to select new papers without affecting the generated bibliography
+      const clearedCitations = citations.map(citation => ({
+        ...citation,
+        used: false,
+        inTextCitations: []
+      }));
+      setCitations(clearedCitations);
+      saveCitations(clearedCitations);
       
       setStatus(
         `✅ Bibliography created: ${used.length} citation${
           used.length !== 1 ? "s" : ""
-        } in ${citationStyle.toUpperCase()} style`
+        } in ${citationStyle.toUpperCase()} style - Ready to select new papers`
       );
     } catch (e) {
       console.error("❌ Bibliography generation failed:", e);
@@ -3724,7 +3727,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
               generateBibliography={generateBibliography}
               autoRegenerateBibliography={autoRegenerateBibliography}
               isOfficeReady={isOfficeReady}
-              citations={citations}
+              citations={bibliographyCitations}
               testAPACitationFormatting={testAPACitationFormatting}
               testDuplicateRemoval={testDuplicateRemoval}
             />
