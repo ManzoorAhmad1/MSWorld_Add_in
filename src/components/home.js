@@ -2219,15 +2219,25 @@ const Home = ({ handleLogout, status, setStatus }) => {
       return;
     }
 
-    // Use bibliographyCitations instead of all citations to prevent duplication
-    const used = bibliographyCitations.filter((c) => c.used);
-    if (used.length === 0) {
+    // Get all used citations, combining existing citations with new ones in bibliographyCitations
+    const allUsedCitations = [...citations.filter(c => c.used)];
+    const newCitations = bibliographyCitations.filter(c => c.used);
+    
+    // Merge new citations, avoiding duplicates
+    newCitations.forEach(newCit => {
+      if (!allUsedCitations.some(existingCit => String(existingCit.id) === String(newCit.id))) {
+        allUsedCitations.push(newCit);
+      }
+    });
+    
+    if (allUsedCitations.length === 0) {
       setStatus("No citations selected for bibliography - select citations first");
       return;
     }
 
     try {
-      const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
+      console.log(`📚 Generating bibliography with ${allUsedCitations.length} citations`);
+      const bibRaw = await formatBibliographyCiteproc(allUsedCitations, citationStyle);
       const styleFont = getCitationStyleFont(citationStyle);
 
       await Word.run(async (context) => {
@@ -2359,7 +2369,12 @@ const Home = ({ handleLogout, status, setStatus }) => {
         }
 
         // Process each bibliography entry at the determined insertion point
-        const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
+        let bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
+        console.log(`📋 Processing ${bibEntries.length} bibliography entries before deduplication`);
+        
+        // Run deduplication to ensure no duplicate entries
+        bibEntries = processAndDedupeBibliography(bibEntries);
+        console.log(`📋 After deduplication: ${bibEntries.length} unique bibliography entries`);
         for (let i = 0; i < bibEntries.length; i++) {
           const entry = bibEntries[i].trim();
           if (!entry) continue;
@@ -2389,12 +2404,26 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
       setBibliography(bibRaw);
       
-      // Clear bibliography citations after successful generation to prevent duplication
+      // Update the main citations array to mark all used citations
+      const updatedCitations = citations.map(citation => {
+        const isInBibliography = allUsedCitations.some(c => String(c.id) === String(citation.id));
+        if (isInBibliography && !citation.used) {
+          // Mark as used if it's in the bibliography but not marked as used
+          return {...citation, used: true};
+        }
+        return citation;
+      });
+      
+      // Save the updated citations
+      setCitations(updatedCitations);
+      saveCitations(updatedCitations);
+      
+      // Clear only the temporary bibliography citations array after successful generation
       setBibliographyCitations([]);
       
       setStatus(
-        `✅ Bibliography ${bibliographyExists ? 'updated' : 'created'}: ${used.length} citation${
-          used.length !== 1 ? "s" : ""
+        `✅ Bibliography ${bibliographyExists ? 'updated' : 'created'}: ${allUsedCitations.length} citation${
+          allUsedCitations.length !== 1 ? "s" : ""
         } in ${citationStyle.toUpperCase()} style`
       );
     } catch (e) {
@@ -3529,6 +3558,35 @@ const Home = ({ handleLogout, status, setStatus }) => {
     const maxLen = Math.max(len1, len2);
     const distance = matrix[len1][len2];
     return (maxLen - distance) / maxLen;
+  };
+
+  // Process bibliography entries to ensure no duplicate entries
+  const processAndDedupeBibliography = (entries) => {
+    if (!entries || entries.length === 0) return [];
+    
+    // Track already processed entries to avoid duplicates
+    const processedEntries = new Set();
+    const result = [];
+    
+    entries.forEach(entry => {
+      // Generate a simple hash for the entry to detect duplicates
+      // Use first 30 chars + last 30 chars as a fingerprint
+      const entryText = entry.trim();
+      if (!entryText) return;
+      
+      const start = entryText.substring(0, Math.min(30, entryText.length));
+      const end = entryText.length > 30 ? entryText.substring(entryText.length - 30) : '';
+      const fingerprint = `${start}...${end}`;
+      
+      if (!processedEntries.has(fingerprint)) {
+        processedEntries.add(fingerprint);
+        result.push(entryText);
+      } else {
+        console.log('🔍 Skipping duplicate bibliography entry:', start + '...');
+      }
+    });
+    
+    return result;
   };
 
   // Function to test duplicate text removal
