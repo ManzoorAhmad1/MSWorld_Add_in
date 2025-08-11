@@ -2068,12 +2068,30 @@ const Home = ({ handleLogout, status, setStatus }) => {
         return prev;
       });
     } else {
-      // Remove citation from bibliography selection (keep in-text citation)
+      // ENHANCED: When unchecking, remove both citation and bibliography entry
+      console.log(`🗑️ Removing citation and bibliography entry for: ${citation.id}`);
+      
+      // Remove from bibliography selection first
       setBibliographyCitations(prev => {
         const updated = prev.filter(c => String(c.id) !== String(citation.id));
         console.log(`➖ Removed citation from bibliography selection`);
         return updated;
       });
+      
+      // Remove the in-text citation from document
+      await removeCitationFromDocument(citation);
+      
+      // Mark citation as unused in library
+      setCitations(prev => prev.map(c => 
+        String(c.id) === String(citation.id) 
+          ? { ...c, used: false, inTextCitations: [] }
+          : c
+      ));
+      
+      // Remove the specific bibliography entry
+      await removeSpecificBibliographyEntry(citation);
+      
+      setStatus(`🗑️ Citation and bibliography entry removed for: ${citation.title?.substring(0, 30) || citation.id}`);
     }
   };
 
@@ -3310,6 +3328,15 @@ const Home = ({ handleLogout, status, setStatus }) => {
           setCitations(updated);
           saveCitations(updated);
           
+          // ENHANCED: Also remove from bibliography selection (uncheck checkboxes)
+          setBibliographyCitations(prev => {
+            const filteredBib = prev.filter(bibCitation => 
+              !removedCitations.find(rc => String(rc.id) === String(bibCitation.id))
+            );
+            console.log(`📋 Removed ${prev.length - filteredBib.length} citations from bibliography selection`);
+            return filteredBib;
+          });
+          
           // Remove bibliography entries for manually removed citations
           console.log(`📚 Auto-removing bibliography entries for ${removedCitations.length} manually removed citations`);
           for (const removedCitation of removedCitations) {
@@ -3321,7 +3348,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
             c.title ? c.title.substring(0, 30) + '...' : 'Untitled'
           ).join(', ');
           
-          setStatus(`🔄 Auto-sync: ${removedCitations.length} citation(s) and bibliography entries removed: ${citationTitles}`);
+          setStatus(`🔄 Auto-sync: ${removedCitations.length} citation(s) removed from document, bibliography, and checkboxes unchecked: ${citationTitles}`);
           
           // NOTE: Auto-regenerate bibliography removed - only manual generation via button
           // Auto-regenerate bibliography
