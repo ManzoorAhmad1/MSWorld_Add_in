@@ -2219,8 +2219,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
       return;
     }
 
-    // Use bibliographyCitations instead of all citations to prevent duplication
-    const used = bibliographyCitations.filter((c) => c.used);
+    // Use all used citations from the main citations array (same as style change function)
+    const used = citations.filter((c) => c.used);
     if (used.length === 0) {
       setStatus("No citations selected for bibliography - select citations first");
       return;
@@ -2388,9 +2388,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
       });
 
       setBibliography(bibRaw);
-      
-      // Clear bibliography citations after successful generation to prevent duplication
-      setBibliographyCitations([]);
       
       setStatus(
         `✅ Bibliography ${bibliographyExists ? 'updated' : 'created'}: ${used.length} citation${
@@ -3737,7 +3734,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
               generateBibliography={generateBibliography}
               autoRegenerateBibliography={autoRegenerateBibliography}
               isOfficeReady={isOfficeReady}
-              citations={bibliographyCitations}
+              citations={citations}
               testAPACitationFormatting={testAPACitationFormatting}
               testDuplicateRemoval={testDuplicateRemoval}
             />
