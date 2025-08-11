@@ -1236,8 +1236,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
   const [citationFormat, setCitationFormat] = useState("in-text");
   const [bibliographyTitle, setBibliographyTitle] = useState("References");
   
-  // Separate state for bibliography generation tracking (to prevent duplication)
-  const [bibliographyCitations, setBibliographyCitations] = useState([]);
+  // REMOVED: Duplicate bibliography citations state - using main citations array instead
   const [recentCitations, setRecentCitations] = useState([]);
   const [userWorkSpaces, setUserWorkSpaces] = useState({});
   const [selectedWorkSpace, setSelectedWorkSpace] = useState(null);
@@ -1618,7 +1617,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
         
         // Clear the bibliography state as well
         setBibliography("");
-        setBibliographyCitations([]);
         
         // Wait a moment for clearing to complete
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -2396,9 +2394,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
       });
 
       setBibliography(bibRaw);
-      
-      // Clear bibliography citations after successful generation to prevent duplication
-      setBibliographyCitations([]);
       
       setStatus(
         `✅ Bibliography ${bibliographyExists ? 'updated' : 'created'}: ${used.length} citation${
@@ -3745,7 +3740,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
               generateBibliography={generateBibliography}
               autoRegenerateBibliography={autoRegenerateBibliography}
               isOfficeReady={isOfficeReady}
-              citations={bibliographyCitations}
+              citations={citations.filter(c => c.used)}
               testAPACitationFormatting={testAPACitationFormatting}
               testDuplicateRemoval={testDuplicateRemoval}
             />
