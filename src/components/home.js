@@ -623,7 +623,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
     }
   };
 
-  // Enhanced formatCitationCiteproc function with better error handling
+  // Enhanced formatCitationCiteproc function with better error handling and CSL state management
   const formatCitationCiteproc = async (
     citation,
     styleName = "apa",
@@ -651,6 +651,10 @@ const Home = ({ handleLogout, status, setStatus }) => {
         console.warn(`Style ${styleName} not available, using fallback`);
       }
 
+      // FIXED: Include all used citations in the system for proper numbering
+      const allUsedCitations = citations.filter(c => c.used);
+      console.log(`🔢 FIXED: CSL Engine managing ${allUsedCitations.length} used citations for consistent numbering`);
+
       // Create system object for citeproc
       const sys = {
         retrieveLocale: () => {
@@ -665,10 +669,15 @@ const Home = ({ handleLogout, status, setStatus }) => {
           if (String(id) === String(normalizedCitation.id)) {
             return normalizedCitation;
           }
-          // Try to find in citations array
-          const found = citations.find((c) => String(c.id) === String(id));
+          // Try to find in ALL used citations for proper numbering
+          const found = allUsedCitations.find((c) => String(c.id) === String(id));
           if (found) {
             return normalizeCitation(found);
+          }
+          // Try to find in complete citations array
+          const foundInAll = citations.find((c) => String(c.id) === String(id));
+          if (foundInAll) {
+            return normalizeCitation(foundInAll);
           }
           // Return the current citation as fallback
           return normalizedCitation;
@@ -679,6 +688,13 @@ const Home = ({ handleLogout, status, setStatus }) => {
       let citeproc;
       try {
         citeproc = new CSL.Engine(sys, styleXML, "en-US");
+        
+        // FIXED: Update with ALL used citation IDs for consistent numbering
+        const allUsedIds = allUsedCitations.map(c => c.id);
+        if (allUsedIds.length > 0) {
+          citeproc.updateItems(allUsedIds);
+          console.log(`📊 FIXED: CSL Engine updated with ${allUsedIds.length} citation IDs:`, allUsedIds);
+        }
       } catch (engineError) {
         console.error("CSL Engine initialization failed:", engineError);
         return formatCitationFallback(normalizedCitation, format);
@@ -686,8 +702,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
       // Update items and format citation
       try {
-        citeproc.updateItems([normalizedCitation.id]);
-
         let result;
         if (format === "footnote") {
           // For footnotes, create a citation cluster
@@ -711,9 +725,13 @@ const Home = ({ handleLogout, status, setStatus }) => {
         if (result && result[0] && result[0][1]) {
           const formattedText = result[0][1];
           // Clean up any HTML tags that might remain
-          return formattedText.replace(/<[^>]+>/g, "");
+          const cleanText = formattedText.replace(/<[^>]+>/g, "");
+          console.log(`✅ FIXED: Citation formatted with proper numbering: "${cleanText}"`);
+          return cleanText;
         } else if (result && typeof result === "string") {
-          return result.replace(/<[^>]+>/g, "");
+          const cleanText = result.replace(/<[^>]+>/g, "");
+          console.log(`✅ FIXED: Citation formatted (string): "${cleanText}"`);
+          return cleanText;
         } else {
           console.warn("Unexpected result format:", result);
           return formatCitationFallback(normalizedCitation, format);
@@ -2073,7 +2091,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
     }
   };
 
-  // Enhanced insertCitation function with proper formatting
+  // Enhanced insertCitation function with proper formatting and deduplication
   const insertCitation = async (citation) => {
     if (!isOfficeReady) {
       return;
@@ -2083,7 +2101,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
       // Check if citation is already used to prevent duplicates
       const existingCitation = citations.find((c) => String(c.id) === String(citation.id));
       if (existingCitation && existingCitation.used) {
-        setStatus("Citation is already used in document");
+        setStatus("⚠️ Citation is already used in document");
         return;
       }
 
@@ -2093,6 +2111,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
         setStatus("Failed to normalize citation");
         return;
       }
+
+      console.log(`🔤 FIXED: Formatting citation for "${normalizedCitation.title || normalizedCitation.label || 'Unknown'}" with style ${citationStyle}`);
 
       let formatted = await formatCitationCiteproc(
         normalizedCitation,
@@ -2117,6 +2137,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
           return;
         }
       }
+
+      console.log(`✅ FIXED: Citation formatted successfully: "${formatted}"`);
 
       // Insert into Word with proper formatting
       await Word.run(async (context) => {
@@ -2184,25 +2206,9 @@ const Home = ({ handleLogout, status, setStatus }) => {
       setCitations(updated);
       saveCitations(updated);
       
-      // Add to bibliography citations for future bibliography generation
-      const citationForBibliography = {
-        ...normalizedCitation,
-        used: true,
-        addedDate: new Date().toISOString(),
-        inTextCitations: [formatted],
-      };
-      setBibliographyCitations(prev => {
-        // Check if citation already exists in bibliography citations
-        const exists = prev.find(c => String(c.id) === String(normalizedCitation.id));
-        if (exists) {
-          return prev; // Don't add duplicate
-        }
-        return [...prev, citationForBibliography];
-      });
-      
-      setStatus(
-        `Citation inserted successfully with ${citationStyle.toUpperCase()} style and proper formatting`
-      );
+      console.log(`✅ FIXED: Citation "${normalizedCitation.title || normalizedCitation.label}" marked as used. Total used citations: ${updated.filter(c => c.used).length}`);
+
+      setStatus(`✅ Citation inserted successfully - Total used: ${updated.filter(c => c.used).length}`);
       
       // NOTE: Auto-regenerate bibliography removed - only manual generation via button
       // setTimeout(async () => {
@@ -2219,12 +2225,14 @@ const Home = ({ handleLogout, status, setStatus }) => {
       return;
     }
 
-    // Use bibliographyCitations instead of all citations to prevent duplication
-    const used = bibliographyCitations.filter((c) => c.used);
+    // FIXED: Use all citations that are marked as 'used' instead of only bibliographyCitations
+    const used = citations.filter((c) => c.used);
     if (used.length === 0) {
       setStatus("No citations selected for bibliography - select citations first");
       return;
     }
+
+    console.log(`🔍 FIXED: Generating bibliography for ${used.length} used citations:`, used.map(c => c.title || c.label || 'Unknown'));
 
     try {
       const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
