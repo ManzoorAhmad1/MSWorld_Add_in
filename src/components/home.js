@@ -2219,42 +2219,15 @@ const Home = ({ handleLogout, status, setStatus }) => {
       return;
     }
 
-    // Get all citations from both sources
-    // First, get all citations marked as "used" from main citation list
-    const usedFromMainList = citations.filter(c => c.used);
-    
-    // Second, get all citations from bibliography list (these are pending to be added)
-    const citationsFromBibList = bibliographyCitations;
-    
-    // Combine them into one array, prioritizing the main citation list
-    // to avoid duplicates, we'll keep track of ids we've already seen
-    const citationIds = new Set();
-    const combinedCitations = [];
-    
-    // First add all used citations from main list
-    usedFromMainList.forEach(citation => {
-      combinedCitations.push(citation);
-      citationIds.add(String(citation.id));
-    });
-    
-    // Then add any citations from bibliography list that aren't already in the combined list
-    citationsFromBibList.forEach(citation => {
-      if (!citationIds.has(String(citation.id))) {
-        combinedCitations.push(citation);
-        citationIds.add(String(citation.id));
-      }
-    });
-    
-    console.log(`📊 Found ${combinedCitations.length} total citations for bibliography`);
-    
-    if (combinedCitations.length === 0) {
+    // Use bibliographyCitations instead of all citations to prevent duplication
+    const used = bibliographyCitations.filter((c) => c.used);
+    if (used.length === 0) {
       setStatus("No citations selected for bibliography - select citations first");
       return;
     }
 
     try {
-      console.log(`📚 Generating bibliography with ${combinedCitations.length} citations`);
-      const bibRaw = await formatBibliographyCiteproc(combinedCitations, citationStyle);
+      const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
       const styleFont = getCitationStyleFont(citationStyle);
 
       await Word.run(async (context) => {
@@ -2385,97 +2358,12 @@ const Home = ({ handleLogout, status, setStatus }) => {
           insertionPoint = context.document.body.getRange(Word.RangeLocation.end);
         }
 
-        // First, if bibliography already exists, we need to clear it before adding new entries
-        if (bibliographyExists) {
-          console.log('📑 Bibliography exists - clearing existing entries before adding new ones');
-          
-          try {
-            // Find the bibliography title paragraph
-            const titleSearch = context.document.body.search(bibliographyTitle, {
-              matchCase: false,
-              matchWholeWord: true
-            });
-            titleSearch.load('items');
-            await context.sync();
-            
-            if (titleSearch.items.length > 0) {
-              const titlePara = titleSearch.items[0].parentParagraph;
-              titlePara.load('text');
-              await context.sync();
-              
-              // Find all paragraphs after the title that look like bibliography entries
-              // and delete them to prepare for the new entries
-              const allParagraphs = context.document.body.paragraphs;
-              allParagraphs.load('items');
-              await context.sync();
-              
-              let foundTitle = false;
-              let paragraphsToDelete = [];
-              
-              for (let i = 0; i < allParagraphs.items.length; i++) {
-                const para = allParagraphs.items[i];
-                para.load('text');
-                await context.sync();
-                
-                // Check if this is the title paragraph
-                if (!foundTitle && para.text.trim() === titlePara.text.trim()) {
-                  foundTitle = true;
-                  continue; // Skip the title paragraph
-                }
-                
-                // Once we've found the title, collect subsequent paragraphs until we hit 
-                // something that doesn't look like a bibliography entry
-                if (foundTitle) {
-                  const text = para.text.trim();
-                  
-                  // Stop if we hit another heading or section break
-                  if (text.length > 0 && 
-                     (text.startsWith('#') || text.match(/^[A-Z][a-z]+ \d+/) || 
-                      text.match(/^Chapter|^Section|^Table of Contents|^Appendix/i))) {
-                    break;
-                  }
-                  
-                  // If there's text, assume it's a bibliography entry and mark for deletion
-                  if (text.length > 0) {
-                    paragraphsToDelete.push(para);
-                  }
-                }
-              }
-              
-              // Delete old bibliography entries
-              console.log(`🗑️ Deleting ${paragraphsToDelete.length} existing bibliography entries`);
-              paragraphsToDelete.forEach(para => para.delete());
-              await context.sync();
-              
-              // Set insertion point after the title
-              insertionPoint = titlePara.getRange(Word.RangeLocation.after);
-            }
-          } catch (clearError) {
-            console.log('⚠️ Error clearing existing bibliography:', clearError);
-            // Continue with default insertion point if clearing fails
-          }
-        }
-
         // Process each bibliography entry at the determined insertion point
-        let bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
-        console.log(`📋 Processing ${bibEntries.length} bibliography entries`);
-        
-        // Clean up any text duplication in each entry (rather than removing entries)
-        bibEntries = bibEntries.map(entry => cleanDuplicateText(entry));
-        
-        // Debug log each entry to verify we're processing all entries
-        console.log(`📝 Bibliography entries to insert:`);
-        bibEntries.forEach((entry, index) => {
-          console.log(`  ${index + 1}: ${entry.substring(0, 50)}...`);
-        });
-        
-        // Insert each entry as a new paragraph
+        const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
         for (let i = 0; i < bibEntries.length; i++) {
           const entry = bibEntries[i].trim();
           if (!entry) continue;
-          
-          console.log(`📌 Inserting bibliography entry ${i + 1}/${bibEntries.length}`);
-          
+
           // Create paragraph for each entry at insertion point
           const para = insertionPoint.insertParagraph("", Word.InsertLocation.after);
           para.font.name = styleFont.family;
@@ -2494,48 +2382,19 @@ const Home = ({ handleLogout, status, setStatus }) => {
           
           // Update insertion point for next entry
           insertionPoint = para.getRange(Word.RangeLocation.after);
-          
-          // Add an explicit sync after each entry to ensure it's inserted properly
-          await context.sync();
         }
 
-        // Final sync to ensure all entries are properly inserted
         await context.sync();
       });
 
       setBibliography(bibRaw);
       
-      // After successfully generating the bibliography, we need to:
-      // 1. Keep track of which citations are now in the bibliography
-      // 2. Update the main citation list to mark these citations as "used"
-      // 3. Clear the temporary bibliography citation list
-      
-      // First, get the IDs of all citations that were just used in the bibliography
-      const usedIds = combinedCitations.map(c => String(c.id));
-      
-      // Now update the main citations array - mark any citation that was used as "used"
-      const updatedMainCitations = citations.map(citation => {
-        if (usedIds.includes(String(citation.id))) {
-          // This citation was used in the bibliography
-          return {
-            ...citation,
-            used: true,
-          };
-        }
-        return citation;
-      });
-      
-      // Save changes to the main citation list
-      setCitations(updatedMainCitations);
-      saveCitations(updatedMainCitations);
-      
-      // Clear the temporary bibliography citations list since we've processed them
+      // Clear bibliography citations after successful generation to prevent duplication
       setBibliographyCitations([]);
       
-      // Show status message
       setStatus(
-        `✅ Bibliography ${bibliographyExists ? 'updated' : 'created'}: ${combinedCitations.length} citation${
-          combinedCitations.length !== 1 ? "s" : ""
+        `✅ Bibliography ${bibliographyExists ? 'updated' : 'created'}: ${used.length} citation${
+          used.length !== 1 ? "s" : ""
         } in ${citationStyle.toUpperCase()} style`
       );
     } catch (e) {
@@ -3670,76 +3529,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
     const maxLen = Math.max(len1, len2);
     const distance = matrix[len1][len2];
     return (maxLen - distance) / maxLen;
-  };
-
-  // Clean duplicate text in bibliography entries
-  const cleanDuplicateText = (entry) => {
-    if (!entry) return entry;
-    
-    // Handle specific duplication patterns in citation text
-    let text = entry;
-    
-    // Pattern: "Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1Zhao, H., Shi, J., Qi, X., Wang, X., & Jia, J. (2017). Pyramid Scene Parsing Network. arXiv, 1(1)."
-    const priorityDuplicationPattern = /^(.*?),\s*(\d+)(.*?),\s*\2(\([^)]*\))(.*)$/;
-    const priorityMatch = text.match(priorityDuplicationPattern);
-    if (priorityMatch) {
-      const firstPart = priorityMatch[1]; // "Zhao, H., ... arXiv"
-      const volume = priorityMatch[2]; // "1"
-      const middlePart = priorityMatch[3]; // "Zhao, H., ... arXiv" (duplicate)
-      const issue = priorityMatch[4]; // "(1)"
-      const trailing = priorityMatch[5]; // ". https://..."
-
-      // Check if the middle part is very similar to the first part
-      if (middlePart.includes(firstPart.substring(0, 20)) || 
-          calculateSimilarity(firstPart, middlePart) > 0.7) {
-        text = firstPart + ", " + volume + issue + trailing;
-        console.log('🧹 Cleaned duplicated citation text');
-      }
-    }
-
-    // Pattern: Complete citation duplication with volume/issue
-    const fullDuplicationPattern = /^(.*?\([0-9]{4}\)\..*?),\s*[0-9]+\1,\s*[0-9]+(\([^)]*\))?(.*)$/;
-    if (fullDuplicationPattern.test(text)) {
-      const match = text.match(fullDuplicationPattern);
-      if (match) {
-        const citation = match[1];
-        const issue = match[2] || "";
-        const trailing = match[3] || "";
-        text = citation + ", 1" + issue + trailing;
-        console.log('🧹 Cleaned full citation duplication');
-      }
-    }
-    
-    // New pattern: Detect full duplicated text where the same author-year appears twice
-    const authorYearPattern = /(.*?\([0-9]{4}\)[^(]*)(\1)/;
-    const authorYearMatch = text.match(authorYearPattern);
-    if (authorYearMatch) {
-      text = authorYearMatch[1];
-      console.log('🧹 Cleaned author-year duplication');
-    }
-    
-    // Additional cleanup for other common patterns:
-    // 1. Remove duplicate DOI/URL patterns
-    const urlPattern = /(https?:\/\/[^\s]+).*\1/;
-    if (urlPattern.test(text)) {
-      text = text.replace(urlPattern, '$1');
-      console.log('🧹 Removed duplicate URL');
-    }
-    
-    // 2. Truncate extremely long entries (likely duplicates) to reasonable length
-    if (text.length > 500) {
-      // Look for a period near the middle to make a clean cut
-      const midPoint = Math.floor(text.length / 2);
-      const firstHalf = text.substring(0, midPoint);
-      const lastPeriodInFirst = firstHalf.lastIndexOf('.');
-      
-      if (lastPeriodInFirst > 100) {
-        text = text.substring(0, lastPeriodInFirst + 1);
-        console.log('🧹 Truncated very long citation (likely containing duplicates)');
-      }
-    }
-    
-    return text;
   };
 
   // Function to test duplicate text removal
