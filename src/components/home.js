@@ -2219,8 +2219,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
       return;
     }
 
-    // Use bibliographyCitations instead of all citations to prevent duplication
-    const used = bibliographyCitations.filter((c) => c.used);
+    // Use all used citations from the main citations array to ensure all selected papers are included
+    const used = citations.filter((c) => c.used);
     if (used.length === 0) {
       setStatus("No citations selected for bibliography - select citations first");
       return;
@@ -2389,8 +2389,8 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
       setBibliography(bibRaw);
       
-      // Clear bibliography citations after successful generation to prevent duplication
-      setBibliographyCitations([]);
+      // Don't clear bibliography citations since we're using the main citations array
+      // setBibliographyCitations([]);
       
       setStatus(
         `✅ Bibliography ${bibliographyExists ? 'updated' : 'created'}: ${used.length} citation${
