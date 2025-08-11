@@ -2343,13 +2343,13 @@ const Home = ({ handleLogout, status, setStatus }) => {
         title.font.name = styleFont.family;
         
         // FIXED: Process ALL bibliography entries correctly
-        console.log(`� Processing ${used.length} citations into bibliography entries`);
+        console.log(`� Processing ${selectedForBibliography.length} citations into bibliography entries`);
         const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
         console.log(`📝 Split into ${bibEntries.length} bibliography entries`);
         
         // Validate we have entries for all citations
-        if (bibEntries.length < used.length) {
-          console.warn(`⚠️ Mismatch: ${used.length} citations but only ${bibEntries.length} entries generated`);
+        if (bibEntries.length < selectedForBibliography.length) {
+          console.warn(`⚠️ Mismatch: ${selectedForBibliography.length} citations but only ${bibEntries.length} entries generated`);
         }
         
         let entryCount = 0;
