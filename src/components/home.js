@@ -2180,6 +2180,10 @@ const Home = ({ handleLogout, status, setStatus }) => {
       const styleFont = getCitationStyleFont(citationStyle);
 
       await Word.run(async (context) => {
+        console.log('📍 Starting bibliography insertion process...');
+        console.log('📊 Bibliography content length:', bibRaw.length);
+        console.log('📝 Bibliography preview:', bibRaw.substring(0, 200) + '...');
+        
         // SIMPLIFIED: Always insert bibliography at the end of document
         let insertionPoint = null;
         let bibliographyExists = false;
@@ -2202,6 +2206,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
         // Create bibliography title only if it doesn't exist
         if (!bibliographyExists) {
+          console.log('📝 Creating new bibliography title...');
           const title = insertionPoint.insertParagraph(
             bibliographyTitle,
             Word.InsertLocation.after
@@ -2213,14 +2218,21 @@ const Home = ({ handleLogout, status, setStatus }) => {
           
           // Update insertion point to after the title for bibliography entries
           insertionPoint = title.getRange(Word.RangeLocation.after);
+          console.log('✅ Bibliography title created successfully');
+        } else {
+          console.log('📖 Bibliography title already exists, appending entries...');
         }
 
         // Process each bibliography entry at the determined insertion point
         const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
+        console.log(`📊 Processing ${bibEntries.length} bibliography entries...`);
+        
         for (let i = 0; i < bibEntries.length; i++) {
           const entry = bibEntries[i].trim();
           if (!entry) continue;
 
+          console.log(`📝 Inserting entry ${i + 1}/${bibEntries.length}: ${entry.substring(0, 50)}...`);
+          
           // Create paragraph for each entry at insertion point
           const para = insertionPoint.insertParagraph("", Word.InsertLocation.after);
           para.font.name = styleFont.family;
@@ -2230,8 +2242,10 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
           // Format the entry text
           if (entry.includes("*")) {
+            console.log(`🎨 Formatting entry with special formatting: ${i + 1}`);
             await parseAndFormatText(para, entry, citationStyle);
           } else {
+            console.log(`📄 Inserting plain text entry: ${i + 1}`);
             const range = para.insertText(entry, Word.InsertLocation.end);
             range.font.name = styleFont.family;
             range.font.size = styleFont.size;
@@ -2239,9 +2253,11 @@ const Home = ({ handleLogout, status, setStatus }) => {
           
           // Update insertion point for next entry
           insertionPoint = para.getRange(Word.RangeLocation.after);
+          console.log(`✅ Entry ${i + 1} inserted successfully`);
         }
 
         await context.sync();
+        console.log('🎉 All bibliography entries processed and synced to Word!');
       });
 
       setBibliography(bibRaw);
