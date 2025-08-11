@@ -2050,12 +2050,15 @@ const Home = ({ handleLogout, status, setStatus }) => {
   };
 
   // ADDED: Function to handle bibliography citation selection (checkbox behavior)
-  const handleBibliographyCitationToggle = (citation, isSelected) => {
+  const handleBibliographyCitationToggle = async (citation, isSelected) => {
     console.log(`📋 Bibliography citation toggle: ${citation.id} - ${isSelected ? 'selected' : 'deselected'}`);
     
-    setBibliographyCitations(prev => {
-      if (isSelected) {
-        // Add citation to bibliography selection
+    if (isSelected) {
+      // First, insert the citation into the document
+      await insertCitation(citation);
+      
+      // Then add to bibliography selection
+      setBibliographyCitations(prev => {
         const alreadySelected = prev.find(c => String(c.id) === String(citation.id));
         if (!alreadySelected) {
           const normalizedCitation = normalizeCitation(citation);
@@ -2063,13 +2066,15 @@ const Home = ({ handleLogout, status, setStatus }) => {
           return [...prev, normalizedCitation];
         }
         return prev;
-      } else {
-        // Remove citation from bibliography selection
+      });
+    } else {
+      // Remove citation from bibliography selection (keep in-text citation)
+      setBibliographyCitations(prev => {
         const updated = prev.filter(c => String(c.id) !== String(citation.id));
         console.log(`➖ Removed citation from bibliography selection`);
         return updated;
-      }
-    });
+      });
+    }
   };
 
   const addCitationToLibrary = (citation) => {
