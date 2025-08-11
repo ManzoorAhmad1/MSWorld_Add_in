@@ -2215,6 +2215,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
   };
 
   const generateBibliography = async () => {
+    debugger
     if (!isOfficeReady) {
       return;
     }
