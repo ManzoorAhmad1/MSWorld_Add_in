@@ -2329,11 +2329,12 @@ const Home = ({ handleLogout, status, setStatus }) => {
               insertionPoint = lastContentParagraph.getRange(Word.RangeLocation.after);
               
               // Add some space before bibliography
-              insertionPoint.insertParagraph("", Word.InsertLocation.after);
+              const spacePara = insertionPoint.insertParagraph("", Word.InsertLocation.after);
+              insertionPoint = spacePara.getRange(Word.RangeLocation.after);
             } else {
-              console.log('📄 No content found, using document start');
-              // If no content, insert at document start
-              insertionPoint = context.document.body.getRange(Word.RangeLocation.start);
+              console.log('📄 No content found, using document end');
+              // If no content, insert at document end
+              insertionPoint = context.document.body.getRange(Word.RangeLocation.end);
             }
           }
           
@@ -2375,6 +2376,12 @@ const Home = ({ handleLogout, status, setStatus }) => {
             title.font.name = styleFont.family;
           }
           
+          insertionPoint = context.document.body.getRange(Word.RangeLocation.end);
+        }
+
+        // Safety check: ensure insertionPoint is valid
+        if (!insertionPoint) {
+          console.log('⚠️ insertionPoint is null, using document body end as fallback');
           insertionPoint = context.document.body.getRange(Word.RangeLocation.end);
         }
 
