@@ -1590,111 +1590,51 @@ const Home = ({ handleLogout, status, setStatus }) => {
     // FIXED: Use selected citations from bibliographyCitations array for consistent behavior
     const selectedCitations = bibliographyCitations.filter(c => c && c.id);
     console.log(`📋 Found ${selectedCitations.length} selected citations for style change`);
+    console.log(`📋 Bibliography citations array:`, bibliographyCitations.map(c => ({ id: c.id, title: c.title?.substring(0, 30) })));
     
     if (selectedCitations.length > 0 && isOfficeReady) {
       // Show clearing status
       setStatus(`🧹 Clearing old bibliography (${previousStyle.toUpperCase()} style)...`);
       
       try {
+        console.log(`🧹 Step 1: Starting bibliography clearing...`);
         // Step 1: Clear existing bibliography
         await clearExistingBibliography();
         
-        // Clear the bibliography state as well
+        // Clear the bibliography state but KEEP bibliographyCitations for regeneration
         setBibliography("");
-        setBibliographyCitations([]);
+        // DON'T clear bibliographyCitations - we need them for regeneration!
         
         // Wait a moment for clearing to complete
         await new Promise(resolve => setTimeout(resolve, 500));
         
+        console.log(`🔄 Step 2: Starting new bibliography generation with ${newStyle}...`);
         // Step 2: Auto-generate new bibliography with the new style
         setStatus(`🔄 Generating new bibliography with ${newStyle.toUpperCase()} style...`);
         
         // Generate new bibliography with the new style
         const bibRaw = await formatBibliographyCiteproc(selectedCitations, newStyle);
+        console.log(`📚 Generated bibliography raw length: ${bibRaw?.length || 0}`);
+        
+        if (!bibRaw || bibRaw.trim().length === 0) {
+          setStatus(`❌ Failed to generate bibliography with ${newStyle.toUpperCase()} style - empty result`);
+          // Revert to previous style on error
+          setCitationStyle(previousStyle);
+          return;
+        }
+        
         const styleFont = getCitationStyleFont(newStyle);
+        console.log(`📝 Using font for ${newStyle}:`, styleFont);
 
+        console.log(`🔄 Step 3: Starting Word document insertion...`);
         await Word.run(async (context) => {
           try {
-            console.log('📍 Style change: Inserting new bibliography at end of existing content');
+            console.log('📍 Style change: Inserting new bibliography at end of document');
             
-            // Find the end of existing content (not cursor position)
-            const bodyRange = context.document.body.getRange();
-            bodyRange.load('text');
-            await context.sync();
+            // Simplified approach: always insert at end for reliability
+            const spacePara = context.document.body.insertParagraph("", Word.InsertLocation.end);
             
-            // Find the last non-empty paragraph
-            const allParagraphs = context.document.body.paragraphs;
-            allParagraphs.load('items');
-            await context.sync();
-            
-            let lastContentParagraph = null;
-            
-            // Find the last paragraph with actual content (working backwards)
-            for (let i = allParagraphs.items.length - 1; i >= 0; i--) {
-              const para = allParagraphs.items[i];
-              para.load('text');
-              await context.sync();
-              
-              if (para.text.trim().length > 0) {
-                lastContentParagraph = para;
-                break;
-              }
-            }
-            
-            let insertionPoint;
-            if (lastContentParagraph) {
-              console.log('� Found last content paragraph, inserting after it');
-              // Insert after the last content paragraph
-              insertionPoint = lastContentParagraph.getRange(Word.RangeLocation.after);
-              
-              // Add some space before bibliography
-              insertionPoint.insertParagraph("", Word.InsertLocation.after);
-            } else {
-              console.log('📄 No content found, using document start');
-              // If no content, insert at document start
-              insertionPoint = context.document.body.getRange(Word.RangeLocation.start);
-            }
-            
-            // Create bibliography title at cursor or content end
-            const title = insertionPoint.insertParagraph(
-              bibliographyTitle,
-              Word.InsertLocation.after
-            );
-            title.style = "Heading 1";
-            title.font.bold = true;
-            title.font.size = 16;
-            title.font.name = styleFont.family;
-            
-            // Update insertion point to after the title for bibliography entries
-            let currentInsertionPoint = title.getRange(Word.RangeLocation.after);
-            
-            // Process each bibliography entry at end of content
-            const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
-            for (let i = 0; i < bibEntries.length; i++) {
-              const entry = bibEntries[i].trim();
-              if (!entry) continue;
-
-              // Create paragraph for each entry at cursor position
-              const para = currentInsertionPoint.insertParagraph("", Word.InsertLocation.after);
-              para.font.name = styleFont.family;
-              para.font.size = styleFont.size;
-              para.leftIndent = 36; // Hanging indent for citations
-              para.firstLineIndent = -36;
-
-              // Format the entry text
-              if (entry.includes("*")) {
-                await parseAndFormatText(para, entry, newStyle);
-              } else {
-                para.insertText(entry, Word.InsertLocation.end);
-              }
-              
-              // Update insertion point for next entry
-              currentInsertionPoint = para.getRange(Word.RangeLocation.after);
-            }
-
-          } catch (contentError) {
-            console.log('⚠️ Content insertion failed, using end of document:', contentError);
-            // Fallback: insert at end of document
+            // Create bibliography title
             const title = context.document.body.insertParagraph(
               bibliographyTitle,
               Word.InsertLocation.end
@@ -1704,29 +1644,44 @@ const Home = ({ handleLogout, status, setStatus }) => {
             title.font.size = 16;
             title.font.name = styleFont.family;
             
-            // Process each bibliography entry at end of document
+            console.log(`📋 Processing ${selectedCitations.length} citations into entries...`);
+            // Process each bibliography entry
             const bibEntries = bibRaw.split("\n").filter((entry) => entry.trim());
+            console.log(`📄 Split into ${bibEntries.length} bibliography entries`);
+            
             for (let i = 0; i < bibEntries.length; i++) {
               const entry = bibEntries[i].trim();
               if (!entry) continue;
 
+              console.log(`📄 Adding entry ${i + 1}/${bibEntries.length}`);
               // Create paragraph for each entry
               const para = context.document.body.insertParagraph("", Word.InsertLocation.end);
               para.font.name = styleFont.family;
               para.font.size = styleFont.size;
               para.leftIndent = 36; // Hanging indent for citations
               para.firstLineIndent = -36;
+              para.spaceAfter = 6;
 
               // Format the entry text
-              if (entry.includes("*")) {
-                await parseAndFormatText(para, entry, newStyle);
-              } else {
-                para.insertText(entry, Word.InsertLocation.end);
+              try {
+                if (entry.includes("*")) {
+                  await parseAndFormatText(para, entry, newStyle);
+                } else {
+                  para.insertText(entry, Word.InsertLocation.end);
+                }
+              } catch (entryError) {
+                console.log(`⚠️ Entry formatting failed, using plain text:`, entryError);
+                const plainText = entry.replace(/\*([^*]+)\*/g, "$1");
+                para.insertText(plainText, Word.InsertLocation.end);
               }
             }
-          }
 
-          await context.sync();
+            await context.sync();
+            console.log(`✅ Successfully inserted ${bibEntries.length} bibliography entries`);
+          } catch (wordError) {
+            console.error('❌ Word insertion failed:', wordError);
+            throw wordError;
+          }
         });
 
         setBibliography(bibRaw);
