@@ -1266,7 +1266,7 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
     try {
       await Word.run(async (context) => {
-        console.log('🧹 Starting AGGRESSIVE bibliography removal...');
+        console.log('🧹 Starting COMPREHENSIVE bibliography removal...');
         
         // Method 1: Find and delete bibliography title first
         const titleSearchResults = context.document.body.search(bibliographyTitle, { 
@@ -1277,7 +1277,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
         await context.sync();
 
         console.log(`📋 Found ${titleSearchResults.items.length} bibliography title matches`);
-        let bibliographyStartFound = false;
 
         if (titleSearchResults.items.length > 0) {
           // Delete all bibliography title occurrences
@@ -1290,7 +1289,6 @@ const Home = ({ handleLogout, status, setStatus }) => {
               
               console.log(`📄 Deleting bibliography title: "${titleParagraph.text}"`);
               titleParagraph.delete();
-              bibliographyStartFound = true;
             } catch (titleError) {
               console.log('⚠️ Error deleting title:', titleError);
             }
@@ -1299,203 +1297,93 @@ const Home = ({ handleLogout, status, setStatus }) => {
           console.log('✅ Bibliography titles deleted');
         }
         
-        // Method 2: More conservative bibliography entry removal (ONLY bibliography entries, NOT in-text citations)
-        // Focus on patterns that are clearly bibliography entries, not in-text citations
-        const bibPatterns = [
-          // Only match complete bibliography entries that start with author names
-          "^[A-Z][a-z]+,\\s*[A-Z]\\.[^.]*\\([0-9]{4}\\)",  // Author, A. ... (Year) - start of line
-          "^[A-Z][a-z]+\\s*et\\s*al\\.[^.]*\\([0-9]{4}\\)", // Author et al. ... (Year) - start of line
-          
-          // Match long lines with URLs (likely bibliography)
-          "https?://[^\\s]+.*\\([0-9]{4}\\)",  // URLs with years (bibliography entries)
-          "doi\\.org/[^\\s]+",                 // DOI links (bibliography)
-          "Retrieved\\s*from\\s*http",         // Retrieved from URLs
-          "Available\\s*at\\s*http",           // Available at URLs
-        ];
+        // Method 2: ENHANCED - Delete ALL paragraphs that look like bibliography entries
+        // This is more aggressive to prevent duplication
+        const allParagraphs = context.document.body.paragraphs;
+        allParagraphs.load('items');
+        await context.sync();
         
-        let totalDeleted = 0;
+        let deletedCount = 0;
+        const paragraphsToDelete = [];
         
-        for (const pattern of bibPatterns) {
+        // Scan all paragraphs and identify bibliography entries
+        for (let i = 0; i < allParagraphs.items.length; i++) {
           try {
-            console.log(`🔍 Searching for pattern: ${pattern}`);
-            const patternResults = context.document.body.search(pattern, {
-              matchCase: false,
-              matchWholeWord: false
-            });
-            patternResults.load('items');
+            const para = allParagraphs.items[i];
+            para.load(['text', 'style']);
             await context.sync();
-
-            if (patternResults.items.length > 0) {
-              console.log(`📋 Found ${patternResults.items.length} matches for: ${pattern}`);
-              
-              for (let i = 0; i < patternResults.items.length; i++) {
-                try {
-                  const item = patternResults.items[i];
-                  const paragraph = item.paragraphs.getFirst();
-                  paragraph.load(['text', 'style']);
-                  await context.sync();
-                  
-                  const text = paragraph.text || '';
-                  const style = paragraph.style || '';
-                  
-                  // More aggressive but still safe bibliography detection
-                  const isBibliographyEntry = (
-                    text.length > 60 && // Lower threshold for better catching
-                    !style.includes('Heading') && 
-                    !style.includes('Title') &&
-                    !text.toLowerCase().includes('references') &&
-                    !text.toLowerCase().includes('bibliography') &&
-                    
-                    // Must have academic citation characteristics
-                    (
-                      // Author-year format OR
-                      text.match(/^[A-Z][a-z]+,\s*[A-Z]\./) ||
-                      text.match(/^[A-Z][a-z]+\s*et\s*al\./) ||
-                      
-                      // Contains academic indicators (at least one is enough for pattern-based search)
-                      text.includes('doi.org') ||
-                      text.includes('arXiv') ||
-                      text.includes('Retrieved from') ||
-                      text.includes('Available from') ||
-                      text.includes('https://') ||
-                      text.includes('http://') ||
-                      
-                      // Journal/conference patterns
-                      text.includes('Journal') ||
-                      text.includes('Proceedings') ||
-                      text.includes('Conference') ||
-                      text.includes('IEEE') ||
-                      text.includes('ACM')
-                    ) &&
-                    
-                    // CRITICAL: MUST NOT contain typical user content phrases
-                    !text.toLowerCase().includes('we present') &&
-                    !text.toLowerCase().includes('this paper') &&
-                    !text.toLowerCase().includes('our research') &&
-                    !text.toLowerCase().includes('our study') &&
-                    !text.toLowerCase().includes('in conclusion') &&
-                    !text.toLowerCase().includes('abstract') &&
-                    !text.toLowerCase().includes('introduction') &&
-                    !text.toLowerCase().includes('methodology') &&
-                    !text.toLowerCase().includes('results show') &&
-                    !text.toLowerCase().includes('findings indicate') &&
-                    !text.toLowerCase().includes('we found') &&
-                    !text.toLowerCase().includes('our analysis') &&
-                    !text.toLowerCase().includes('this study') &&
-                    !text.toLowerCase().includes('the study') &&
-                    !text.toLowerCase().includes('discussion') &&
-                    !text.toLowerCase().includes('conclusion')
-                  );
-                  
-                  if (isBibliographyEntry) {
-                    console.log(`🎯 DELETING bibliography entry: "${text.substring(0, 60)}..."`);
-                    paragraph.delete();
-                    totalDeleted++;
-                  } else {
-                    console.log(`✅ PRESERVING content: "${text.substring(0, 40)}..."`);
-                  }
-                } catch (itemError) {
-                  console.log(`⚠️ Could not process item ${i}:`, itemError);
-                }
-              }
-              await context.sync();
+            
+            const text = para.text?.trim() || '';
+            const style = para.style || '';
+            
+            // Skip empty paragraphs
+            if (text.length === 0) continue;
+            
+            // Enhanced detection for bibliography entries
+            const isBibliographyEntry = (
+              text.length > 50 && // Reasonable length for citations
+              !style.includes('Heading') && 
+              !style.includes('Title') &&
+              !text.toLowerCase().includes('references') &&
+              !text.toLowerCase().includes('bibliography') &&
+              (
+                // Academic citation patterns
+                text.match(/^[A-Z][a-z]+,\s*[A-Z]\.[^.]*\([0-9]{4}\)/) ||     // Author, A. ... (Year)
+                text.match(/^[A-Z][a-z]+\s*et\s*al\.[^.]*\([0-9]{4}\)/) ||    // Author et al. ... (Year)
+                text.match(/^[A-Z][a-z]+,\s*[A-Z]\.\s*[A-Z]\.[^.]*\([0-9]{4}\)/) || // Author, A. B. ... (Year)
+                
+                // URLs and DOIs (strong indicators of bibliography)
+                (text.includes('https://') && text.length > 100) ||
+                (text.includes('http://') && text.length > 100) ||
+                text.includes('doi.org') ||
+                text.includes('Retrieved from') ||
+                text.includes('Available from') ||
+                
+                // Journal patterns
+                (text.includes('Journal') && text.includes('(') && text.includes(')')) ||
+                (text.includes('Proceedings') && text.includes('(') && text.includes(')')) ||
+                (text.includes('Conference') && text.includes('(') && text.includes(')'))
+              ) &&
+              // MUST NOT contain user content phrases
+              !text.toLowerCase().includes('we ') &&
+              !text.toLowerCase().includes('our ') &&
+              !text.toLowerCase().includes('this paper') &&
+              !text.toLowerCase().includes('this study') &&
+              !text.toLowerCase().includes('abstract') &&
+              !text.toLowerCase().includes('introduction') &&
+              !text.toLowerCase().includes('methodology') &&
+              !text.toLowerCase().includes('conclusion') &&
+              !text.toLowerCase().includes('discussion') &&
+              !text.toLowerCase().includes('results') &&
+              // Not short in-text citations
+              !text.match(/^\s*\([A-Z][a-z]+,?\s*[0-9]{4}\)\s*$/) &&
+              !text.match(/^\s*\[[0-9]+\]\s*$/)
+            );
+            
+            if (isBibliographyEntry) {
+              console.log(`🎯 MARKING FOR DELETION: "${text.substring(0, 80)}..."`);
+              paragraphsToDelete.push(para);
             }
-          } catch (patternError) {
-            console.log(`⚠️ Pattern search failed for ${pattern}:`, patternError);
+          } catch (error) {
+            console.log(`⚠️ Error checking paragraph ${i}:`, error);
           }
         }
         
-        // Method 3: Final cleanup - comprehensive scan from document end
-        console.log('🎯 Final comprehensive cleanup scan...');
-        try {
-          const allParagraphs = context.document.body.paragraphs;
-          allParagraphs.load('items');
-          await context.sync();
-          
-          const totalParagraphs = allParagraphs.items.length;
-          let scannedCount = 0;
-          let finalDeleted = 0;
-          
-          // Scan from bottom up (bibliography usually at end) - check more paragraphs
-          for (let i = totalParagraphs - 1; i >= 0 && scannedCount < 100; i--) {
-            try {
-              scannedCount++;
-              const para = allParagraphs.items[i];
-              para.load(['text', 'style']);
-              await context.sync();
-              
-              const paraText = para.text?.trim() || '';
-              const style = para.style || '';
-              
-              // Skip empty paragraphs
-              if (paraText.length === 0) continue;
-              
-              // Final cleanup - ONLY catch clear bibliography entries (be more conservative)
-              const isRemainingBibEntry = (
-                paraText.length > 100 &&  // Increased minimum length to avoid short in-text citations
-                !style.includes('Heading') && 
-                !style.includes('Title') &&
-                (
-                  // More specific patterns for bibliography entries (must end with period for full citations)
-                  paraText.match(/^[A-Z][a-z]+,\s*[A-Z]\.[^.]*\([0-9]{4}\).*\.$/) ||  // Full author citation ending with period
-                  paraText.match(/^[A-Z][a-z]+\s*et\s*al\.[^.]*\([0-9]{4}\).*\.$/) ||   // Et al citation ending with period
-                  (paraText.includes('https://') && paraText.length > 150) ||           // Long lines with URLs
-                  (paraText.includes('doi.org') && paraText.length > 100) ||           // DOI links
-                  paraText.includes('Retrieved from http') ||                          // Retrieved from URLs
-                  paraText.includes('Available at http')                               // Available at URLs
-                ) &&
-                // Make sure it's not user content or short in-text citations
-                !paraText.toLowerCase().includes('we ') &&
-                !paraText.toLowerCase().includes('our ') &&
-                !paraText.toLowerCase().includes('this paper') &&
-                !paraText.toLowerCase().includes('abstract') &&
-                !paraText.toLowerCase().includes('introduction') &&
-                !paraText.toLowerCase().includes('conclusion') &&
-                !paraText.toLowerCase().includes('methodology') &&
-                !paraText.toLowerCase().includes('results') &&
-                !paraText.toLowerCase().includes('discussion') &&
-                !paraText.toLowerCase().includes('analysis') &&
-                !paraText.toLowerCase().includes('findings') &&
-                // Don't delete short in-text citations
-                !paraText.match(/^\s*\([A-Z][a-z]+,?\s*[0-9]{4}\)\s*$/) &&           // (Author, 2024)
-                !paraText.match(/^\s*\[[0-9]+\]\s*$/)                                // [1]
-              );
-              
-              if (isRemainingBibEntry) {
-                console.log(`🎯 FINAL CLEANUP: Deleting remaining bibliography: "${paraText.substring(0, 50)}..."`);
-                para.delete();
-                finalDeleted++;
-              }
-              
-              // Stop if we find actual user content (not bibliography)
-              const isUserContent = (
-                paraText.toLowerCase().includes('we ') ||
-                paraText.toLowerCase().includes('our ') ||
-                paraText.toLowerCase().includes('this paper') ||
-                paraText.toLowerCase().includes('abstract') ||
-                paraText.toLowerCase().includes('introduction')
-              );
-              
-              if (isUserContent && paraText.length > 50) {
-                console.log('✅ Found user content, stopping cleanup scan');
-                break;
-              }
-            } catch (paraError) {
-              console.log(`⚠️ Could not process paragraph ${i}:`, paraError);
-            }
+        // Delete all identified bibliography entries
+        console.log(`🗑️ Deleting ${paragraphsToDelete.length} bibliography entries...`);
+        for (const para of paragraphsToDelete) {
+          try {
+            para.delete();
+            deletedCount++;
+          } catch (deleteError) {
+            console.log('⚠️ Error deleting paragraph:', deleteError);
           }
-          
-          await context.sync();
-          console.log(`✅ Final cleanup completed. Additional entries deleted: ${finalDeleted}`);
-          totalDeleted += finalDeleted;
-        } catch (scanError) {
-          console.log('⚠️ Final cleanup failed:', scanError);
         }
         
-        console.log(`✅ AGGRESSIVE bibliography clearing completed - ${totalDeleted} total entries removed`);
+        console.log(`✅ COMPREHENSIVE bibliography clearing completed - ${deletedCount} entries removed`);
       });
       
-      console.log('✅ Bibliography aggressively cleared while preserving user content');
+      console.log('✅ Bibliography completely cleared');
       
     } catch (error) {
       console.error('❌ Failed to clear bibliography:', error);
@@ -1595,14 +1483,19 @@ const Home = ({ handleLogout, status, setStatus }) => {
       setStatus(`🧹 Clearing old bibliography (${previousStyle.toUpperCase()} style)...`);
       
       try {
-        // Step 1: Clear existing bibliography
+        // Step 1: Enhanced clearing of existing bibliography 
+        console.log('🧹 Starting comprehensive bibliography clearing for style change...');
+        await clearExistingBibliography();
+        
+        // Double-check clearing
+        await new Promise(resolve => setTimeout(resolve, 500));
         await clearExistingBibliography();
         
         // Clear the bibliography state as well
         setBibliography("");
         
-        // Wait a moment for clearing to complete
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Wait longer for clearing to complete
+        await new Promise(resolve => setTimeout(resolve, 800));
         
         // Step 2: Auto-generate new bibliography with the new style
         setStatus(`🔄 Generating new bibliography with ${newStyle.toUpperCase()} style...`);
@@ -2143,13 +2036,22 @@ const Home = ({ handleLogout, status, setStatus }) => {
 
     try {
       // IMPORTANT: Clear existing bibliography first (ONLY bibliography, not in-text citations)
-      setStatus(`🧹 Clearing existing bibliography entries only...`);
+      setStatus(`🧹 Clearing all existing bibliography entries...`);
+      console.log('🧹 Starting comprehensive bibliography clearing...');
+      
       await clearExistingBibliography();
       
-      // Wait a moment for clearing to complete
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Wait longer for clearing to complete thoroughly
+      await new Promise(resolve => setTimeout(resolve, 800));
       
-      setStatus(`📋 Generating bibliography with ${used.length} citations...`);
+      // Double-check: Clear again to ensure no duplicates remain
+      console.log('🧹 Double-checking: Running second clearing pass...');
+      await clearExistingBibliography();
+      
+      // Wait again after second clear
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      setStatus(`📋 Generating fresh bibliography with ${used.length} citations...`);
       console.log('📋 DEBUG: Starting bibliography formatting for', used.length, 'citations');
       const bibRaw = await formatBibliographyCiteproc(used, citationStyle);
       console.log('📋 DEBUG: Bibliography raw result length:', bibRaw ? bibRaw.length : 0);
